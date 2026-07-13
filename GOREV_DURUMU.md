@@ -5,7 +5,7 @@
 | Son güncelleme | 13 Temmuz 2026 |
 | Aktif dalga | Dalga 0 — Ürün ve sözleşmeler |
 | Aktif görev | Yok |
-| Sıradaki görev | P-002 — Aktörleri ve ana kullanım senaryolarını listele; P-004 paralel başlatılabilir |
+| Sıradaki görev | P-003 — Ayrıntılı yetki matrisini oluştur; P-004 paralel başlatılabilir |
 
 Bu dosya projenin kaldığı yeri gösteren kısa operasyon panosudur. Her çalışma oturumunun
 başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev tanımları
@@ -15,8 +15,8 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 
 | Kimlik | Görev | Boyut | Not |
 |---|---|---:|---|
-| P-002 | Aktörleri ve ana kullanım senaryolarını listele | S | P-001 tamamlandı; başlamaya hazır |
-| P-004 | Kişisel ve hassas veri envanterini çıkar | S | P-001 tamamlandı; P-002 ile paralel başlayabilir |
+| P-003 | Ayrıntılı yetki matrisini oluştur | M | P-001 ve P-002 tamamlandı; başlamaya hazır |
+| P-004 | Kişisel ve hassas veri envanterini çıkar | S | P-001 tamamlandı; P-003 ile paralel başlayabilir |
 
 ## IN_PROGRESS
 
@@ -38,6 +38,7 @@ Engellenmiş görev yok.
 | PLAN-002 | Agent odaklı görev planını oluştur | 13 Temmuz 2026 | `AGENT_GOREV_PLANI.md` |
 | PLAN-003 | Repo agent kurallarını oluştur | 13 Temmuz 2026 | `AGENTS.md` |
 | P-001 | Terimler sözlüğünü oluştur | 13 Temmuz 2026 | `TERIMLER_SOZLUGU.md` — PR #1 |
+| P-002 | Aktörleri ve ana kullanım senaryolarını listele | 13 Temmuz 2026 | `AKTORLER_VE_KULLANIM_SENARYOLARI.md` — PR #2 |
 
 ## Sonraki görev nasıl READY yapılır?
 
