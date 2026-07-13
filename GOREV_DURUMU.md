@@ -2,10 +2,10 @@
 
 | Alan | Değer |
 |---|---|
-| Son güncelleme | 13 Temmuz 2026 |
+| Son güncelleme | 14 Temmuz 2026 |
 | Aktif dalga | Dalga 0 — Ürün ve sözleşmeler |
 | Aktif görev | Yok |
-| Sıradaki görev | P-005 incelemesini tamamla; P-008 paralel başlatılabilir |
+| Sıradaki görev | P-007 ve P-008 paralel başlatılabilir |
 
 Bu dosya projenin kaldığı yeri gösteren kısa operasyon panosudur. Her çalışma oturumunun
 başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev tanımları
@@ -15,6 +15,7 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 
 | Kimlik | Görev | Boyut | Not |
 |---|---|---:|---|
+| P-007 | İlk sürüm ekran envanterini çıkar | S | P-005 ve P-006 tamamlandı; başlamaya hazır |
 | P-008 | Çekirdek veri modeli taslağını yaz | M | P-001, P-003 ve P-004 tamamlandı; başlamaya hazır |
 
 ## IN_PROGRESS
@@ -23,9 +24,7 @@ Aktif görev yok.
 
 ## REVIEW
 
-| Kimlik | Görev | Teslim | Not |
-|---|---|---|---|
-| P-005 | Yönetici mobil bilgi mimarisini çiz | PR #6 | Düzeltmeler sonrası merkez incelemesi bekleniyor |
+İncelemede görev yok.
 
 ## BLOCKED
 
@@ -42,6 +41,7 @@ Engellenmiş görev yok.
 | P-002 | Aktörleri ve ana kullanım senaryolarını listele | 13 Temmuz 2026 | `AKTORLER_VE_KULLANIM_SENARYOLARI.md` — PR #2 |
 | P-003 | Ayrıntılı yetki matrisini oluştur | 13 Temmuz 2026 | `YETKI_MATRISI.md` — PR #4 |
 | P-004 | Kişisel ve hassas veri envanterini çıkar | 13 Temmuz 2026 | `KISISEL_VERI_ENVANTERI.md` — PR #3 |
+| P-005 | Yönetici mobil bilgi mimarisini çiz | 14 Temmuz 2026 | `YONETICI_BILGI_MIMARISI.md` — PR #6 |
 | P-006 | Hoca mobil bilgi mimarisini çiz | 13 Temmuz 2026 | `HOCA_MOBIL_BILGI_MIMARISI.md` — PR #5 |
 
 ## Sonraki görev nasıl READY yapılır?
