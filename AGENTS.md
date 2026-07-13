@@ -15,6 +15,8 @@ alanıdır. Eski HTML, Apps Script ve Excel dosyaları yalnızca referanstır; y
 ## Çalışma biçimi
 
 - Yalnızca açıkça atanmış tek görev kimliği üzerinde çalış.
+- `GOREV_DURUMU.md` dosyasını çalışan agent değiştirmez; görev panosunu merge sonrasında
+  yalnızca koordinatör günceller.
 - Görev kapsamı dışındaki özellikleri ekleme veya yeniden tasarlama.
 - Bir görev bir iş gününden büyükse uygulamaya başlamadan önce daha küçük görevlere böl.
 - Başka agentın sahip olduğu dosyayı veya modülü eşzamanlı değiştirme.

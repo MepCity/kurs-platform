@@ -61,6 +61,10 @@ Güncel durumlar ve projenin kaldığı yer `GOREV_DURUMU.md` dosyasında tutulu
 sayesinde bu belge sabit yol haritası olarak kalırken görev panosu her çalışma gününde kısa
 ve güvenli biçimde güncellenebilir.
 
+Paralel branch çakışmalarını önlemek için çalışan agentlar görev panosunu değiştirmez.
+`GOREV_DURUMU.md`, PR merge edildikten ve kabul ölçütleri koordinatör tarafından
+doğrulandıktan sonra ayrı bir koordinasyon değişikliğiyle güncellenir.
+
 ---
 
 ## 4. Standart görev kartı
