@@ -1208,6 +1208,20 @@ Bu belgeler tamamlanmadan ilgili alanda büyük ölçekli geliştirmeye başlanm
 - Bildirim mimaride yer alacak ancak ilk sürüm için zorunlu olmayacak.
 - Web yönetim paneli sonraki faza bırakılacak.
 
+### 13 Temmuz 2026 — P-003 yetki matrisi kararları
+
+- `YETKI_MATRISI.md` (P-003) kapsamında ana planda açık dayanağı olmayan dokuz devredilebilirlik
+  sorusu kullanıcı tarafından onaylanmıştır.
+- Kurum marka ayarı, etkin modül yönetimi, hoca–sınıf ataması, başka kullanıcının cihaz
+  oturumunu iptal etme ve kuruma özel yoklama durumu tanımlama gibi operasyonel kurum/personel
+  ayarları, kurum yöneticisi tarafından hocaya ayrı ve geri alınabilir izinlerle devredilebilir.
+- Hoca hesabı oluşturma/kapatma ayrı bir personel yönetimi izniyle hocaya devredilebilir; bu izin
+  başka kullanıcılara izin verme yetkisi sağlamaz.
+- Hoca izinlerini değiştirme/verme/geri alma yetkisi ilk sürümde yalnızca kurum yöneticisindedir;
+  bu yetki hiçbir izinle hocaya devredilemez.
+- Veli iletişim bilgisi görüntüleme, hoca için varsayılan kapalı ve ayrı izinle açılabilir bir
+  yetkidir; öğrenci görüntüleme izninden bağımsızdır.
+
 ---
 
 ## 27. Bir sonraki adım
