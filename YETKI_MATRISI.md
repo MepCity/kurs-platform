@@ -7,7 +7,7 @@
 | Ana sözleşme | `URUN_VE_UYGULAMA_PLANI.md` |
 | Terim kaynağı | `TERIMLER_SOZLUGU.md` |
 | Aktör/senaryo kaynağı | `AKTORLER_VE_KULLANIM_SENARYOLARI.md` |
-| Son güncelleme | 13 Temmuz 2026 |
+| Son güncelleme | 14 Temmuz 2026 (KURUM-12 "bütün cihaz oturumları" ifadesine `P-008`/`VERI_MODELI.md` netleştirmesi eklendi) |
 
 ---
 
@@ -172,6 +172,19 @@ kararlarına göre işaretlenmiştir; hiçbiri artık varsayım veya bekleyen ka
 | Hoca izinlerini değiştirme (verme/geri alma) | Evet (destek amaçlı erişimde) | Evet | Hayır | **Mutlak sınır** — V1'de hocaya hiçbir izinle devredilemez; yalnızca kurum yöneticisi kendi kurumu içinde hoca izinlerini yönetebilir (13 Temmuz 2026 onaylı karar 6, §2.2 madde 6) | §5.2, §5.3, §5.5, KURUM-05 |
 | Kullanıcının bütün cihaz oturumlarını iptal etme | Evet (destek amaçlı erişimde) | Evet (kendi kurumu) | Hayır | Varsayılan kapalı — ayrı ve geri alınabilir izinle açılabilir (13 Temmuz 2026 onaylı karar 7); yalnızca aynı kurumun kullanıcılarında kullanılabilir. İşlem denetim kaydı üretmelidir (bkz. bölüm 4.5) | §8.1, §8.3, KURUM-12 |
 | Kendi oturumundan çıkış yapma / kendi cihazını yönetme | Evet | Evet | Evet | Kapsam dışı — her aktörün kendi hesabı için varsayılan hakkıdır, devredilebilirlik sorusu bu işlem için geçerli değildir | §8.1, ORTAK-01 |
+
+> **`P-008` netleştirmesi (14 Temmuz 2026) — "bütün cihaz oturumları" ifadesinin kapsamı:**
+> `VERI_MODELI.md` (P-008), aynı kullanıcının farklı kurumlarda ayrı üyeliklere sahip
+> olabileceği bir global kimlik modeli tanımlamıştır (bkz. `TERIMLER_SOZLUGU.md` "Kullanıcı").
+> Bu modelle tutarlı olması için yukarıdaki "kullanıcının bütün cihaz oturumlarını iptal etme"
+> satırındaki "bütün" ifadesi, kurum yöneticisi tarafından kullanılırsa **yalnızca o kullanıcının
+> iptal işlemini yapan kurumun bağlamında açılmış oturumlarını** kapsar; kullanıcının **başka
+> bir kurumdaki** üyelik bağlamında açtığı oturumlar etkilenmez (§2.2 madde 2 "kurum kapsamlı
+> roller kurum dışına çıkamaz" mutlak sınırının doğal sonucu). Bir kullanıcının **gerçekten
+> bütün** kurum bağlamlarındaki oturumlarının aynı anda kapatılması yalnızca kullanıcının
+> kendisi (kendi cihazını tamamen kaldırması) veya platform yöneticisinin global, delegasyona
+> açık olmayan yeteneğiyle mümkündür. Bu, yeni bir yetki kararı değildir; mevcut kurum
+> izolasyonu mutlak sınırının teknik bir netleştirmesidir (bkz. `VERI_MODELI.md` §4.11).
 
 ### 3.4. Öğrenci ve veli (anne/baba) yönetimi
 

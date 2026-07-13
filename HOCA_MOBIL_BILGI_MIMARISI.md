@@ -3,7 +3,7 @@
 | Alan | Değer |
 |---|---|
 | Görev | P-006 — Hoca mobil bilgi mimarisini çiz |
-| Belge sürümü | 1.1 |
+| Belge sürümü | 1.2 |
 | Ana sözleşme | `URUN_VE_UYGULAMA_PLANI.md` |
 | Terim kaynağı | `TERIMLER_SOZLUGU.md` |
 | Aktör/senaryo kaynağı | `AKTORLER_VE_KULLANIM_SENARYOLARI.md` |
@@ -34,6 +34,13 @@ Bu belge:
 - Bir kullanıcının aynı anda hem hoca hem yönetici rolüne sahip olabileceği durumdaki birleşik
   gezinme deneyimini tanımlamaz; bu belge yalnızca hoca rolünün kendi bağlamındaki bilgi
   mimarisini ele alır.
+
+**1.2 revizyon notu:** `P-008 — Çekirdek veri modeli taslağı` (`VERI_MODELI.md`) tamamlanmış ve
+bu belgenin bölüm 14'üne bırakılan açık soruyu kesinleştirmiştir: **arşivlenmiş öğrenci/sınıf
+kaydını geri yükleme izni, varlık başına ayrı değil, tek ve ortak bir `RESTORE_ARCHIVED` izin
+kodudur** (bkz. `VERI_MODELI.md` §4.6). Bu sürüm, bölüm 4, 5 ve 14'teki ilgili "açık soru"
+işaretlerini bu bağlayıcı kararla uyumlu biçimde günceller; ekran hiyerarşisi veya izin
+bağımsızlığı ilkelerinde başka bir değişiklik yapılmamıştır.
 
 ---
 
@@ -131,8 +138,8 @@ Hoca uygulama kabuğu
 │           │   ├── Öğrenci oluştur                         bağımsız izinle açılır (öğrenci yönetimi)
 │           │   ├── Öğrenci düzenle                         bağımsız izinle açılır (öğrenci yönetimi — Öğrenci oluştur ile aynı izin)
 │           │   ├── Öğrenci arşivle                         bağımsız izinle açılır (öğrenci yönetimi — Öğrenci oluştur ile aynı izin)
-│           │   ├── Arşivlenmiş öğrenciler (liste)          bağımsız izinle açılır (arşivlenmiş kayıt geri yükleme izni)
-│           │   ├── Öğrenciyi geri yükle                    bağımsız izinle açılır (arşivlenmiş kayıt geri yükleme izni — liste ile aynı izin)
+│           │   ├── Arşivlenmiş öğrenciler (liste)          bağımsız izinle açılır (`RESTORE_ARCHIVED` izni — bkz. bölüm 14)
+│           │   ├── Öğrenciyi geri yükle                    bağımsız izinle açılır (`RESTORE_ARCHIVED` izni — liste ile aynı izin)
 │           │   ├── Anne/baba bilgisi oluştur/düzenle       bağımsız izinle açılır (anne/baba bilgisi yönetme)
 │           │   └── Veli iletişim bilgisi görüntüleme       bağımsız izinle açılır (öğrenci yönetiminden bağımsız ayrı izin, karar 9)
 │           │
@@ -150,8 +157,8 @@ Hoca uygulama kabuğu
 │   │   ├── Sınıf oluştur                                   bağımsız izinle açılır (sınıf yönetimi izni)
 │   │   ├── Sınıf düzenle                                   bağımsız izinle açılır (sınıf yönetimi izni — oluştur ile aynı izin)
 │   │   ├── Sınıf arşivle                                   bağımsız izinle açılır (sınıf yönetimi izni — oluştur ile aynı izin)
-│   │   ├── Arşivlenmiş sınıflar (liste)                    bağımsız izinle açılır (arşivlenmiş kayıt geri yükleme izni)
-│   │   └── Sınıfı geri yükle                               bağımsız izinle açılır (arşivlenmiş kayıt geri yükleme izni — liste ile aynı izin)
+│   │   ├── Arşivlenmiş sınıflar (liste)                    bağımsız izinle açılır (`RESTORE_ARCHIVED` izni — bkz. bölüm 14)
+│   │   └── Sınıfı geri yükle                               bağımsız izinle açılır (`RESTORE_ARCHIVED` izni — liste ile aynı izin)
 │   │
 │   ├── Dönem/takvim
 │   │   └── Eğitim dönemi ve çalışma günü/tatil tanımlama    bağımsız izinle açılır (dönem/takvim izni)
@@ -195,7 +202,7 @@ değiştirme veya kendisini yeni bir sınıfa atama** hiçbir ekranda sunulmaz (
 | Bugünkü Yoklama → geçmiş tarih düzeltme | Kapalı | Geçmiş tarihli yoklama düzeltme izni | `YETKI_MATRISI.md` §3.5 | HOCA-05 |
 | Öğrenciler → liste/detay temel bilgi | Açık (yalnızca atanmış sınıf) | — | `YETKI_MATRISI.md` §3.4 | HOCA-07 |
 | Öğrenciler → oluştur/düzenle/arşivle (3 düğüm) | Kapalı | Öğrenci yönetimi izni (üçü de aynı izin) | `YETKI_MATRISI.md` §3.4 | KURUM-06 (devredilmişse) |
-| Öğrenciler → arşivlenmiş liste / geri yükle (2 düğüm) | Kapalı | Arşivlenmiş kayıt geri yükleme izni (ikisi de aynı izin; bkz. bölüm 14 açık soru) | `YETKI_MATRISI.md` §3.4 | KURUM-11 (devredilmişse) |
+| Öğrenciler → arşivlenmiş liste / geri yükle (2 düğüm) | Kapalı | `RESTORE_ARCHIVED` izni — öğrenci/sınıf için ortak tek izin, `P-008`'de kesinleşti (bkz. bölüm 14) | `YETKI_MATRISI.md` §3.4 | KURUM-11 (devredilmişse) |
 | Öğrenciler → anne/baba bilgisi oluştur/düzenle | Kapalı | Anne/baba bilgisi yönetme izni | `YETKI_MATRISI.md` §3.4 | KURUM-06 (devredilmişse) |
 | Öğrenciler → veli iletişim bilgisi görüntüleme | Kapalı | Veli iletişim bilgisi görüntüleme izni (öğrenci yönetiminden bağımsız, karar 9) | `YETKI_MATRISI.md` §3.4, §6.2 karar 9 | HOCA-07 |
 | Program ve Ezberler → görüntüleme | Açık (yalnızca atanmış sınıf) | — | `YETKI_MATRISI.md` §3.6 | HOCA-06 |
@@ -205,7 +212,7 @@ değiştirme veya kendisini yeni bir sınıfa atama** hiçbir ekranda sunulmaz (
 | İlerleme → diğer hoca notu | Açık (yalnızca atanmış sınıf) | — | `YETKI_MATRISI.md` §3.6 | HOCA-08 |
 | Yönetim (üst düğüm) | Kapalı | Aşağıdaki dört alt bölümden en az bir bağımsız izin açıksa görünür | `YETKI_MATRISI.md` §4.3 | HOCA-09 |
 | — Sınıf yönetimi → oluştur/düzenle/arşivle (3 düğüm) | Kapalı | Sınıf yönetimi izni (üçü de aynı izin) | `YETKI_MATRISI.md` §3.2 | KURUM-03 (devredilmişse) |
-| — Sınıf yönetimi → arşivlenmiş liste / geri yükle (2 düğüm) | Kapalı | Arşivlenmiş kayıt geri yükleme izni (ikisi de aynı izin; bkz. bölüm 14 açık soru) | `YETKI_MATRISI.md` §3.4 | KURUM-11 (devredilmişse) |
+| — Sınıf yönetimi → arşivlenmiş liste / geri yükle (2 düğüm) | Kapalı | `RESTORE_ARCHIVED` izni — öğrenci/sınıf için ortak tek izin, `P-008`'de kesinleşti (bkz. bölüm 14) | `YETKI_MATRISI.md` §3.4 | KURUM-11 (devredilmişse) |
 | — Dönem/takvim tanımlama | Kapalı | Dönem/takvim izni | `YETKI_MATRISI.md` §3.1 | KURUM-02 (devredilmişse) |
 | — Kurum ayarları → marka | Kapalı | Marka ayarı izni | `YETKI_MATRISI.md` §3.1, §6.2 karar 1 | KURUM-01 (devredilmişse) |
 | — Kurum ayarları → etkin modül | Kapalı | Modül yönetimi izni | `YETKI_MATRISI.md` §3.1, §6.2 karar 2 | — |
@@ -402,12 +409,14 @@ gruplamaları **işlevsel bilgi mimarisi bölümleridir**; bunlar:
   işlemleri) ve Sınıf İşlemleri/Rapor ve Denetim/Profil grupları bu belgeye özel çalışma
   adlarıdır; kesin arayüz metni, simgeler ve gruplama `P-007` ve `UI-002` görevlerinde
   belirlenecektir.
-- **Açık soru — arşivleme/geri yükleme izninin öğrenci ve sınıf için ayrı mı tutulacağı:**
-  `YETKI_MATRISI.md` §3.4 tek bir "Arşivlenmiş öğrenci/sınıf kaydını geri yükleme" iznini hem
-  öğrenci hem sınıf geri yükleme için ortak tanımlar. Bu belge, öğrenci ve sınıf geri
-  yükleme ekranlarını (kullanıcı deneyimi netliği için) ayrı düğümler olarak gösterir, ancak
-  bunların tek bir ortak izne mi yoksa varlık başına ayrı iki izne mi bağlı olacağı bağlayıcı
-  olarak kesinleştirilmemiştir; bu, `P-008`/`P-009`'a bırakılan açık bir sorudur.
+- **Karar — arşivleme/geri yükleme izninin öğrenci ve sınıf için ortak olması (kapatılan açık
+  soru):** `YETKI_MATRISI.md` §3.4 tek bir "Arşivlenmiş öğrenci/sınıf kaydını geri yükleme"
+  iznini hem öğrenci hem sınıf geri yükleme için ortak tanımlar. Bu belgede öğrenci ve sınıf
+  geri yükleme ekranları (kullanıcı deneyimi netliği için) ayrı düğümler olarak gösterilir;
+  bunların tek bir ortak izne mi yoksa varlık başına ayrı iki izne mi bağlı olacağı önceki
+  sürümde `P-008`/`P-009`'a bırakılan açık bir soruydu. `VERI_MODELI.md` (P-008) bu soruyu artık
+  bağlayıcı biçimde kapatmıştır: `RESTORE_ARCHIVED` öğrenci ve sınıf için **tek, ortak** bir
+  izin kodudur; varlık başına ayrı izin yoktur (bkz. `VERI_MODELI.md` §4.6).
 - Hangi izinlerin kurum kapsamlı, hangilerinin sınıf kapsamlı saklanacağı (bölüm 9) `P-008`
   çekirdek veri modeli görevinde kesinleşecek bir şema kararıdır; bu belge yalnızca operasyonel
   veri erişiminin her durumda sınıf ataması gerektirdiği değişmez kuralına dayanır.
