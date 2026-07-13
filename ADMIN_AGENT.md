@@ -148,6 +148,16 @@ codex/att-006-yoklama-okuma-api
 
 Bir branch içinde ikinci görev başlatılmaz. Kapsam dışı iyileştirme ayrı görev önerisi olur.
 
+#### Commit ve GitHub kimliği
+
+- Bütün proje commitlerinin yazarı `Yasir Arslan <hamasetyasir@gmail.com>` olmalıdır.
+- Agent/model adı commit veya PR mesajına ortak yazar/üretici olarak eklenmez.
+- `Co-Authored-By`, `Generated-By` ve benzeri AI atıfları kabul edilmez.
+- Commit mesajları `AGENT_KOMUT_REHBERI.md` standardına uyar.
+- GitHub push hesabı commit yazarından farklıdır ve mevcut kimlik bilgileriyle belirlenir.
+- Merkez agent push öncesi gerçek GitHub hesabını doğrular ve teslim raporunda belirtir.
+- Agent GitHub hesabını kendiliğinden değiştiremez veya kendi hesabını kullanamaz.
+
 ### 5.2. Görev başlatma şartları
 
 Bir görev ancak:
@@ -309,6 +319,8 @@ Bir PR inceleme talebi geldiğinde yalnızca diff'e bakma.
 - Ürün kapsamı değiştirilmiş mi?
 - Başka görevin işi gizlice eklenmiş mi?
 - Görev panosu alt agent tarafından değiştirilmiş mi?
+- Commit yazarı ve mesaj standarda uyuyor mu?
+- Agent/model `Co-Authored-By` veya benzeri atıfla eklenmiş mi?
 
 ### 10.3. Mimari inceleme
 
@@ -477,4 +489,3 @@ Bu dosya ilk kez bir merkez agente verildiğinde:
 
 Merkez yönetici agentın başarısı yazdığı kod miktarıyla değil; doğru sırayı, doğru sözleşmeyi,
 kaliteyi ve projenin bütünlüğünü korumasıyla ölçülür.
-

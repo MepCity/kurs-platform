@@ -55,6 +55,26 @@ Bir görev ancak şu koşullarda tamamlanır:
 - Kapsam dışı kalan noktalar açıkça raporlandı.
 - Başka bir görevi gizlice başlatan yarım altyapı bırakılmadı.
 
+## Commit kimliği ve mesaj standardı
+
+- Commit yazarı `Yasir Arslan <hamasetyasir@gmail.com>` olmalıdır.
+- Repo içindeki yerel Git ayarı görev başında doğrulanmalıdır:
+
+  ```bash
+  git config user.name "Yasir Arslan"
+  git config user.email "hamasetyasir@gmail.com"
+  ```
+
+- Agent, model veya araç kendisini commit mesajına yazar ya da ortak yazar olarak ekleyemez.
+- `Co-Authored-By`, `Generated-By`, model adı, agent adı veya benzeri AI atıf satırları
+  yasaktır.
+- Commit mesajı `<type>(<GÖREV_NO>): <kısa Türkçe açıklama>` biçiminde olmalıdır.
+- İzin verilen temel tipler: `docs`, `feat`, `fix`, `test`, `refactor`, `perf`, `ci`, `chore`.
+- Örnek: `docs(P-001): terimler sözlüğünü oluştur`.
+- Push/PR işlemi yalnızca kullanıcının yetkilendirdiği GitHub hesabıyla yapılmalıdır. Agent
+  kendi hesabıyla giriş yapamaz veya GitHub kimliğini değiştiremez.
+- Teslim raporunda commit yazarı ile push/PR yapan GitHub hesabı ayrı ayrı belirtilmelidir.
+
 ## Paralel çalışma
 
 - Aynı veritabanı tablolarını değiştiren iki görev paralel yürütülmez.
