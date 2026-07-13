@@ -5,7 +5,7 @@
 | Son güncelleme | 13 Temmuz 2026 |
 | Aktif dalga | Dalga 0 — Ürün ve sözleşmeler |
 | Aktif görev | Yok |
-| Sıradaki görev | P-001 — Terimler sözlüğünü oluştur |
+| Sıradaki görev | P-002 — Aktörleri ve ana kullanım senaryolarını listele; P-004 paralel başlatılabilir |
 
 Bu dosya projenin kaldığı yeri gösteren kısa operasyon panosudur. Her çalışma oturumunun
 başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev tanımları
@@ -15,7 +15,8 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 
 | Kimlik | Görev | Boyut | Not |
 |---|---|---:|---|
-| P-001 | Terimler sözlüğünü oluştur | S | Başlamak için bütün bağımlılıklar hazır |
+| P-002 | Aktörleri ve ana kullanım senaryolarını listele | S | P-001 tamamlandı; başlamaya hazır |
+| P-004 | Kişisel ve hassas veri envanterini çıkar | S | P-001 tamamlandı; P-002 ile paralel başlayabilir |
 
 ## IN_PROGRESS
 
@@ -36,6 +37,7 @@ Engellenmiş görev yok.
 | PLAN-001 | Ana ürün ve mimari planını oluştur | 13 Temmuz 2026 | `URUN_VE_UYGULAMA_PLANI.md` |
 | PLAN-002 | Agent odaklı görev planını oluştur | 13 Temmuz 2026 | `AGENT_GOREV_PLANI.md` |
 | PLAN-003 | Repo agent kurallarını oluştur | 13 Temmuz 2026 | `AGENTS.md` |
+| P-001 | Terimler sözlüğünü oluştur | 13 Temmuz 2026 | `TERIMLER_SOZLUGU.md` — PR #1 |
 
 ## Sonraki görev nasıl READY yapılır?
 
@@ -53,4 +55,3 @@ Engellenmiş görev yok.
 - Yeni karar varsa ana planın karar günlüğüne eklendi mi?
 - Bağımlılığı çözülen sıradaki görev READY yapıldı mı?
 - Yarım veya sahipsiz değişiklik kaldı mı?
-
