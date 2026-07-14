@@ -38,7 +38,7 @@ Bu belge:
 **1.2 revizyon notu:** `P-008 — Çekirdek veri modeli taslağı` (`VERI_MODELI.md`) tamamlanmış ve
 bu belgenin bölüm 14'üne bırakılan açık soruyu kesinleştirmiştir: **arşivlenmiş öğrenci/sınıf
 kaydını geri yükleme izni, varlık başına ayrı değil, tek ve ortak bir `RESTORE_ARCHIVED` izin
-kodudur** (bkz. `VERI_MODELI.md` §4.6). Bu sürüm, bölüm 4, 5 ve 14'teki ilgili "açık soru"
+kodudur** (bkz. `VERI_MODELI.md` §4.8). Bu sürüm, bölüm 4, 5 ve 14'teki ilgili "açık soru"
 işaretlerini bu bağlayıcı kararla uyumlu biçimde günceller; ekran hiyerarşisi veya izin
 bağımsızlığı ilkelerinde başka bir değişiklik yapılmamıştır.
 
@@ -284,8 +284,9 @@ tabidir:
 - **Rapor ve Denetim altındaki üç izin tamamen bağımsızdır:** Rapor dışa aktarma, işlem
   geçmişi görüntüleme ve geri alma ayrı ayrı verilir. Özellikle **geri alma** için: işlem
   geçmişi görüntüleme izni otomatik olarak geri alma izni sağlamaz; geri alma hem hedef işlemin
-  kapsamına erişimi hem de ayrı bir geri alma iznini gerektirir. Kesin geri alma davranışı ve
-  desteklenen işlem türleri `P-011`'de tanımlanacaktır (`YETKI_MATRISI.md` §3.7, §4.2).
+  kapsamına erişimi hem de ayrı bir geri alma iznini gerektirir. Geri alma davranışı ve
+  desteklenen işlem türleri `DENETIM_VE_GERI_ALMA_ILKELERI.md` §4–§7'de tanımlıdır
+  (`YETKI_MATRISI.md` §3.7, §4.2).
 
 ---
 
@@ -302,10 +303,10 @@ Bölüm 3'teki "Sınıf İşlemleri" / "Yönetim" ayrımının hangi düğümde 
   sahip olduğu sürece görünür.
 - **Profil/oturum işlemleri** kullanıcı bağlamındadır; ne sınıf ne kurum kapsamlı yönetim
   iznine bağlıdır.
-- **Rapor ve denetim ekranının kesin veri kapsamı** (örn. rapor kurumun tüm sınıflarını mı
-  yoksa yalnızca hocanın atanmış sınıflarını mı içerir) bu belgede bağlayıcı olarak
-  belirlenmemiştir; ilgili izin(ler) ile birlikte `P-009` (API/veri sözleşmesi) ve `P-011`
-  (denetim ve geri alma ilkeleri) görevlerinde kesinleşecektir.
+- **Rapor ve denetim kapsamı** bağlayıcıdır: `REPORT_EXPORT` izni verilen hoca yalnız etkin
+  sınıf atamalarının operasyonel verisini dışa aktarır (`EXCEL_RAPOR_VERI_SOZLESMESI.md` §3);
+  `AUDIT_LOG_VIEW` izni ise yalnız güncel ataması bulunan sınıf kapsamlı operasyonel olayları
+  gösterir (`DENETIM_VE_GERI_ALMA_ILKELERI.md` §3.3). Bu iki izin birbirini içermez.
 
 ---
 
@@ -314,14 +315,11 @@ Bölüm 3'teki "Sınıf İşlemleri" / "Yönetim" ayrımının hangi düğümde 
 - Bir hoca birden fazla sınıfa atanabildiğinden (`URUN_VE_UYGULAMA_PLANI.md` §5.3, §6.3),
   Sınıf İşlemleri altındaki bütün düğümlerin operasyonel görünürlüğü seçili sınıf bağlamında
   değerlendirilir.
-- İzin atamasının **kurum kapsamlı mı yoksa sınıf kapsamlı mı** tutulacağı `YETKI_MATRISI.md`'de
-  kavramsal olarak desteklenmektedir (bkz. `YETKI_MATRISI.md` §2.2 madde 10, madde 12); ancak
-  hangi izinlerin kurum düzeyinde, hangilerinin sınıf düzeyinde saklanacağı bu belgenin
-  kapsamında **kesinleştirilmez** — bağlayıcı şema kararı `P-008`'e bırakılmıştır. Bu belge
-  yalnızca şu değişmez kuralları esas alır: operasyonel veriye erişim için her durumda ilgili
-  sınıf ataması gereklidir; kurum kapsamlı yönetim izni operasyonel veri sınırını kaldırmaz.
-- Hoca tek bir sınıfa atanmışsa sınıf seçici adımının atlanması bir kullanılabilirlik
-  varsayımıdır (kesinleşmesi `P-007` kapsamındadır); bu durumda dahi:
+- İzin atamaları doğrudan kurum üyeliğinin `TEACHER` rolüne bağlıdır (`VERI_MODELI.md` §4.9);
+  operasyonel veri erişimi ise her durumda ilgili sınıf atamasını ve işlem iznini gerektirir.
+  Kurum kapsamlı yönetim izni operasyonel veri sınırını kaldırmaz (`VERI_MODELI.md` §16).
+- Hoca tek bir sınıfa atanmışsa sınıf seçicinin atlanması, `EKRAN_ENVANTERI.md` §7'de tanımlı
+  kullanılabilirlik optimizasyonudur; bu durumda dahi:
   - Aktif sınıf bağlamı arayüzde görünür kalmalıdır (hangi sınıfın seçili olduğu belirsiz
     bırakılmaz).
   - Kullanıcı sınıf değiştirme/sınıf seçici ekranına her zaman ulaşabilmelidir (örn. gelecekte
@@ -341,9 +339,10 @@ Bölüm 3'teki "Sınıf İşlemleri" / "Yönetim" ayrımının hangi düğümde 
   gösterir; Yönetim ve Rapor ve Denetim üst düğümleri hiç görünmez (bölüm 6 kuralı gereği).
   Kullanıcıya, kurum yöneticisiyle iletişime geçmesini öneren açıklayıcı bir boş durum
   gösterilir; bu bir teknik hata olarak sunulmaz, beklenen ve tanımlı bir durumdur.
-- Bu durumların kesin ekran metni, görseli ve etkileşimi `P-007` ekran envanteri kapsamındadır;
-  bu belge yalnızca bilgi mimarisi düzeyinde bu iki durumun var olduğunu ve teknik hatayla
-  karıştırılmaması gerektiğini not eder.
+- `P-007`, bu durumların ekran varlığını ve yükleniyor/boş/hata/yetkisiz durumlarını envantere
+  bağlar. Kesin ekran metni, görseli ve etkileşimi `UI-002` veya uygun sonraki mobil tasarım
+  görevinde belirlenir; bu belge yalnızca bilgi mimarisi düzeyinde bu iki durumun var olduğunu
+  ve teknik hatayla karıştırılmaması gerektiğini not eder.
 
 ---
 
@@ -357,8 +356,8 @@ gruplamaları **işlevsel bilgi mimarisi bölümleridir**; bunlar:
   İlerleme) ana navigasyonda önceliklendirilebilir.
 - Seyrek kullanılan Yönetim, Rapor ve Denetim alanları kontrollü bir "Daha Fazla" veya
   "Yönetim" girişi altında toplanabilir.
-- Kesin navigasyon kabuğu (sekme sayısı, simgeler, gruplama) `P-007` (ekran envanteri) ve
-  `UI-002` (navigasyon ve rol bazlı menü sözleşmesi) görevlerinde belirlenecektir.
+- Ekran envanteri ve önerilen navigasyon gruplaması `EKRAN_ENVANTERI.md` §14'te tanımlıdır;
+  kesin sekme/menü bileşeni `UI-002` sözleşmesinin açık kararıdır.
 
 ---
 
@@ -367,14 +366,14 @@ gruplamaları **işlevsel bilgi mimarisi bölümleridir**; bunlar:
 - Bu belgedeki Yönetim altındaki düğümler (sınıf yönetimi, dönem/takvim, kurum ayarları,
   personel işlemleri) kavramsal olarak kurum yöneticisinin de kullandığı yönetim işlemleridir.
   Bu ekranlar hoca için yeniden tanımlanmak yerine, `P-005 — Yönetici mobil bilgi mimarisi`
-  görevinde tanımlanacak ortak ekranlara bağlanabilir; her iki belge de aynı işlemi iki farklı
-  arayüz olarak icat etmemelidir.
+  görevinde tanımlanan ortak ekranlara bağlanır; her iki belge de aynı işlemi iki farklı
+  arayüz olarak icat etmez.
 - Hoca bu ortak ekranlarda **yalnızca kendisine ayrı ayrı verilmiş bağımsız izinlere karşılık
   gelen eylemleri** görür; kurum yöneticisinin sahip olduğu bütün kontroller hocaya topluca
   açılmaz (bölüm 6, `YETKI_MATRISI.md` §2.2 madde 6/7).
-- Bu belgenin yazıldığı sırada `P-005` PR'ı henüz merge edilmemiştir; yukarıdaki referans
-  **bağlayıcı olmayan bir çapraz not**tur. Kesin ortak ekran/bileşen paylaşımı kararı, her iki
-  belge de tamamlandıktan sonra ilgili mobil uygulama görevlerinde (`UI-*`) verilecektir.
+- Tarihsel not: Bu belgenin önceki sürümünde `P-005` henüz merge edilmemişti. Ortak ekran
+  ilişkisi artık `YONETICI_BILGI_MIMARISI.md` §7 ve `EKRAN_ENVANTERI.md` §15 ile doğrulanmış
+  girdidir; somut mobil bileşen uygulaması ilgili `UI-*` görevlerine aittir.
 
 ---
 
@@ -407,8 +406,8 @@ gruplamaları **işlevsel bilgi mimarisi bölümleridir**; bunlar:
 
 - Yönetim altındaki dört alt bölüm adı (Sınıf yönetimi, Dönem/takvim, Kurum ayarları, Personel
   işlemleri) ve Sınıf İşlemleri/Rapor ve Denetim/Profil grupları bu belgeye özel çalışma
-  adlarıdır; kesin arayüz metni, simgeler ve gruplama `P-007` ve `UI-002` görevlerinde
-  belirlenecektir.
+  adlarıdır; ekran envanteri `EKRAN_ENVANTERI.md` §14'te bunları gruplar, kesin arayüz metni
+  ve bileşen seçimi `UI-002` sözleşmesinde belirlenecektir.
 - **Karar — arşivleme/geri yükleme izninin öğrenci ve sınıf için ortak olması (kapatılan açık
   soru):** `YETKI_MATRISI.md` §3.4 tek bir "Arşivlenmiş öğrenci/sınıf kaydını geri yükleme"
   iznini hem öğrenci hem sınıf geri yükleme için ortak tanımlar. Bu belgede öğrenci ve sınıf
@@ -416,24 +415,21 @@ gruplamaları **işlevsel bilgi mimarisi bölümleridir**; bunlar:
   bunların tek bir ortak izne mi yoksa varlık başına ayrı iki izne mi bağlı olacağı önceki
   sürümde `P-008`/`P-009`'a bırakılan açık bir soruydu. `VERI_MODELI.md` (P-008) bu soruyu artık
   bağlayıcı biçimde kapatmıştır: `RESTORE_ARCHIVED` öğrenci ve sınıf için **tek, ortak** bir
-  izin kodudur; varlık başına ayrı izin yoktur (bkz. `VERI_MODELI.md` §4.6).
-- Hangi izinlerin kurum kapsamlı, hangilerinin sınıf kapsamlı saklanacağı (bölüm 9) `P-008`
-  çekirdek veri modeli görevinde kesinleşecek bir şema kararıdır; bu belge yalnızca operasyonel
-  veri erişiminin her durumda sınıf ataması gerektirdiği değişmez kuralına dayanır.
+  izin kodudur; varlık başına ayrı izin yoktur (bkz. `VERI_MODELI.md` §4.8).
+- İzin saklama modeli `VERI_MODELI.md` §4.8–§4.9'da kesinleşmiştir; operasyonel veri erişimi
+  her durumda sınıf ataması gerektirmeye devam eder.
 - Bu belge, kullanıcının aktif olarak bağlı olduğu **tek bir kurum bağlamını** varsayar; birden
   fazla kurumda rolü olan bir kullanıcının kurumlar arası geçiş akışı bu belgenin kapsamı
   dışındadır (bkz. bölüm 16).
 
 ## 15. Bilinen sınırlamalar
 
-- Bu belge yalnızca gezinme hiyerarşisini, düğüm-yetki eşlemesini ve bağlam (sınıf/kurum/kullanıcı)
-  ayrımını gösterir; ekran içi bileşenler, boş/hata/yükleniyor durumlarının kesin tasarımı ve
-  görsel tasarım `P-007` ve sonraki mobil tasarım görevleri kapsamındadır.
-- Kesin metaveri alanları (bölüm 7'de bahsedilen "sınırlı kurum/sınıf metaverisi") `P-008` ve
-  `P-009`'da tanımlanacaktır; bu belge yalnızca hangi düğümün bu kısıtlamaya tabi olduğunu
-  işaretler.
-- Rapor ve denetim düğümlerinin kesin veri kapsamı (bölüm 8) bağlayıcı değildir; `P-009` ve
-  `P-011`'e bırakılmıştır.
+- Bu belge gezinme hiyerarşisini ve düğüm-yetki eşlemesini gösterir; ekran envanteri,
+  yükleniyor/boş/hata/yetkisiz durumlarını `EKRAN_ENVANTERI.md` §1.2 ve ilgili ekranlarda
+  tanımlar. Görsel tasarım sonraki mobil tasarım görevlerinin kapsamındadır.
+- Sınırlı kurum/sınıf metaverisi ile operasyonel veri ayrımı `VERI_MODELI.md` §16 ve API
+  yetkilendirme kuralı `API_GENEL_KURALLARI.md` §4'te tanımlıdır.
+- Rapor ve denetim düğümlerinin veri kapsamı bölüm 8'deki güncel sözleşmelerle bağlayıcıdır.
 - Eski sistem (Excel/HTML/Apps Script) bu repoda bulunmadığından, bilgi mimarisinin eski
   sistemle karşılaştırması yapılmamıştır; bu belge yalnızca onaylı ana plana ve önceki Dalga 0
   belgelerine dayanır.

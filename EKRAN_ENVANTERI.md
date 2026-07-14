@@ -105,7 +105,7 @@ gösterilir.
 
 | Kimlik | Ekran adı | Açıklama | Durumlar | Senaryo |
 |---|---|---|---|---|
-| CTX-01 | Bağlam Seçimi / Değiştir | Birden fazla rol/kurum ataması olan kullanıcının aktif bağlamını seçmesi veya değiştirmesi. Gösterilme koşulu ve kesin davranışı `UI-002`'de kesinleşecektir; bu belge ekranı aday olarak kaydeder. | Y, B, H, Z | — |
+| CTX-01 | Bağlam Seçimi / Değiştir | Birden fazla rol/kurum ataması olan kullanıcının aktif bağlamını seçmesi veya değiştirmesi. Bu ekran adaydır; gösterilme koşulu ve kesin davranışı `UI-002` sözleşmesinin açık kararıdır. | Y, B, H, Z | — |
 
 ### Rol bazlı görünürlük
 

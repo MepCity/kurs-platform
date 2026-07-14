@@ -150,7 +150,7 @@ Tekil kaynak cevabı kaynak nesnesidir; koleksiyonlar ortak zarfla döner:
   veya istek özetiyle kullanılırsa sunucu işlemi uygulamaz ve `409 IDEMPOTENCY_KEY_REUSED`
   döndürür.
 - Aynı anahtarla eşdeğer istek tekrarında ikinci yan etki veya denetim kaydı oluşmaz; ilk tamamlanmış sonucun eşdeğeri döner.
-- İşlem sonuçlanmamışsa durum makinesi `P-010`'da kesinleşir. Ağ hatası, `429` ve `5xx`
+- İşlem sonuçlanmamışsa `SENKRONIZASYON_VE_CAKISMA.md` §3–§4'teki durum makinesi uygulanır. Ağ hatası, `429` ve `5xx`
   idempotency sonucunu terminal yapmaz; istemci kuyruğu silmeden aynı anahtarla güvenli yeniden
   dener. Kalıcı terminal sonuçlar yalnız ilgili sözleşmenin güvenli olarak tanımladığı hata
   kodlarıyla saklanır.
@@ -201,7 +201,7 @@ Tekil kaynak cevabı kaynak nesnesidir; koleksiyonlar ortak zarfla döner:
 
 - Kimlik sağlayıcısı, token biçimi/ömürleri, parola özetleme algoritması ve oran sınırlama eşikleri `A-004` ile operasyonel kararlar kapsamındadır.
 - Kesin endpoint listesi, kaynak alan şemaları, filtre beyaz listeleri ve sayfa boyutu sınırı ilgili modül sözleşmelerinde tanımlanacaktır.
-- Gerçek zamanlı taşıma, çevrimdışı kuyruk durum makinesi, yeniden bağlanma ve çakışma çözümü `P-010` kapsamındadır.
+- Gerçek zamanlı taşıma, çevrimdışı kuyruk durum makinesi, yeniden bağlanma ve çakışma çözümü `SENKRONIZASYON_VE_CAKISMA.md`de tanımlıdır.
 - Geri alınabilir işlem listesi ve ters işlem sözleşmesi `DENETIM_VE_GERI_ALMA_ILKELERI.md`; Excel rapor sözleşmesi ve indirme yaşam döngüsü `P-012` kapsamındadır.
 - Backend framework, veritabanı ve gözlemlenebilirlik sağlayıcısı bu belgeyle seçilmez.
 

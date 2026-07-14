@@ -1160,21 +1160,18 @@ Her ADR; bağlam, seçenekler, karar, gerekçe ve sonuçlar bölümlerini içerm
 
 ## 25. İlk tasarım çalışmalarında üretilecek belgeler
 
-Bu ana belgeden sonra sırasıyla:
+Bu ana belgeden sonra Dalga 0'da:
 
-1. `TERIMLER_SOZLUGU.md`
-2. `YETKI_MATRISI.md`
-3. `VERI_MODELI.md`
-4. `KULLANICI_AKISLARI.md`
-5. `API_SOZLESMESI.md`
-6. `SENKRONIZASYON_VE_CAKISMA.md`
-7. `TEST_VE_KABUL_PLANI.md`
-8. `ADR/` altındaki teknik karar belgeleri
-9. `AGENT_GOREV_PLANI.md` içindeki atomik görev kartları ve çalışma dalgaları
+1. `TERIMLER_SOZLUGU.md`, `AKTORLER_VE_KULLANIM_SENARYOLARI.md`, `YETKI_MATRISI.md` ve `KISISEL_VERI_ENVANTERI.md`
+2. `YONETICI_BILGI_MIMARISI.md`, `HOCA_MOBIL_BILGI_MIMARISI.md` ve `EKRAN_ENVANTERI.md`
+3. `VERI_MODELI.md`, `API_GENEL_KURALLARI.md`, `SENKRONIZASYON_VE_CAKISMA.md` ve `DENETIM_VE_GERI_ALMA_ILKELERI.md`
+4. `EXCEL_RAPOR_VERI_SOZLESMESI.md`, `KRITIK_TEST_VE_KABUL_PLANI.md` ve `FAZ_0_BUTUNLUK_INCELEMESI.md`
+5. `ADR/` altındaki teknik karar belgeleri
+6. `AGENT_GOREV_PLANI.md` içindeki atomik görev kartları ve çalışma dalgaları
 
 hazırlanmalıdır.
 
-Bu belgeler tamamlanmadan ilgili alanda büyük ölçekli geliştirmeye başlanmamalıdır.
+Dalga 0 belgeleri tamamlanmadan ilgili alanda büyük ölçekli geliştirmeye başlanmamalıdır.
 
 ---
 

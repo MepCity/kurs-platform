@@ -111,11 +111,9 @@ ile birlikte özetlenmiştir.)
 ## 1. Amaç ve kapsam
 
 Bu belge, `URUN_VE_UYGULAMA_PLANI.md` içinde onaylanmış ilk sürüm (V1) kapsamının bütününü
-taşıyan çekirdek veri modelini varlık/tablo seviyesinde tanımlar. `TERIMLER_SOZLUGU.md`,
-`YETKI_MATRISI.md` ve `KISISEL_VERI_ENVANTERI.md` üç görev de bu şemanın bazı kararlarını
-açıkça `P-008`'e bırakmıştır (izin şeması tasarımı, program/şablon açık yapısı, özel alan
-genişletme modeli, metaveri/operasyonel veri ayrımının veri modeli karşılığı). Bu belge o
-kararları bağlayıcı biçimde verir.
+taşıyan çekirdek veri modelini varlık/tablo seviyesinde tanımlar. Önceki Dalga 0 belgelerinin
+izin şeması, program/şablon açık yapısı, özel alan genişletme modeli ve metaveri/operasyonel
+veri ayrımı için bıraktığı kararları bağlayıcı biçimde verir.
 
 Bu belge:
 
@@ -1496,8 +1494,8 @@ izolasyonu otomatik testlerle doğrulanmalıdır" ilkesi gereği zorunlu kalır 
   kapatılması gerekir; bu, pinlenmiş bileşik FK'nin doğrulayamadığı "rol hâlâ aktif mi" boşluğunu
   kapatan zorunlu bir uygulama kuralıdır.
 
-Bu maddeler, `P-009`/`P-010` ve `DENETIM_VE_GERI_ALMA_ILKELERI.md` kapsamında **kabul
-senaryosu adayı** olarak işlenmelidir (ör.
+Bu maddeler, `KRITIK_TEST_VE_KABUL_PLANI.md`deki KAP-01, KAP-03, KAP-16, KAP-23 ve KAP-31
+ile **kabul senaryosu olarak izlenir** (ör.
 "geçmişte farklı bir sınıfa kayıtlıyken alınmış bir yoklamanın öğrenci geçtikten sonra da
 doğru sınıfa referans verdiğinin testi"); bu belge yalnızca kuralın var olduğunu ve DB
 tarafından ifade edilemediğini kaydeder, test senaryosunun kendisini yazmaz.
@@ -1699,8 +1697,8 @@ classes 0..1—n sync_changes (scope_class_id; değişiklik anındaki yayın kap
   bölüm 8.2'deki `EXCLUDE` kısıtı `btree_gist` eklentisini (veya eşdeğerini) gerektirir.
 - Bölüm 15.5'te sayılan zamana bağlı kurallar (öğrenci-sınıf-tarih tutarlılığı, `session_
   generation` kontrolü, kurum bağlamsız token değişimi ön koşulu, rol iptali yaşam döngüsü)
-  veritabanı kısıtlarıyla ifade edilemez; uygulama katmanında zorunludur ve `P-009`/`P-010`/
-  `DENETIM_VE_GERI_ALMA_ILKELERI.md` kabul senaryosu adayı olarak kaydedilmiştir.
+  veritabanı kısıtlarıyla ifade edilemez; uygulama katmanında zorunludur ve
+  `KRITIK_TEST_VE_KABUL_PLANI.md`deki ilgili KAP kartlarında izlenir.
 - Rol iptalinin bağlı kayıtları kapatmasının **atomik bir işlem** (tek transaction) olarak mı
   yoksa yalnızca **değerlendirme-zamanı kontrolü** olarak mı uygulanacağı (bölüm 4.12),
   `API_GENEL_KURALLARI.md` ve `DENETIM_VE_GERI_ALMA_ILKELERI.md` ile uyumlu uygulama
@@ -1716,8 +1714,9 @@ classes 0..1—n sync_changes (scope_class_id; değişiklik anındaki yayın kap
   ilgili uygulama görevlerinde (`ATT-*`, `PROGRAM-*`) bir performans/indeksleme kararı
   gerektirebilir.
 - `EXPORT`/`NOTIFY` modülleri için tablo tanımlanmamıştır (`P-012`, Dalga 8).
-- Program "büyük değişiklik" eşiği, idempotency durum makinesi ve `people` dedüplikasyonu
-  `[Öneri/bekleyen karar]` olarak işaretlidir.
+- Program "büyük değişiklik" eşiği (`PROGRAM-003`) ve `people` dedüplikasyonu
+  `[Öneri/bekleyen karar]` olarak işaretlidir. İdempotency durum makinesi ise
+  `SENKRONIZASYON_VE_CAKISMA.md` §3–§4'te kesinleşmiştir.
 - Eski Excel/HTML/Apps Script dosyaları bu repoda bulunmadığından, bu şemanın eski sistemle
   karşılaştırması yapılmamıştır.
 
@@ -1725,9 +1724,10 @@ classes 0..1—n sync_changes (scope_class_id; değişiklik anındaki yayın kap
 
 ## 21. Kapsam dışı bırakılanlar
 
-- API istek/cevap sözleşmesi ve sayfalama/filtreleme standardı (`P-009`).
+- API istek/cevap sözleşmesi ve sayfalama/filtreleme standardı `API_GENEL_KURALLARI.md`de
+  tanımlıdır.
 - Senkronizasyon kuyruğu, yeniden bağlanma ve çakışma çözümü protokolünün tam ayrıntısı
-  (`P-010`).
+  `SENKRONIZASYON_VE_CAKISMA.md`de tanımlıdır.
 - Geri alma komutlarının kesin listesi ve her komutun ters işlem tanımı `DENETIM_VE_GERI_ALMA_ILKELERI.md`'dedir.
 - Excel rapor filtre/sorgu sözleşmesi ve dosya yaşam döngüsü (`P-012`).
 - Gerçek veritabanı migration dosyaları (Dalga 1 uygulama görevleri).
@@ -1736,5 +1736,5 @@ classes 0..1—n sync_changes (scope_class_id; değişiklik anındaki yayın kap
 - Veli/öğrenci girişi için ayrıntılı veri modeli genişletmesi (sonraki faz, Dalga 8 `PORTAL-*`).
 - Var olan bir `people` kaydının kurumlar arası aranıp yeniden bağlanması akışı — ilerideki bir
   görevin kapsamıdır.
-- Bölüm 15.5'teki zamana bağlı kuralların kesin kabul test senaryolarının yazımı (`P-009`/
-  `P-010`).
+- Bölüm 15.5'teki zamana bağlı kuralların uygulama testlerine dönüştürülmesi; izlenebilirlik
+  `KRITIK_TEST_VE_KABUL_PLANI.md`deki ilgili KAP kartlarıyla sağlanır.

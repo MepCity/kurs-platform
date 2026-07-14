@@ -285,8 +285,8 @@ yeniden karar verir.
 - Bu belge, ana plan §12–§13'teki sürüm, idempotency, gerçek zamanlı yayılım, varlık bazlı çakışma ve kalıcı kuyruk ilkelerini; §18.2'deki ağ kesintisi/eşzamanlı hoca kabul senaryolarını somutlaştırır.
 - `rowVersion`, UUID, kurum izolasyonu ve kapsam türü/NULL-güvenli idempotency tekilliği
   `VERI_MODELI.md` §2.1–§2.3 ve §14 ile uyumludur. Buradaki istek özeti, lease, terminal
-  sonuç ve saklama ömrü kuralları o temel tablonun P-010 için açık bıraktığı durum makinesi
-  ayrıntısını kesinleştirir.
+  sonuç ve saklama ömrü kuralları, veri modelinin temel `idempotency_keys` yapısını tamamlayan
+  bağlayıcı durum makinesini tanımlar.
 - Başlıklar, hata kodları, `202`, idempotency kapsamı, cursor ve API yetki kuralları `API_GENEL_KURALLARI.md` §3–§8 ile uyumludur.
 - WebSocket/SSE benzeri gerçek zamanlı taşıma, değişiklik akışı/olay saklama altyapısı, yerel veritabanı/kuyruk ürünü, geri çekilme parametreleri, somut azami kuyruk ömrü ve gerçek migration'lar bu görevin kapsamı dışındadır. Bunlar sırasıyla A-006, A-005 ve ilgili uygulama/operasyon görevlerinde bu bağlayıcı davranışı bozmayacak şekilde seçilecektir.
 - Toplu yazmaların kaynak-bazlı atomiklik kararı, kaynak endpoint sözleşmesinde açıkça belirtilecektir; bu belge `API_GENEL_KURALLARI.md` §8'in kısmi başarı kuralını değiştirmez.

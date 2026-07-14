@@ -7,9 +7,8 @@
 | Ana repo | `MepCity/kurs-platform` |
 | Varsayılan dal | `main` |
 | Çalışma modeli | Modüler monolit + atomik görev branch'leri + PR incelemesi |
-| İlk aktif dalga | Dalga 0 — Ürün ve sözleşmeler |
-| İlk görev | P-001 — Terimler sözlüğünü oluştur |
-| Son güncelleme | 13 Temmuz 2026 |
+| Aktif dalga ve görev kaynağı | `GOREV_DURUMU.md` |
+| Son güncelleme | 14 Temmuz 2026 |
 
 ---
 
@@ -286,7 +285,7 @@ Paralel görevleri kullanıcıya şu formatta sun:
 | Görev | Neden hazır | Sahip olunan alan | Çakışmayacağı görevler | Entegrasyon kapısı |
 |---|---|---|---|---|
 
-İlk proje akışı:
+Dalga 0 tarihsel akışı:
 
 1. Yalnızca `P-001`
 2. Sonra paralel `P-002` ve `P-004`
@@ -294,7 +293,10 @@ Paralel görevleri kullanıcıya şu formatta sun:
 4. Uygun bağımlılıklar tamamlanınca `P-007` ve `P-008`
 5. Sonra `P-009`, `P-011`, `P-012`
 6. Ardından `P-010`, `P-013`, `P-014`
-7. `P-014` merge edilmeden `A-*` teknoloji görevleri başlamaz
+7. `P-014` merge edilmeden Dalga 1 teknoloji görevleri başlamaz.
+
+`P-014` merge edildikten sonra yalnız `A-001`–`A-008` paralel `READY` olabilir. `A-009`,
+`A-010` ve `A-011` kendi görev planındaki bağımlılıkları tamamlanana kadar başlatılmaz.
 
 Güncel bağımlılıkları her zaman görev planından doğrula; bu özet eskirse görev planı geçerlidir.
 
@@ -483,9 +485,10 @@ Bu dosya ilk kez bir merkez agente verildiğinde:
 2. Hiçbir değişiklik yapmadan durum raporu çıkar.
 3. `GOREV_DURUMU.md` ile Git/PR gerçekliğini karşılaştır.
 4. Tutarsızlık varsa önce onu bildir.
-5. Şu anda yalnızca `P-001` READY ise başka görev başlatma.
-6. Kullanıcı isterse `P-001` için alt agent promptunu hazırla veya görevi bizzat ayrı branch'te
-   yürüt.
+5. `GOREV_DURUMU.md`deki `READY` görevlerin bağımlılık ve merge durumunu doğrula; başka görev
+   başlatma.
+6. Kullanıcı isterse güncel `READY` görevi için alt agent promptunu hazırla veya görevi ayrı
+   branch'te yürüt.
 
 Merkez yönetici agentın başarısı yazdığı kod miktarıyla değil; doğru sırayı, doğru sözleşmeyi,
 kaliteyi ve projenin bütünlüğünü korumasıyla ölçülür.
