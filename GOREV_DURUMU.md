@@ -5,7 +5,7 @@
 | Son güncelleme | 15 Temmuz 2026 |
 | Aktif dalga | Dalga 1 — Teknoloji kararları ve iskelet |
 | Aktif görev | Yok |
-| Sıradaki görev | A-007, A-010 ve A-011 — Paralel teknoloji/iskelet görevleri |
+| Sıradaki görev | A-007 ve A-011 — Paralel teknoloji/iskelet görevleri |
 
 Bu dosya projenin kaldığı yeri gösteren kısa operasyon panosudur. Her çalışma oturumunun
 başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev tanımları
@@ -16,7 +16,6 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 | Kimlik | Görev | Boyut | Not |
 |---|---|---:|---|
 | A-007 | PDF/dosya depolama ADR'si | S | P-004 ve P-012 tamamlandı; paralel başlayabilir |
-| A-010 | Geliştirme, staging ve üretim ortam sözleşmesi | S | A-002 ve A-003 tamamlandı; paralel başlayabilir |
 | A-011 | Repo ve modül klasör iskeletini oluştur | M | A-009 tamamlandı; fiziksel iskelet başlatılabilir |
 
 ## IN_PROGRESS
@@ -61,6 +60,7 @@ Engellenmiş görev yok.
 | A-006 | Gerçek zamanlı kanal ADR'si ve iki istemcili yoklama olayı deneyi | 14 Temmuz 2026 | `ADR/ADR-006-gercek-zamanli-kanal.md`, `experiments/a006_realtime_sse` — 6 test — PR #21 |
 | A-008 | Excel üretme yaklaşımı ADR'si | 15 Temmuz 2026 | `ADR/ADR-008-excel-uretim-yaklasimi.md` — PR #23 |
 | A-009 | Monorepo/repo yapısı ADR'si | 15 Temmuz 2026 | `ADR/ADR-009-monorepo-ve-repo-yapisi.md` — PR #22 |
+| A-010 | Geliştirme, staging ve üretim ortam sözleşmesi | 15 Temmuz 2026 | `ORTAM_SOZLESMESI.md` — PR #25 |
 
 ## Sonraki görev nasıl READY yapılır?
 
