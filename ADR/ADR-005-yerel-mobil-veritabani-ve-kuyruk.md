@@ -3,7 +3,7 @@
 | Alan | Değer |
 |---|---|
 | Görev | A-005 — Yerel mobil veritabanı/kuyruk ADR'si ve kalıcı yeniden deneme deneyi |
-| Durum | Önerildi — PR incelemesi ve ürün sahibi onayı bekliyor |
+| Durum | Kabul edildi |
 | Tarih | 14 Temmuz 2026 |
 | Karar sahibi | Ürün sahibi |
 | Bağımlılıklar | `SENKRONIZASYON_VE_CAKISMA.md` (P-010) |

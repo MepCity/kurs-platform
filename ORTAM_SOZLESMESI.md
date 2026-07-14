@@ -2,12 +2,12 @@
 
 | Alan | Değer |
 |---|---|
-| Durum | Önerildi — inceleme bekliyor |
+| Durum | Kabul edildi — kademeli maliyet profiliyle revize edildi |
 | Tarih | 15 Temmuz 2026 |
 | Görev | A-010 — Geliştirme, staging ve üretim ortam sözleşmesi |
 | Karar sahibi | Ürün sahibi |
 | Bağımlılıklar | `ADR/ADR-002_BACKEND_DILI_VE_FRAMEWORK.md` (A-002), `ADR/ADR-003-postgresql-ve-hosting.md` (A-003) |
-| İlgili sonraki görevler | A-011, A-012, A-013, A-014, OPS-001, OPS-002 |
+| İlgili sonraki görevler | A-004R1–A-004R3, A-007R, A-011, A-012, A-013, A-014, OPS-001, OPS-002 |
 
 ## 1. Amaç ve kapsam
 
@@ -32,17 +32,18 @@ kabul edilmez.
 
 ## 2. Karar özeti
 
-- En az üç kalıcı ve birbirinden bağımsız ortam vardır: `development`, `staging`, `production`.
-- Java 21/Spring Boot 4.1 modüler monolit, **Render Web Service** üzerinde Docker imajı olarak
-  çalışır. Her ortam ayrı servistir; ortak runtime veya ortak dosya sistemi kullanılmaz.
-- Render workspace başlangıç planı **Pro**dur. Adlandırılmış birden fazla insan erişimi,
-  workspace audit logları, üçten fazla proje ortamı ve isolated environment sınırı Hobby ile
-  karşılanamaz.
-- Üç backend servisi de Render'ın **Frankfurt** bölgesindedir. Böylece A-003'ün Frankfurt
-  Supabase projeleriyle aynı coğrafi bölge seçilir. Render ile Supabase arasında sağlayıcılar
-  arası özel ağ varmış gibi davranılmaz; bağlantı genel ağ üzerinden TLS ile korunur.
-- Her ortam A-003 uyarınca ayrı bir Supabase projesi kullanır. Mobil istemci hiçbir ortamda
-  veritabanına doğrudan bağlanmaz; tek giriş yüzeyi ilgili ortamın sürümlü uygulama API'sidir.
+- `development`, `staging` ve `production` ayrı güven ve veri profilleridir; ilk günden üç
+  sürekli bulut servisi olmak zorunda değildir. Development varsayılan olarak yerel,
+  staging yayın öncesi geçici, production ise gerçek kullanıcı başladığında kalıcıdır.
+- Java 21/Spring Boot 4.1 modüler monolit standart Docker imajı olarak kalır. Render tercih
+  edilen yönetilen runtime adayıdır; kapalı alfa Render Free veya öğrenci kredili Heroku'da
+  best-effort çalışabilir. Sağlayıcı seçimi uygulama koduna sızmaz.
+- Kapalı alfa dış ödeme hedefi `0 USD/ay`, gerçek kurum pilotu hedefi `25–60 USD/ay`dır. Bu
+  hedefler garanti/SLA değildir; kota, domain, e-posta ve gözlemleme ayrıca ölçülür.
+- Render Pro workspace, üç sürekli backend, üç ücretli Supabase projesi ve PITR başlangıç
+  zorunluluğu değildir. Bu kontroller aktif/kritik ürün tetiklerinde açılır.
+- Mobil istemci hiçbir profilde veritabanına doğrudan bağlanmaz; tek giriş yüzeyi sürümlü
+  uygulama API'sidir. Supabase Data API/Auth/Realtime bu ortam kararıyla seçilmez.
 - Backend kalıcı bir istemcidir. Seçilen çalışma ortamı için doğrulanmış IPv6 direct bağlantı
   kanıtı bulunmadığından başlangıç bağlantısı IPv4 uyumlu **Supavisor session pooler**, port
   `5432`dir. Transaction pooler kullanılmaz.
@@ -53,8 +54,8 @@ kabul edilmez.
   release kaydındaki rollback penceresi boyunca registry garbage collection'dan korunur.
   Digest registry'de erişilebilir ve manifest/checksum doğrulanmış değilse terfi veya rollback
   başlamaz.
-- Production dağıtımı otomatik olarak `main` dalını izlemez. Staging kabulü, migration
-  uygunluğu, yedek uygunluğu ve yetkili insan onayı olmadan production terfisi yapılamaz.
+- Gerçek production dağıtımı otomatik olarak `main` dalını izlemez. Geçici staging kabulü,
+  migration/yedek uygunluğu ve yetkili insan onayı olmadan terfi yapılamaz.
 - Production verisi hiçbir yolla development veya staging'e kopyalanmaz. Alt ortamlarda yalnız
   sentetik veri kullanılır. Bu kural destek vakası, hata ayıklama ve performans testi için de
   geçerlidir.
@@ -65,7 +66,8 @@ kabul edilmez.
 
 | Seçenek | Güçlü yön | Temel maliyet/risk | Sonuç |
 |---|---|---|---|
-| Render Frankfurt, kalıcı Docker Web Service | Düşük işletim yükü; Docker, health check, TLS, sıfır kesintili deploy ve hızlı rollback; sabit aylık başlangıç maliyeti | Supabase ile özel ağ yoktur; dış bağlantı ve iki sağlayıcının birlikte işletimi gerekir | **Seçildi** |
+| Render Frankfurt, Docker Web Service | Düşük işletim yükü; ücretsiz alfa ve ölçüme göre ücretli compute; health check/TLS/rollback | Free uyku/soğuk başlangıç ve 0.1 CPU yalnız best-effort alfaya uygundur | **Tercih edilen aday** |
+| Öğrenci kredili Heroku `eu` | Standart container/runtime ve geçici dış ödeme avantajı | Kredi kişiye/süreye bağlıdır; `eu` kesin Frankfurt değildir; kapasite ve veri yerleşimi deney ister | Kapalı alfa deneyi adayı |
 | AWS App Runner Frankfurt | Yönetilen container ve otomatik ölçekleme; Supabase'in AWS Frankfurt altyapısıyla aynı bulut bölgesi | Kullanıma bağlı maliyet, AWS/ECR/IAM/CloudWatch işletim yüzeyi ve ilk sürüm için daha fazla yapılandırma | Ölçülmüş ölçek veya ağ ihtiyacında yeniden değerlendirilir |
 | Fly.io Frankfurt | Düşük başlangıç compute maliyeti ve esnek VM/container modeli | Makine, ağ, ölçek ve yayın operasyonu Render'a göre daha çok sahiplik ister | Seçilmedi |
 | Supabase Edge Functions | Veritabanıyla aynı platform | A-002'nin Java 21/Spring Boot kalıcı modüler monolit kararıyla uyumlu değildir | Reddedildi |
@@ -73,15 +75,14 @@ kabul edilmez.
 
 ### 3.2. Render çalışma sınırları
 
-- Workspace planı Pro'dur. Pro planın 25 USD/ay sabit ücreti compute'dan ayrıdır ve başlangıç
-  bütçesine eklenir. Pro; sınırsız ekip üyesi, workspace audit logları, sınırsız proje/ortam ve
-  isolated environment sağlar. Production proje ortamı ayrıca protected olarak işaretlenir;
-  ortam korumasını değiştirme olayı workspace audit logunda izlenir.
+- Başlangıç workspace planı tek ürün sahibi için Hobby olabilir. Pro; ikinci operasyon
+  yetkilisi, workspace audit logu, sürekli isolated environment veya protected production
+  gereksinimi ortaya çıktığında yazılı maliyet onayıyla açılır.
 - Hobby kişisel prototip sınırıdır: tek workspace üyesine ve proje başına iki ortama izin verir;
   workspace audit logu ve environment isolation sağlamaz. Bu nedenle adlandırılmış çoklu insan
   erişimini, üç ayrı kalıcı ortamı ve denetlenebilir production yönetimini karşılamaz.
 - Runtime türü `Docker`dır. Sağlayıcının dil runtime'ı yerine repodaki sürümlü Dockerfile
-  kullanılır; yerel, CI ve üç uzak ortam aynı Java çalışma zamanı ailesini kullanır.
+  kullanılır; yerel, CI ve açılan uzak ortamlar aynı Java çalışma zamanı ailesini kullanır.
 - Servis, Render'ın verdiği `PORT` değerinde `0.0.0.0` adresine bağlanır.
 - Kalıcı disk bağlanmaz. Uygulama süreci stateless'tir; yerel dosya sistemi geçici kabul edilir.
   PDF, logo, rapor veya yedek runtime diskinde saklanmaz.
@@ -91,12 +92,10 @@ kabul edilmez.
 - Uygulama `SIGTERM` aldığında yeni iş kabulünü durdurur, uçuş hâlindeki istekleri belirlenen
   süre içinde tamamlar ve veritabanı bağlantı havuzunu kapatır. Kesin süre A-011 uygulama
   iskeletinde ölçülür ve Render'ın kapanış sınırını aşamaz.
-- Production ve staging ücretsiz/uykuya geçen compute kullanmaz. Development da paylaşılan
-  mobil/entegrasyon hedefi olarak kararlı tutulur; kapatılması ancak planlı maliyet azaltımıdır.
-- İlk kaynak tabanı development ve staging için `Starter` (512 MB, 0.5 CPU), production için
-  `Standard` (2 GB, 1 CPU) olarak bütçelenir. Java süreci Starter sınırında health check'i
-  güvenilir biçimde geçemezse alt ortamlar Standard'a yükseltilir; özellik kapatma veya test
-  atlama ile kaynak eksikliği gizlenmez. Production boyutu QA-007 ölçümü olmadan küçültülmez.
+- Sentetik kapalı alfa ücretsiz/uykuya geçen compute kullanabilir ve SLA sunmaz. Spring Boot'un
+  512 MB/0.1 CPU sınırında açılış, bellek, health check, soğuk başlangıç ve SSE davranışı ölçülür.
+- Gerçek kurum pilotu ücretsiz/uykuya geçen compute kullanmaz. İlk ücretli boyut ölçümle seçilir;
+  Starter yetersizse Standard'a yükseltilir. Kaynak eksikliği özellik/test kapatarak gizlenmez.
 
 ### 3.3. Sağlayıcı değişikliği koşulu
 
@@ -112,9 +111,10 @@ Aşağıdakilerden biri oluşursa yeni ADR gerekir:
 
 | Sınır | Development | Staging | Production |
 |---|---|---|---|
-| Amaç | Günlük geliştirme, paylaşılan entegrasyon ve mobil doğrulama | Release adayı, migration provası, kabul ve güvenlik doğrulaması | Gerçek kurumların canlı kullanımı |
-| Backend | Ayrı Render Web Service, Frankfurt | Ayrı Render Web Service, Frankfurt | Ayrı Render Web Service, Frankfurt |
-| Veritabanı | Ayrı Supabase project, Frankfurt; Micro başlangıç | Ayrı Supabase project, Frankfurt; Micro başlangıç | Ayrı Supabase project, Frankfurt; en az Small + 7 gün PITR |
+| Amaç | Günlük geliştirme ve otomatik test | Release adayı, migration provası, kabul/güvenlik doğrulaması | Gerçek kurumların canlı kullanımı |
+| Yaşam döngüsü | Yerel ve gerektiğinde yeniden kurulabilir | Varsayılan geçici; yayın penceresinde açılır | Gerçek pilot başlayınca kalıcı |
+| Backend | Yerel Docker/Java; gerekirse ücretsiz alfa servisi | Onaylı image digest ile geçici ücretli servis | Ölçülmüş ücretli Docker servisi |
+| Veritabanı | Yerel PostgreSQL/Testcontainers | Ayrı sentetik PostgreSQL; geçici olabilir | Duraklamayan ücretli PostgreSQL; pilotta günlük yedek, kritik profilde gerekirse PITR |
 | Veri | Yalnız sentetik; kişisel gerçek veri yasak | Yalnız sentetik; üretimden kopya/maskeleme ile aktarım yasak | Yetkili gerçek veri |
 | Dağıtım kaynağı | `main` üzerindeki başarılı CI sonrası onaylı deploy | Development'ta doğrulanan değişmez imaj özeti | Staging'de kabul edilen aynı imaj özeti |
 | Dağıtım onayı | Geliştirici/CI sahibi | Release sorumlusu | Ürün sahibi veya açıkça yetkilendirdiği kişi |
@@ -123,7 +123,7 @@ Aşağıdakilerden biri oluşursa yeni ADR gerekir:
 | API tabanı | Development'a özel HTTPS URL | Staging'e özel HTTPS URL | Production'a özel HTTPS URL ve onaylı alan adı |
 | Log/telemetri | Sentetik veri; hassas içerik yok | Sentetik veri; production ile ayrı proje/akış | Sınırlı erişim ve üretime özel proje/akış |
 | Erişim | Adlandırılmış geliştiriciler, en az yetki | Release/test sorumluları, en az yetki | En dar operasyon grubu; acil erişim izli ve süreli |
-| Render proje ortamı | Ayrı, non-production | Ayrı, production'dan izole | Ayrı, isolated ve protected |
+| Sağlayıcı yönetişimi | Kişisel yerel erişim | Production'dan ayrı kimlik ve secret | Kritik profilde isolated/protected; pilotta en dar erişim ve manuel onay |
 
 Ortam adları kaynak, servis, alarm, dashboard, secret ve loglarda tam yazılır. `prod`/`test`
 gibi bağlama göre değişen tek başına kısaltmalar erişim kararı için kullanılmaz.
@@ -221,8 +221,10 @@ tamamı zorunludur; development'ta da aynı güvenlik sınırı korunur:
   iptalleri migration testiyle doğrulanmış.
 - Runtime ile migration rolleri ayrı; runtime owner/superuser/`BYPASSRLS` değil.
 - Tenant tablolarda `ENABLE ROW LEVEL SECURITY` ve `FORCE ROW LEVEL SECURITY` etkin.
-- Production'da en az Small compute ve 7 gün PITR etkin; ücretsiz veya otomatik askıya alınan
-  plan kullanılmıyor.
+- Production'da ücretsiz veya otomatik askıya alınan plan kullanılmaz. Gerçek kurum pilotunda
+  duraklamayan ücretli plan, sağlayıcı günlük yedeği ve bağımsız şifreli mantıksal dump
+  zorunludur; Small compute ve PITR zorunlu değildir. Small+ ve PITR yalnız §11'deki kritik
+  production tetikleri oluştuğunda açılır.
 
 Data API anahtarı ve exposed schema listesi SQL migration tarafından kanıtlanamaz. Açılış kanıtı
 Dashboard ekran kaydı veya Management API çıktısı ile; dış REST/GraphQL negatif testi ayrıca
@@ -330,9 +332,14 @@ pull request
 
 ## 11. Yedekleme ve veri koruma kapısı
 
-- Production Supabase projesinde 7 gün PITR ve en az Small compute zorunludur. Tasarım hedefi
-  en kötü durumda 2 dakika RPO, 4 saat RTO'dur; RTO sağlayıcı SLA'sı değildir ve OPS-002
-  tatbikatında ölçülür.
+- Sentetik kapalı alfa best-effort çalışabilir; yedek kaybı gerçek kişi verisi kaybı
+  oluşturmamalıdır.
+- Gerçek kurum pilotunda duraklamayan ücretli PostgreSQL, sağlayıcı otomatik günlük yedeği ve
+  bağımsız şifreli mantıksal dump zorunludur. GitHub Actions gibi tek bir zamanlanmış CI işi
+  tek production yedeği sayılamaz; başarısızlık alarm üretir.
+- PITR ve en az Small compute, günlük veri kaybının elle yeniden girilemez olduğu veya kabul
+  edilmiş RPO/RTO bulunduğu kritik production profilinde açılır. Bu profilde tasarım hedefi en
+  kötü durumda 2 dakika RPO, 4 saat RTO'dur ve OPS-002 tatbikatında ölçülür.
 - PITR'a ek şifreli mantıksal `pg_dump`, production dışında erişimi kısıtlı bir depoya yazılır.
   Şifreleme anahtarı veritabanı ve yedekle aynı erişim düzleminde tutulmaz.
 - Hukukî veri saklama/imha değerlendirmesi tamamlanmadığından mantıksal yedeğin sıklığı ve
@@ -340,7 +347,8 @@ pull request
   olmadan production gerçek veriye açılamaz.
 - Yedek başarısı restore başarısı sayılmaz. OPS-002, yeni projeye restore'u, özel rollerin ve
   parolaların yeniden oluşturulmasını, migration sürümünü, Data API ayarını, grant/RLS
-  sınırlarını ve iki kurum izolasyonunu kanıtlar.
+  sınırlarını ve iki kurum izolasyonunu kanıtlar. Bu tatbikat başarıyla geçmeden ilk gerçek
+  kurum/öğrenci verisi alınamaz; yalnız tatbikat tarihi planlamak yeterli değildir.
 
 ## 12. Maliyet tabanı ve onay eşiği
 
@@ -355,40 +363,43 @@ veri, tek-AZ/tekil düğüm; uygulama barındırma ve staging hariç.
 
 | Sağlayıcı | 15 Temmuz 2026 hesap bileşenleri | Aylık tahmin | Not |
 |---|---|---:|---|
-| Supabase | Pro 25 USD + Small 15 USD + 7 gün PITR 100 USD − 10 USD compute kredisi | **yaklaşık 130 USD** | Seçilen production tabanı; 2 dakika RPO belgesi vardır |
+| Supabase | Pro 25 USD + Small 15 USD + 7 gün PITR 100 USD − 10 USD compute kredisi | **yaklaşık 130 USD** | Kritik-production karşılaştırma tabanı; 2 dakika RPO belgesi vardır |
 | AWS RDS PostgreSQL | `db.t4g.micro` 0,019 USD/saat × 730 + 20 GB gp3 × 0,137 USD | **yaklaşık 16,61 USD + egress/ek yedek** | AWS fiyat kataloğu anlık hesabı; 2 dakika RPO eşdeğerliği iddia edilmez |
 | Render PostgreSQL | Pro workspace 25 USD + Basic-1gb 19 USD + 20 GB genişletilebilir SSD 6 USD | **yaklaşık 50 USD** | 7 gün PITR vardır; 2 dakika RPO taahhüdü kaynakta doğrulanmadı |
 
-Fiyat tek başına karar ölçütü değildir. Supabase seçimi A-003'te tam PostgreSQL, Frankfurt,
-RLS, yönetilen PITR ve düşük ilk işletim yükünün birlikte değerlendirilmesiyle verilmiştir.
+Fiyat tek başına karar ölçütü değildir. Supabase'in yönetilen pilot adayı olarak korunması;
+tam PostgreSQL, Frankfurt seçeneği, RLS, gerektiğinde PITR ve düşük ilk işletim yükünün birlikte
+değerlendirilmesine dayanır. Kesin provisioning kararı ilgili kademe açılırken tekrar doğrulanır.
 
-### 12.2. Üç ortamın başlangıç çalışma bütçesi
+### 12.2. Kademeli çalışma bütçesi
 
-| Bileşen | Development | Staging | Production | Aylık toplam |
-|---|---:|---:|---:|---:|
-| Render Pro workspace | — | — | 25 USD, tek workspace | **25 USD** |
-| Render backend | Starter 7 USD | Starter 7 USD | Standard 25 USD | **39 USD** |
-| Supabase PostgreSQL | Micro 10 USD | Micro 10 USD | Small 15 USD | 35 USD |
-| Supabase Pro organizasyon | — | — | 25 USD, tek organizasyon | 25 USD |
-| Supabase compute kredisi | — | — | −10 USD, tek kredi | −10 USD |
-| Production 7 gün PITR | — | — | 100 USD | 100 USD |
-| **Bilinen taban** |  |  |  | **yaklaşık 214 USD/ay** |
+| Kademe | Kullanım | Hedef dış ödeme | Zorunlu sınır |
+|---|---|---:|---|
+| Yerel geliştirme | Tek geliştirici, sentetik veri | `0 USD/ay` | Yerel Docker/PostgreSQL, gerçek veri yok |
+| Kapalı alfa | 0–10 davetli gerçek test kullanıcısı; bütün ürün verisi sentetik, SLA yok | hedef `0 USD/ay` | Ücretsiz/öğrenci kredili kaynak; soğuk başlangıç ve kota görünür |
+| Gerçek kurum pilotu | Düzenli kullanım ve gerçek öğrenci verisi | hedef `25–60 USD/ay` | Ücretli duraklamayan DB/backend, günlük yedek, restore kanıtı |
+| Aktif/kritik ürün | Birden fazla kurum veya kabul edilmiş RPO/RTO | ihtiyaca göre | Sürekli staging, PITR, Pro yönetişim ve HA yalnız tetikle |
 
-Production gerçek veriye açılmadan önce ürün sahibi en az şu toplamı yazılı onaylar: bilinen
-214 USD taban + beklenen egress/depolama + artifact registry/retention + mantıksal yedek
-deposu + restore tatbikatı geçici proje maliyeti + gerekli log/izleme maliyeti. Harcama sınırı
-ve maliyet alarmı A-014/operasyon görevlerinde uygulanır. Registry dahil bilinmeyen kalemler
-sıfır kabul edilmez.
+`214 USD/ay` önceki üç sürekli ortam + PITR örnek toplamıdır; başlangıç zorunluluğu değildir,
+kritik-production karşılaştırma referansı olarak korunur. Keycloak fallback'i seçilirse ayrı
+compute/DB/yedek/izleme maliyeti bu toplama eklenmeden onay verilemez.
+
+Ücretli profile geçiş yalnız kullanıcı sayısına bağlanmaz. İlk kurumun gerçek veriyi günlük
+kullanması, veri kaybının elle yeniden girilemez olması, ücretsiz kotanın `%60–70`ine ulaşma,
+soğuk başlangıcın sync'i bozması, ikinci operasyon yetkilisi, sürekli staging/audit ihtiyacı
+veya öğrenci kredisinin bitimine 60 gün kalması tetiklerden herhangi biridir.
 
 ## 13. Ortam terfi kontrol listeleri
 
 ### 13.1. Development açılışı
 
-- [ ] Render ve Supabase kaynağı doğru ad ve Frankfurt bölgesinde.
-- [ ] Render workspace Pro; adlandırılmış üyeler ve ortam sınırları doğrulanmış.
+- [ ] Yerel kaynak veya seçilmiş geçici alfa sağlayıcısı doğru profil ve bölgede.
+- [ ] Ücretsiz/öğrenci kredili kaynağın kota, bitiş ve sahiplik sınırı kaydedilmiş.
 - [ ] Yalnız development secret'ları ve sentetik veri var.
-- [ ] Data API kapalı; `app` exposed değil; dış REST/GraphQL negatif testi geçiyor.
-- [ ] Session pooler + `verify-full` bağlantısı geçiyor; yanlış CA testi reddediliyor.
+- [ ] Supabase kullanılıyorsa Data API kapalı; `app` exposed değil; dış REST/GraphQL negatif
+      testi geçiyor. Yerel standart PostgreSQL profilinde bu kontrol uygulanamaz olarak kaydediliyor.
+- [ ] Uzak Supabase kullanılıyorsa session pooler + `verify-full` bağlantısı geçiyor ve yanlış
+      CA testi reddediliyor; yerel profilde standart PostgreSQL TLS/bağlantı kontrolü kullanılıyor.
 - [ ] Runtime rolü en az yetkili ve migration rolünden ayrı.
 - [ ] Health/readiness, graceful shutdown ve yeniden deploy smoke testi geçiyor.
 
@@ -408,9 +419,10 @@ sıfır kabul edilmez.
 - [ ] Production digest'i ve en az bir önceki doğrulanmış rollback digest'i registry'de
       erişilebilir; manifest/checksum eşleşiyor ve rollback penceresi boyunca GC korumasında.
 - [ ] Yetkili insan onayı kaydedildi; doğrudan `main` auto-deploy kapalı.
-- [ ] Production Small+, 7 gün PITR ve yedek uygunluğu doğrulandı.
+- [ ] Pilot profilde günlük yedek; kritik profilde gerekiyorsa Small+/PITR uygunluğu doğrulandı.
 - [ ] Hukukî saklama/imha kararı ve OPS-001 production açılış ön koşulu tamamlandı.
-- [ ] OPS-002 restore tatbikatı yayın kapısından önce planlandı; V1 genel yayınından önce geçti.
+- [ ] OPS-002 restore tatbikatı ilk gerçek kurum/öğrenci verisi alınmadan önce başarıyla geçti;
+      kullanılan yedek türü, ölçülen RPO/RTO ve güvenlik kontrolleri kanıt olarak saklandı.
 - [ ] Data API kapalı, `app` non-exposed ve dış REST/GraphQL negatif testi geçiyor.
 - [ ] TLS, runtime rolü, FORCE RLS ve iki kurum izolasyon testleri geçiyor.
 - [ ] Migration staging'de denenmiş ve production yedeği/ileri düzeltme planı hazır.
@@ -426,10 +438,10 @@ Sunucu/provider panelinin “başarılı” etiketi ürün kabulü yerine geçme
 |---|---|---|
 | Fiziksel repo/app iskeleti, Dockerfile | A-011 | Bu sözleşmedeki Docker/stateless/runtime sınırını uygular |
 | CI kalite, registry ve deploy kapıları | A-012 | Registry/pencere seçimini; tek build, digest/manifest kaydı, retention ve fail-closed terfi/rollback kontrollerini uygular |
-| Ortam değişkeni ve secret iskeleti | A-013 | Ortam ayrımı, secret sızıntısı yasağı ve rotasyon yüzeyini uygular |
+| Ortam değişkeni ve secret iskeleti | A-013 | PLAN-005 ve A-004R3 sonrası ortam ayrımı, secret sızıntısı yasağı ve rotasyon yüzeyini uygular |
 | Loglama, izleme ve maliyet alarmı | A-014 | Ortam ayrımı ve hassas veri minimizasyonuyla eşikleri kurar |
 | Migration aracı/yürütme modeli | Ayrı onaylı teknik karar/uygulama görevi | Runtime ve migration kimliğini ayırmak zorundadır |
-| Production yedek ayarı | OPS-001 | PITR + hukukî karara bağlı şifreli mantıksal yedeği uygular |
+| Production yedek ayarı | OPS-001 | Pilotta günlük yedek + şifreli dump; kritik profilde tetiklenirse PITR uygular |
 | Restore tatbikatı | OPS-002 | Yeni projeye restore ve bütün güvenlik kontrollerini ölçer |
 
 ## 15. Kapsam dışı ve açık kararlar
@@ -456,15 +468,15 @@ Sunucu/provider panelinin “başarılı” etiketi ürün kabulü yerine geçme
 | Development, staging ve production kaynak/veri/erişim sınırları ayrıdır. | Karşılandı |
 | Production verisinin geliştirici cihazına veya alt ortama kopyalanması yasaktır. | Karşılandı |
 | A-002'nin Java 21/Spring Boot tek deploy edilen modüler monolit kararı korunur. | Karşılandı |
-| Backend sağlayıcısı, Frankfurt bölgesi, Docker/stateless runtime ve başlangıç kapasitesi nettir. | Karşılandı |
-| A-003'ün ayrı Supabase projeleri, Data API/non-exposed schema ve runtime/migration rol sınırları açılış kapısına bağlanmıştır. | Karşılandı |
+| Docker/stateless runtime korunmuş; ücretsiz alfa ve ücretli pilot sağlayıcıları deney/ölçüm kapısına bağlanmıştır. | Karşılandı |
+| Açılan Supabase projelerinde Data API/non-exposed schema ve runtime/migration rol sınırları ortam kapısına bağlanmıştır. | Karşılandı |
 | IPv4/IPv6, session pooler, TLS `verify-full`, prepared statement ve transaction tenant bağlamı kararı nettir. | Karşılandı |
 | Aynı değişmez yapıtın ortamlar arasında onayla terfisi ve production rollback davranışı tanımlıdır. | Karşılandı |
 | Production ve önceki rollback digest'inin retention, erişilebilirlik, manifest/checksum ve fail-closed kapıları tanımlıdır. | Karşılandı |
 | Migration, yedek, restore, kurum izolasyonu ve negatif erişim kontrollerinin sahipleri bellidir. | Karşılandı |
 | A-003'ün üç veritabanı maliyet satırı güncel aynı varsayımlarla tekrar hesaplanmıştır. | Karşılandı |
-| Üç ortamın bilinen başlangıç bütçesi ve production maliyet onay kapısı görünürdür. | Karşılandı |
-| Render Pro workspace gereksinimi A-003'ün Pro workspace hesabıyla tutarlı ve Hobby sınırlarıyla gerekçelendirilmiştir. | Karşılandı |
+| Yerel, kapalı alfa, gerçek pilot ve kritik production maliyet profilleri görünürdür. | Karşılandı |
+| Render Pro, sürekli staging ve PITR başlangıç zorunluluğu olmaktan çıkarılıp ölçülmüş tetiklere bağlanmıştır. | Karşılandı |
 | Gerçek ortam/secret/migration kurulumu veya başka görev kapsamı erkenden uygulanmamıştır. | Karşılandı |
 | Bilinmeyen hukukî saklama süresi uydurulmamış ve production kapısında açıkça bloklanmıştır. | Karşılandı |
 
@@ -491,7 +503,10 @@ aynı varsayımlarla yeniden doğrulanır.
   [Audit Logs](https://render.com/docs/audit-logs) ve [Projects and Environments](https://render.com/docs/projects)
   — Pro/Hobby ekip, audit, isolated/protected environment sınırları.
 - Render, [Pricing](https://render.com/pricing) — 25 USD Pro workspace, backend ve alternatif
-  PostgreSQL başlangıç fiyatları.
+  PostgreSQL başlangıç fiyatları ile Free/Starter compute sınırları.
+- Heroku, [öğrenci kredisi](https://www.heroku.com/students/) ve
+  [bölgeler](https://devcenter.heroku.com/articles/regions) — 24 aylık kredi sınırı, Common
+  Runtime `eu` bölgesinin kesin Frankfurt olmaması.
 - Supabase, [Connect to your database](https://supabase.com/docs/guides/database/connecting-to-postgres)
   — direct/session/transaction bağlantı seçimi, IPv4/IPv6 ve portlar.
 - Supabase, [Postgres SSL Enforcement](https://supabase.com/docs/guides/platform/ssl-enforcement)
@@ -503,6 +518,7 @@ aynı varsayımlarla yeniden doğrulanır.
   tabanı.
 - Supabase, [Database backup features](https://supabase.com/features/database-backups) — en
   kötü durumda iki dakikalık RPO beyanı.
+- GitHub, [zamanlanmış workflow davranışı](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/disable-and-enable-workflows) — public repoda 60 gün hareketsizlikte zamanlanmış işin kapanabilmesi; tek production yedeği sayılmamasının gerekçesi.
 - AWS, [RDS for PostgreSQL pricing](https://aws.amazon.com/rds/postgresql/pricing/) ve
   [eu-central-1 fiyat kataloğu](https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonRDS/current/eu-central-1/index.json)
   — 15 Temmuz 2026 `db.t4g.micro` ve gp3 hesap girdileri.

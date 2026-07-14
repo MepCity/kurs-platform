@@ -3,7 +3,7 @@
 | Alan | Değer |
 |---|---|
 | Görev | A-008 — Excel üretme yaklaşımı ADR'si |
-| Durum | Önerildi — inceleme bekliyor |
+| Durum | Kabul edildi |
 | Tarih | 15 Temmuz 2026 |
 | Karar sahipliği | Dalga 1 teknik kararları |
 | Bağımlılık | `EXCEL_RAPOR_VERI_SOZLESMESI.md` (P-012) |

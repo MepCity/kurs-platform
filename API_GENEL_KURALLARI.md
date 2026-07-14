@@ -3,10 +3,10 @@
 | Alan | Değer |
 |---|---|
 | Görev | P-009 — API genel kurallarını yaz |
-| Belge sürümü | 1.1 |
+| Belge sürümü | 1.2 |
 | Ana sözleşme | `URUN_VE_UYGULAMA_PLANI.md` |
 | Bağımlı sözleşmeler | `YETKI_MATRISI.md`, `VERI_MODELI.md` |
-| Son güncelleme | 14 Temmuz 2026 |
+| Son güncelleme | 15 Temmuz 2026 |
 
 ---
 
@@ -49,9 +49,9 @@ Kaynak/endpoint envanteri bu belgenin kapsamı değildir. Senkronizasyon kuyruğ
 
 ## 4. Kimlik doğrulama, oturum ve kurum bağlamı
 
-- Kimlik doğrulama gereken uçlarda `Authorization: Bearer <platform-access-token>` zorunludur. Bu, IAM'in verdiği 256-bit rastgele **opaque** token'dır; Keycloak ID tokenı ve Keycloak access tokenı iş API'lerinde kabul edilmez. Eksik, geçersiz, süresi dolmuş veya iptal edilmiş token `401 UNAUTHENTICATED` döndürür.
-- Native OIDC Authorization Code + PKCE akışında `state`, `nonce`, `code_verifier` ve `code_challenge` mobil istemcinin sorumluluğundadır; `state`/`nonce` callback'te eşleşmeden, `S256` PKCE doğrulanmadan kod kabul edilmez. IAM, mobilin aldığı Keycloak **access tokenını** issuer JWKS ile imza, `iss`, `aud`, `azp`, süre ve gerekli scope bakımından doğrular; API erişimi için ID tokenı kabul etmez.
-- IAM'in platform token üretmesi, doğrulanmış Keycloak `issuer` + `subject` çiftinin `user_identities` eşlemesine dayanır. Kullanıcı adı, e-posta, ad/soyad veya istemciden gelen `userId` ile hesap eşleme/oluşturma yapılamaz.
+- Kimlik doğrulama gereken uçlarda `Authorization: Bearer <platform-access-token>` zorunludur. Bu, IAM'in verdiği 256-bit rastgele **opaque** token'dır; haricî kimlik sağlayıcısının ID/access tokenı iş API'lerinde kabul edilmez. Eksik, geçersiz, süresi dolmuş veya iptal edilmiş token `401 UNAUTHENTICATED` döndürür.
+- Native OIDC Authorization Code + PKCE akışında `state`, `nonce`, `code_verifier` ve `code_challenge` mobil istemcinin sorumluluğundadır; `state`/`nonce` callback'te eşleşmeden, `S256` PKCE doğrulanmadan kod kabul edilmez. IAM, sağlayıcının tokenını issuer JWKS ile imza, `iss`, `aud`, `azp`, süre ve gerekli scope bakımından doğrular; API erişimi için provider ID/access tokenı kabul etmez. Kesin token değişim akışı A-004R3'te seçilen sağlayıcıyla IAM-001'de bağlanır.
+- IAM'in platform token üretmesi, doğrulanmış `issuer` + `subject` çiftinin `user_identities` eşlemesine dayanır. Kullanıcı adı, e-posta, ad/soyad veya istemciden gelen `userId` ile hesap eşleme/oluşturma yapılamaz.
 - Kurum kapsamlı token tek etkin kurum üyeliğine bağlıdır. İstemci kurum kimliğini yol, sorgu veya gövdeye koyarak token kapsamını genişletemez.
 - `contextSelectionToken`, en az 256-bit opaque, 5 dakikalık, refresh edilemeyen ve tek
   kullanımlı kurum-bağlamsız tokendir. Yalnız kullanıcının kurumlarını listeler ve bir etkin

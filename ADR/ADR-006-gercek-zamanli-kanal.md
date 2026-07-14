@@ -2,7 +2,7 @@
 
 | Alan | Değer |
 |---|---|
-| Durum | Öneri — PR incelemesi ve kullanıcı onayı bekliyor |
+| Durum | Kabul edildi |
 | Tarih | 14 Temmuz 2026 |
 | Görev | A-006 — Gerçek zamanlı kanal ADR'si ve iki istemcili yoklama olayı deneyi |
 | Bağımlılık | `SENKRONIZASYON_VE_CAKISMA.md` (P-010) |
