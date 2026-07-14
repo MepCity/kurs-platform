@@ -117,7 +117,7 @@ Bir çevrimdışı oluşturmanın ürettiği istemci UUID'sine bağımlı yazma,
 | `RETRY_WAIT` | Geçici hata sonrası yeniden deneme zamanı bekleniyor. | Üstel bekleme ve varsa `Retry-After` sonrasında aynı anahtarla dener. |
 | `SUCCEEDED` | Sunucu kesin başarılı sonucu doğrulandı. | Yerel görünüm kanonik sunucu sonucu ile güncellenir; kayıt, güvenli yerel geçmiş politikasına göre temizlenebilir. |
 | `NEEDS_ATTENTION` | Kullanıcı değerlendirmesi veya yeni işlem gerekiyor. | Otomatik yeniden gönderilmez; hata ve güvenli çözüm seçeneği gösterilir. |
-| `BLOCKED` | Bağımlı işlem, oturum veya yetki nedeniyle şu an gönderilemez. | Sebep çözülünce yeniden değerlendirilir; sessizce silinmez. |
+| `BLOCKED` | Bağımlı işlem, geçersiz/iptal edilmiş oturum veya yeniden kimlik doğrulama ihtiyacı nedeniyle şu an gönderilemez. | Oturum yenilenir ya da yeniden giriş yapılır; kayıt sessizce silinmez. Yeniden girişten sonra eski yazma otomatik gönderilmez: kaynak ve sürüm yeniden doğrulanır, kullanıcı yeni bir karar verir. |
 
 `SUCCEEDED` dışındaki hiçbir durum kalıcı kuyruktan otomatik silinmez. Kullanıcının bir işlemi vazgeçmesi yalnızca henüz sunucuya başarıyla uygulanmamış yerel girdiyi iptal eder; sunucuya ulaşmış veya belirsiz sonuçlu işlem için önce sonucu aynı anahtarla sorgulamak zorundadır.
 
@@ -127,8 +127,8 @@ Bir çevrimdışı oluşturmanın ürettiği istemci UUID'sine bağımlı yazma,
 |---|---|---|
 | `2xx` kesin başarı | `SUCCEEDED` | Kanonik kaynak/sonuç yerel depoya yazılır. |
 | `202` veya bağlantı sonucu belirsiz | `SYNCING` / `RETRY_WAIT` | Aynı anahtarla durum sorgulanır ya da yeniden denenir. |
-| `401`, `SESSION_REVOKED` | `BLOCKED` | Oturum yenilenir; yenilenemezse giriş istenir. İşlem silinmez. |
-| `403`, `404` | `NEEDS_ATTENTION` | Sunucu terminal `FAILED` sonucunu saklar; hedef varlığı ifşa etmeyen hata gösterilir. |
+| `401`, `SESSION_REVOKED` | `BLOCKED` | Geçersiz/iptal edilmiş oturum veya yeniden kimlik doğrulama ihtiyacı vardır; oturum yenilenir, yenilenemezse giriş istenir. İşlem silinmez. Yeniden giriş tek başına eski yazmayı göndermez. |
+| `403`, `404` | `NEEDS_ATTENTION` | Sunucu sınıf ataması/yetki kaybını veya kapsam dışı hedefi kesin olarak doğrulamıştır ve terminal `FAILED` sonucu saklar; hedef varlığı ifşa etmeyen hata gösterilir. Otomatik tekrar yoktur. |
 | `409 VERSION_CONFLICT`, `STATE_CONFLICT`, `IDEMPOTENCY_KEY_REUSED` | `NEEDS_ATTENTION` | Sunucu terminal `FAILED` sonucunu saklar; otomatik tekrar yoktur. |
 | `400`, `422` | `NEEDS_ATTENTION` | Sunucu terminal `FAILED` sonucunu saklar; düzeltilmiş yeni işlem oluşturulur. |
 | `429`, `5xx`, ağ hatası | `RETRY_WAIT` | İdempotency kaydı terminal `FAILED` olmaz; aynı anahtar ve güvenli geri çekilme ile yeniden dene. |
@@ -232,17 +232,20 @@ kayıtlar için `REMOVED_FROM_SCOPE` yazılır; yeni sınıfın yetkili akışı
 öğrencinin yeni sınıfı veya yetkisiz verisi hakkında ek bilgi alamaz.
 
 İstemci `REMOVED_FROM_SCOPE` aldığında ilgili öğrencinin yerel kişisel ve operasyonel verisini,
-ilişkili liste önbelleklerini ve gösterilebilir özetlerini kaldırır. Yetki iptali veya token
-geçersizliği, olay/akışın tek başına taşıdığı bir başarı sinyali değildir: istemci yazmaları
-`BLOCKED` durumda korur, yetkili kapsamı güvenli snapshot ile yeniden doğrular ve erişim
-kaybolmuşsa ilgili kapsamı yerelden purge eder. Eski kullanıcının veya eski sınıfın verisi başka
-bağlamda gösterilemez ya da gönderilemez.
+ilişkili liste önbelleklerini ve gösterilebilir özetlerini kaldırır. Token/oturum geçersiz veya
+iptal edilmişse yazma `BLOCKED` durumda korunur ve yeniden kimlik doğrulama istenir. Sunucu
+sınıf ataması ya da işlem yetkisi kaybını kesin `403`/`404` ile doğrulamışsa yazma
+`NEEDS_ATTENTION` durumundadır; otomatik tekrar yoktur. Her iki durumda da kuyruk sessizce
+silinmez, kapsam kaybında ilgili hassas yerel veri purge edilir ve eski kullanıcının veya eski
+sınıfın verisi başka bağlamda gösterilemez ya da gönderilemez. Yeniden giriş veya yetkinin
+sonradan geri gelmesi eski işi otomatik göndermez; mevcut kaynak/sürüm doğrulanır ve kullanıcı
+yeniden karar verir.
 
 ## 8. Kullanıcı görünürlüğü ve hata davranışı
 
 - Bekleyen yazma, ilgili kayıt üzerinde anlaşılır eşitleme durumu ve son güvenli hata ile görünür olur; kullanıcı "kaydedildi" ile "cihazda bekliyor" durumlarını ayırt eder.
 - `NEEDS_ATTENTION` durumunda uygulama, güvenli bir sonraki hareket sunar: güncel veriyi gör, değişikliği gözden geçir, yeniden dene veya henüz sunucuya uygulanmamış yerel işlemi iptal et. Ham HTTP ayrıntısı veya başka kullanıcının hassas verisi gösterilmez.
-- Oturum/rol/atama değişikliği nedeniyle bekleyen işlem artık yetkisizse işlem başarıya çevrilmez. Kullanıcı yeniden yetki kazanırsa bile uygulama işlemi yeniden göndermeden önce mevcut kaynak ve sürümünü doğrular.
+- Oturum geçersiz/iptal edilmişse kuyruk girdisi `BLOCKED` kalır; oturum yenileme veya yeniden giriş istenir. Sunucu sınıf ataması ya da işlem yetkisi kaybını kesin `403`/`404` ile doğrulamışsa girdi `NEEDS_ATTENTION` kalır. Her iki durumda da kayıt sessizce silinmez; kapsam kaybında hassas yerel veri purge edilir. Kullanıcı sonradan yetki kazansa veya yeniden giriş yapsa bile eski işlem otomatik gönderilmez: mevcut kaynak ve sürüm yeniden doğrulanır, kullanıcı yeniden karar verir.
 - Kuyruk ve yerel önbellek uygulama kapanması/yeniden açılmasında kaybolmaz. Cihazın güvenli saklama imkânları kullanılır; parola veya ham token kuyrukta, olayda ya da tanılama kaydında tutulmaz.
 
 ## 9. Zorunlu kabul senaryoları
