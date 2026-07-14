@@ -3,15 +3,25 @@
 | Alan | Değer |
 |---|---|
 | Görev | P-008 — Çekirdek veri modeli taslağını yaz |
-| Belge sürümü | 4.1 |
+| Belge sürümü | 4.2 |
 | Ana sözleşme | `URUN_VE_UYGULAMA_PLANI.md` |
 | Terim kaynağı | `TERIMLER_SOZLUGU.md` |
 | Yetki kaynağı | `YETKI_MATRISI.md` |
 | Veri hassasiyet kaynağı | `KISISEL_VERI_ENVANTERI.md` |
 | Çapraz kontrol | `AKTORLER_VE_KULLANIM_SENARYOLARI.md`, `YONETICI_BILGI_MIMARISI.md`, `HOCA_MOBIL_BILGI_MIMARISI.md` |
-| Son güncelleme | 14 Temmuz 2026 |
+| Son güncelleme | 15 Temmuz 2026 |
 
 ---
+
+## PLAN-005 sağlayıcı revizyon notu
+
+A-004R3 tamamlanana kadar bu belgedeki `issuer + subject`, platform `user_id`, üyelik/rol/izin,
+opaque platform token aileleri, `session_generation`, kurum kapsamlı iptal, provider-command
+idempotency ve fail-closed `PROVISIONING` değişmezdir. `Keycloak` adı geçen create/finalize,
+event polling, `Location`, `auth_time` ve token değişim ayrıntıları ise A-004'ün fallback
+tasarımını belgeler; Cognito Essentials seçilirse A-004R1–A-004R3/IAM-001 aynı güvenlik sonuçlarını
+sağlayacak alan ve akışları kesinleştirir. Bu ayrıntılar A-004R3 öncesinde migration'a veya
+provider SDK'sına dönüştürülemez.
 
 ## Revizyon notu (v1.0 → v2.0)
 

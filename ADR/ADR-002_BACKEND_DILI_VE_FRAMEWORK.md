@@ -2,7 +2,7 @@
 
 | Alan | Değer |
 |---|---|
-| Durum | Önerildi — inceleme bekliyor |
+| Durum | Kabul edildi |
 | Tarih | 14 Temmuz 2026 |
 | Görev | A-002 — Backend dili ve framework ADR'si |
 | Karar sahipliği | Dalga 1 teknik kararları |

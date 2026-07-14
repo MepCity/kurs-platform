@@ -4,14 +4,14 @@
 
 | Alan | Değer |
 |---|---|
-| Belge sürümü | 1.1 |
+| Belge sürümü | 1.2 |
 | Durum | Onaylanmış başlangıç sözleşmesi |
 | İlk yayın hedefi | Yaklaşık 2–3 ay; kalite zaman baskısından önceliklidir |
 | İlk sürüm kullanıcıları | Platform yöneticisi, kurum yöneticisi ve hocalar |
 | İlk istemciler | iOS ve Android mobil uygulama |
 | Sonraki istemciler | Web yönetim paneli, veli ve öğrenci uygulama deneyimi |
 | Veri başlangıcı | Temiz başlangıç; eski Excel ve Google Sheets verileri yalnızca referanstır |
-| Son güncelleme | 14 Temmuz 2026 |
+| Son güncelleme | 15 Temmuz 2026 |
 
 ---
 
@@ -105,6 +105,25 @@ hazırlanacaktır.
 - Bir kurum başka kurumun verisini hiçbir sorguda görememelidir.
 - Veli ve öğrenci erişimi geldiğinde yalnızca ilişkili ve izin verilen veriler gösterilmelidir.
 - Hassas veriler loglara ve hata mesajlarına gereksiz yere yazılmamalıdır.
+
+### 3.6. Kademeli maliyet ve operasyon
+
+- Güvenlik, kurum izolasyonu, veri bütünlüğü ve geri yüklenebilirlik maliyet azaltmak için
+  kaldırılmaz; pahalı kapasite, yüksek erişilebilirlik ve sürekli alt ortamlar ölçülmüş ihtiyaca
+  kadar ertelenebilir.
+- Yerel geliştirme ve yalnız sentetik veri kullanan kapalı alfa için dış ödeme hedefi
+  `0 USD/ay`dır; bu bir fiyat garantisi veya hizmet seviyesi taahhüdü değildir.
+- Gerçek öğrenci verisi kullanan tek kurum pilotu, kullanıcı sayısı az olsa bile production
+  verisidir. Hedef başlangıç bütçesi `25–60 USD/ay`dır; yedek, geri yükleme ve erişim sınırları
+  kapatılmadan yalnız ücretsiz kota gerekçesiyle açılmaz.
+- PITR, sürekli staging, ücretli ekip yönetişimi, yüksek erişilebilirlik ve çapraz hesap/bölge
+  yedeği ancak kabul edilmiş RPO/RTO, sözleşmeli erişilebilirlik veya ölçülmüş kapasite ihtiyacı
+  oluştuğunda etkinleştirilir.
+- Öğrenci kredileri development, kapalı alfa veya geçici doğrulamada kullanılabilir; production
+  sahipliği, alan adı, repo ve veri kurtarma imkânı kişisel öğrenci hesabına kalıcı bağımlı
+  olamaz.
+- Sağlayıcı bağımlılığı standart Docker imajı, PostgreSQL/SQL migration, sağlayıcıdan bağımsız
+  uygulama sınırları ve düzenli dışa aktarma/geri yükleme kanıtıyla sınırlandırılır.
 
 ---
 
@@ -796,14 +815,20 @@ izlenmelidir.
 - Yedekten geri dönüş düzenli olarak denenmelidir.
 - Dosya depolama için uygun sürümleme veya yedek politikası bulunmalıdır.
 - Yalnızca yedek alınması yeterli değildir; geri yükleme süresi ve prosedürü belgelenmelidir.
+- Sentetik kapalı alfada best-effort yedek kabul edilebilir; gerçek öğrenci verisinde zamanlanmış
+  bir CI işi tek yedek mekanizması olamaz ve başarısızlık görünür alarm üretmelidir.
 
 ### 17.3. Ortamlar
 
-En az şu ortamlar bulunmalıdır:
+Mantıksal olarak en az şu ortam profilleri tanımlanmalıdır:
 
 - Geliştirme
 - Test/staging
 - Üretim
+
+Bu profillerin üçü ilk günden sürekli çalışan ayrı bulut kaynakları olmak zorunda değildir.
+Development yerel olabilir; staging yayın öncesinde geçici açılabilir. Üretim verisi hiçbir
+durumda geliştirici cihazına veya sentetik alt ortama kopyalanamaz.
 
 Üretim verisi geliştirici cihazlarına kopyalanmamalıdır. Test ortamında sentetik veya
 anonimleştirilmiş veri kullanılmalıdır.
@@ -1248,6 +1273,25 @@ Dalga 0 belgeleri tamamlanmadan ilgili alanda büyük ölçekli geliştirmeye ba
 - Kuruma özel öğrenci alanı tanımlarını yönetme V1'de yalnız kurum yöneticisine ve açık destek
   bağlamındaki platform yöneticisine aittir; hocaya devredilemez. Öğrencideki özel alan değerine
   erişim, alan tanımı yönetiminden ayrı olarak hedef öğrenci erişim kapsamına tabidir.
+
+### 15 Temmuz 2026 — PLAN-005 maliyet ve operasyon kararları
+
+- Yerel geliştirme ve 0–10 davetli gerçek test kullanıcılı kapalı alfa için dış ödeme hedefi
+  `0 USD/ay`dır. Kullanıcı adları tercihen takmadır; kurum, öğrenci, veli, yoklama, ilerleme,
+  PDF ve rapor verilerinin tamamı sentetiktir. Herhangi bir gerçek kurum veya öğrenci verisi,
+  kullanıcı sayısından bağımsız gerçek kurum pilotudur ve hedef bütçesi `25–60 USD/ay`dır.
+- Ücretsiz veya öğrenci kredili hizmetler geçici maliyet desteğidir; üretim sahipliği ve veri
+  kurtarma süreci kişisel öğrenci hesabına bağlanmayacaktır.
+- A-011 sağlayıcı bağımsız repo/uygulama iskeleti olarak devam edebilir; kimlik, depolama,
+  cloud secret veya gerçek provisioning sözleşmesi üretmez.
+- Self-managed Keycloak kararı Cognito Essentials A-004R1–A-004R3 deney zinciri sonuçlanana
+  kadar uygulamaya alınmayacaktır. Kurum/sınıf yetkisi ile cihaz ve kurum kapsamlı platform
+  oturum iptali kimlik sağlayıcısından bağımsız olarak platformda kalacaktır.
+- Kapalı alfada dosya gerekmiyorsa uzak nesne deposu kurulmayacaktır. S3 referans güvenlik
+  sözleşmesi korunacak; R2 EU ancak versioning, geri yükleme ve imha sözleşmesi yeniden
+  doğrulanırsa alternatif olacaktır.
+- Sürekli staging, PITR, Render Pro ve yüksek erişilebilirlik başlangıç zorunluluğu olmaktan
+  çıkarılmış; ölçülmüş kullanım veya kabul edilmiş RPO/RTO tetiklerine bağlanmıştır.
 
 ---
 

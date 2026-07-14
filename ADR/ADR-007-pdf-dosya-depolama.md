@@ -2,7 +2,7 @@
 
 | Alan | Değer |
 |---|---|
-| Durum | Öneri — PR incelemesi ve kullanıcı onayı bekliyor |
+| Durum | Koşullu kabul — S3 referans sözleşmesi korunuyor, provisioning ertelendi |
 | Tarih | 15 Temmuz 2026 |
 | Görev | A-007 — PDF/dosya depolama ADR'si |
 | Karar sahibi | Ürün sahibi |
@@ -11,10 +11,16 @@
 
 ## 1. Karar özeti
 
-V1 dosyaları için **Amazon S3 Standard**, kesin bölge olarak **AWS `eu-central-1`
-(Frankfurt)** ile önerilir. Kurum logosu, kişi profil fotoğrafı, içerik PDF'si ve geçici Excel
-rapor artefaktları herkese kapalı bucket'larda tutulur. Mobil istemci kalıcı AWS kimlik bilgisi
-almaz ve hiçbir bucket doğrudan herkese açık yapılmaz.
+Kapalı alfa dosya yüklemiyorsa hiçbir uzak nesne deposu açılmaz. İlk gerçek dosya ihtiyacında
+bu ADR'deki **Amazon S3 Standard `eu-central-1` (Frankfurt)** tasarımı güvenlik ve geri yükleme
+referansıdır; ancak dört hesaplı AWS topolojisi otomatik olarak provision edilmez. Önce A-007R,
+S3'ü erteleyerek koruma ile Cloudflare R2 `eu` jurisdiction + immutable key + bağımsız backup
+modelini aynı yaşam döngüsü ve imha senaryolarıyla ölçer. Sonuç onaylanmadan R2 “ucuz S3” gibi
+eşdeğer kabul edilmez.
+
+Seçilecek uzak depoda kurum logosu, kişi profil fotoğrafı, içerik PDF'si ve geçici Excel rapor
+artefaktları herkese kapalı tutulur. Mobil istemci kalıcı sağlayıcı kimlik bilgisi almaz ve
+hiçbir bucket doğrudan herkese açık yapılmaz.
 
 Kalıcı nesne anahtarları kullanıcı girdisinden, dosya adından veya kurum kimliğinden türetilmez;
 kriptografik olarak rastgele, opak değerlerdir. Veritabanındaki kurum kapsamlı `file_assets`
@@ -29,12 +35,11 @@ aittir; istemci bu URL'yi geçerli platform oturumuyla çağırır, backend yetk
 ve nesneyi S3'ten akışla iletir. Böylece başka kuruma ait nesne varlığı, kalıcı depolama anahtarı
 ve sağlayıcı kimliği istemciye açılmaz.
 
-Bu ADR sağlayıcı hesabı veya bucket oluşturmaz; AWS depolama topolojisini ise bağlayıcı seçer:
-development, staging, production ve production backup için **dört ayrı AWS hesabı** kullanılır.
-A-010'un genel ortam/veri ayrımı korunur; tamamlanmış A-010'a AWS kararı geri bırakılmaz.
-Hesap, bucket, IAM/KMS ve güvenlik kontrollerini OPS-005 uygular; secret/workload identity
-iskeleti A-013, log ve alarm eşikleri A-014 kapsamındadır. Nesne yedek/geri yükleme tatbikatı
-OPS-006'dır; OPS-001/OPS-002 yalnız veritabanı yedek ve geri yüklemesini kapsar.
+Bu ADR sağlayıcı hesabı veya bucket oluşturmaz. Dört ayrı AWS hesaplı production topolojisi
+kritik-production referansıdır; gerçek kurum pilotunda zorunlu başlangıç topolojisi değildir.
+OPS-005 ancak dosya gereksinimi ve A-007R sağlayıcı kararı tamamlandığında seçilen profili
+provision eder. Secret/workload identity A-013, log/alarmlar A-014, nesne geri yükleme tatbikatı
+OPS-006 kapsamındadır.
 
 ## 2. Bağlam
 
@@ -121,8 +126,8 @@ Hesapta kullanılan birim fiyatlar:
 ### 4.2. Production örnek yükü + production backup aylık maliyet tablosu
 
 Bu tablo yalnız §4.1'deki production örnek yükünü ve production backup kopyasını karşılaştırır.
-Development/staging depolama ve istekleri burada adaylara dağıtılmaz; seçilen dört hesaplı S3
-topolojisinin zorunlu alt ortam KMS tabanı §4.3'te ayrıca eklenir.
+Development/staging depolama ve istekleri burada adaylara dağıtılmaz; yalnız kritik-production
+referansı olan dört hesaplı S3 topolojisinin alt ortam KMS tabanı §4.3'te ayrıca gösterilir.
 
 | Maliyet kalemi (USD/ay) | Amazon S3 | Supabase Storage | Cloudflare R2 |
 |---|---:|---:|---:|
@@ -151,11 +156,12 @@ olur. Supabase marjinali A-003 nedeniyle Pro planının zaten ödendiği proje g
 bağımsız karşılaştırmada `$25` tabanı saklanmamıştır. Log, tarama compute'u ve vergiler ayrıca
 bütçelenir.
 
-### 4.3. Seçilen dört hesaplı topolojinin bilinen tabanı
+### 4.3. Kritik-production dört hesaplı S3 topolojisinin bilinen tabanı
 
 Production örnek yükü + backup için kota sonrası S3 toplamı `$4,5035`tir. Development ve
 staging hesaplarının her birinde zorunlu ayrı müşteri yönetimli KMS anahtarı `$1/ay` olduğundan,
-henüz sentetik storage/istek yükü eklenmeden seçilen dört hesaplı AWS depolama tabanı:
+henüz sentetik storage/istek yükü eklenmeden kritik-production referansı olan dört hesaplı AWS
+depolama tabanı:
 
 | Bilinen bileşen | USD/ay |
 |---|---:|
@@ -196,8 +202,10 @@ toplamı, kota aşımı görünürlüğünü ve zorunlu yedeği birlikte değerl
 Supabase operasyon ve mevcut plan marjinalinde, R2 maliyet/egress'te öndedir. Buna karşılık S3;
 kalıcı öğrenci fotoğrafları ve içeriklerde versioning, ayrı IAM/KMS sınırı ve test edilebilir
 cross-account yedekle en yüksek güvenlik/geri yüklenebilirlik puanını alır. **Amazon S3 Standard
-`eu-central-1` kararı, production+backup `$4,50` ve dört hesaplı bilinen `$6,50` tabanla matris
-yeniden çalıştırıldığında 410/500 sonuçla doğrulanmıştır.** Dört hesaplı topoloji S3'ün
+`eu-central-1` referansı, production+backup `$4,50` ve dört hesaplı bilinen `$6,50` tabanla
+matris yeniden çalıştırıldığında 410/500 sonuç vermiştir.** Bu sonuç başlangıçta dört hesabın
+hemen kurulmasını değil, S3'ün kritik-production güvenlik referansı olarak korunmasını sağlar.
+Dört hesaplı topoloji S3'ün
 operasyon puanını `3`ten `2`ye düşürmüş; `$2` alt ortam KMS artışı mutlak V1 bütçesinde maliyet
 puanını `3`te tutmuştur. Maliyet puanı ayrıca bir kademe `2`ye indirilseydi S3 toplamı
 `395/500` olur ve R2'nin `390/500` sonucunu yine geçerdi. İlk 100 GB egress kotası
@@ -207,6 +215,10 @@ hesaplama zorunludur.
 ## 5. Bağlayıcı teknik sınırlar
 
 ### 5.1. Ortam ve bucket ayrımı
+
+Bu bölüm S3 seçildiğinde uygulanacak referans profildir. Kapalı alfa dosya yüklemiyorsa kaynak
+oluşturulmaz; R2 seçilirse eşdeğer olmayan versioning, backup ve imha maddeleri A-007R ile
+yeniden karara bağlanmadan bu bölümün karşılandığı iddia edilemez.
 
 - Development, staging ve production `eu-central-1` bölgesinde ayrı AWS hesaplarındadır;
   production backup dördüncü, yalnız yedek/restore amaçlı AWS hesabındadır. Production nesnesi
@@ -673,7 +685,7 @@ dönüştürülmeleri zorunludur.
 | Risk | Azaltım |
 |---|---|
 | Backend üzerinden indirme CPU/ağ yükü oluşturur | Dosya akışla iletilir; V1 boyut sınırları ölçülür. Egress/latency yayın hedefini bozarsa kalıcı anahtarı gizleyen ve eşdeğer iptal/yetki sağlayan ayrı dağıtım ADR'si açılır. |
-| Dört AWS hesabı, IAM ve KMS işletimi eklenir | Hesap başına varsayılan red, ayrı key policy ve workload/provisioning rolleri bağlayıcıdır; IaC ve negatif güvenlik kontrolleri OPS-005'in, secret referansları A-013'ün kalite kapısı olur. |
+| Dört AWS hesabı, IAM ve KMS işletimi erken açılır | Kapalı alfada uzak depo açılmaz; bu topoloji yalnız kritik-production tetiklerinde ve yazılı maliyet onayıyla OPS-005'e girer. |
 | Versioning depolama maliyetini büyütür | Immutable key, orphan metriği ve hukukî onaylı noncurrent lifecycle; aylık storage/version bütçe alarmı. |
 | DB kaydı ile nesne yazımı atomik değildir | Uzak çağrıdan önce commit edilen durable işlem, exact-key verifier, pozitif metadata kontrolü, CAS durum geçişi, idempotency ve referans kontrollü cleanup kullanılır; uzak aktarım DB transaction'ında tutulmaz. |
 | Yetki dışı/elle yazılmış nesnenin durable kaydı yoktur | İnsan/genel admin `PutObject` erişimi verilmez; bütün writer workload'ları işlem kaydıyla sınırlandırılır ve OPS-005 negatif IAM testi doğrudan yazmayı reddeder. |
@@ -689,15 +701,16 @@ dönüştürülmeleri zorunludur.
   noncurrent version ve yedek saklama süreleri ilgili API/ortam/hukuk kararında kesinleşir.
 - Kesin malware tarama ürünü, dosya dönüştürme kütüphanesi ve PDF sanitize motoru CONTENT-003
   uygulama görevinin teknoloji değerlendirmesidir; bu ADR güvenlik sonucunu bağlar.
-- Nesne deposu provisioning, IAM/KMS, lifecycle/replikasyon ve güvenlik negatifleri OPS-005;
+- Sağlayıcı eşdeğerlik deneyi/erteleme kararı A-007R; nesne deposu provisioning, seçilen
+  sağlayıcının IAM/şifreleme/lifecycle ve güvenlik negatifleri OPS-005;
   nesne yedek/geri yükleme kanıtı OPS-006 kapsamındadır. OPS-001/OPS-002 yalnız veritabanı
   yedek/geri yüklemesini kapsar.
 - `file_assets` API alanları, yükleme oturumu/finalize endpointleri ve hata kodları CONTENT-001;
   logo davranışı ORG-002; Excel indirme ucu EXPORT-006 kapsamındadır.
-- Genel Render/Supabase ortam ve runtime barındırma sınırları tamamlanmış A-010'dadır. Dört AWS
-  hesabı ve değişmez erişim/KMS sınırları bu ADR'nin kararı; bunların hesap kimliği, kaynak adı
-  ve IaC uygulaması OPS-005; secret/workload identity referansları A-013; metrik/log sağlayıcısı
-  A-014 kapsamındadır.
+- Genel ortam ve runtime barındırma sınırları A-010'dadır. S3 seçilirse dört hesap/KMS ancak
+  kritik-production profilinde bağlayıcı olur; R2 seçilirse version-ID, backup, exact-version
+  imha ve geri yükleme sözleşmesi A-007R'de açıkça yeniden yazılır. Kaynak/IaC OPS-005,
+  secret/workload identity A-013, metrik/log sağlayıcısı A-014 kapsamındadır.
 - Hukukî KVKK sınıflandırması, veri işleme şartları, DPA ve kesin saklama/imha politikası bu
   teknik ADR'nin kapsamı dışındadır ve ürün sahibi/hukuk onayı gerektirir.
 - Herkese açık kurumsal logo/CDN, ses/video/gelişmiş medya, e-posta eki ve kurumlar arası dosya
@@ -708,7 +721,8 @@ dönüştürülmeleri zorunludur.
 - [x] PDF, logo/fotoğraf ve Excel artefaktı yaşam döngüleri ayrıldı.
 - [x] AWS S3, Supabase Storage, Cloudflare R2 ve DB/yerel disk seçenekleri karşılaştırıldı.
 - [x] Ortak örnek yükte maliyet kalemleri ayrıldı ve simetrik ağırlıklı matrisle S3 kararı yeniden doğrulandı.
-- [x] Dört hesaplı AWS ortam/backup topolojisi, varsayılan red ve KMS key policy sınırları bağlandı.
+- [x] Dört hesaplı AWS ortam/backup topolojisi kritik-production referansı olarak tanımlandı;
+      kapalı alfa provisioning'inden çıkarıldı.
 - [x] Private access, kurum/sınıf yetkisi ve depolama anahtarını gizleyen teslim yolu tanımlandı.
 - [x] Yükleme doğrulama, quarantine, checksum ve başarısız/yarım durumları tanımlandı.
 - [x] Orphan reconciliation durable işlem/exact-key modeli, idempotency ve yalnız izole/veri işlemsiz verifier'a verilen koşullu version görünümüyle bağlandı.
@@ -766,7 +780,9 @@ dönüştürülmeleri zorunludur.
 - Supabase, [Storage fiyatlandırması](https://supabase.com/pricing): Pro kotası, aşım ve egress
   kalemleri.
 - Cloudflare, [R2 veri konumu](https://developers.cloudflare.com/r2/reference/data-location/),
+  [bucket lock](https://developers.cloudflare.com/r2/buckets/bucket-locks/),
   [ön-imzalı URL'ler](https://developers.cloudflare.com/r2/api/s3/presigned-urls/) ve
   [nesne yaşam döngüsü](https://developers.cloudflare.com/r2/buckets/object-lifecycles/) ile
   [fiyatlandırma](https://developers.cloudflare.com/r2/pricing/): AB jurisdiction, süreli
-  erişim, lifecycle ve depolama/operasyon/egress modeli.
+  erişim, lifecycle, lock ve depolama/operasyon/egress modeli. Bucket lock silme/overwrite
+  korumasıdır; S3 object versioning geçmişinin eşdeğeri kabul edilmez.

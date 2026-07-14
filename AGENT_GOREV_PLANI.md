@@ -2,12 +2,12 @@
 
 | Alan | Değer |
 |---|---|
-| Belge sürümü | 1.1 |
+| Belge sürümü | 1.2 |
 | Ana sözleşme | `URUN_VE_UYGULAMA_PLANI.md` |
 | Amaç | Ürünü küçük, bağımsız, doğrulanabilir ve agentlara atanabilir işlere bölmek |
 | Görev üst sınırı | Bir görev tercihen 2–6 saat, en fazla bir iş günü |
 | Mimari yaklaşım | Modüler monolit; mikroservis değil |
-| Son güncelleme | 14 Temmuz 2026 |
+| Son güncelleme | 15 Temmuz 2026 |
 
 ---
 
@@ -197,6 +197,7 @@ değildir; `PLAN-*` kimliğiyle izlenir:
 | PLAN-002 | M | Agent odaklı atomik görev planını oluştur | PLAN-001 |
 | PLAN-003 | S | Repo agent çalışma kurallarını oluştur | PLAN-001, PLAN-002 |
 | PLAN-004 | M | Faz/Dalga ve çapraz sözleşme tutarlılık düzeltmelerini uygula | P-014, harici dokümantasyon incelemesi |
+| PLAN-005 | M | Başlangıç maliyeti, sağlayıcı kapıları ve kademeli ortam sözleşmesini uygula | A-001–A-010, ürün sahibi maliyet kararı |
 
 ### Dalga 0 — Ürün ve sözleşme görevleri
 
@@ -252,17 +253,48 @@ Bu görevler Dalga 0 tamamlanmadan başlatılmaz.
 | A-008 | S | Excel üretme yaklaşımı ADR'si | P-012 | A |
 | A-009 | S | Monorepo/repo yapısı ADR'si | A-001, A-002 | B |
 | A-010 | S | Geliştirme, staging ve üretim ortam sözleşmesi | A-002, A-003 | B |
+| A-004R1 | M | Cognito provisioning, ilk parola ve gerçek mobil PKCE deneyini yap | PLAN-005, A-004, A-010 | C |
+| A-004R2 | M | Cognito iptal, platform oturumu ve olay kaybı uzlaştırma deneyini yap | A-004R1 | C |
+| A-004R3 | S | Cognito maliyet/operasyon kararını kapat ve geçici kaynakları kaldır | A-004R2 | C |
+| A-007R | M | Dosya ihtiyacında S3 erteleme/R2 EU eşdeğerlik kararını doğrula | PLAN-005, A-007, A-010 | Koşullu C |
 | A-011 | M | Repo ve modül klasör iskeletini oluştur | A-009 | C |
 | A-012 | M | CI kalite kapılarını oluştur | A-011 | D |
-| A-013 | S | Ortam değişkeni ve secret yönetimi iskeleti | A-010, A-011 | D |
+| A-013 | S | Ortam değişkeni ve secret yönetimi iskeleti | A-010, A-011, PLAN-005, A-004R3 | D |
 | A-014 | S | Loglama ve hata izleme temelini kur | A-011 | D |
-| A-015 | S | Dalga 1 iskelet bütünlük incelemesi | A-001–A-014 | Entegrasyon |
+| A-015 | S | Dalga 1 iskelet bütünlük incelemesi | A-001–A-014, PLAN-005, A-004R3 | Entegrasyon |
 
 ### Dalga 1 paralelliği
 
-`A-001`–`A-008` ayrı ADR/deneme görevleri olarak paralel yapılabilir. Kararlar onaylanmadan
-repo iskeleti kurulmaz. `A-011` sonrasında CI, secret ve loglama görevleri farklı dosya
-sahiplikleriyle paralel yürütülebilir.
+`A-011`, PLAN-005/A-004R1–A-004R3 ile paralel yürüyebilir; yalnız ADR-009'daki fiziksel iskelet ve
+mimari testleri uygular. Auth/storage portu, provider SDK'sı, gerçek migration, cloud secret,
+environment değişkeni veya deployment kaynağı oluşturmaz. `A-012` ve A-014'ün sağlayıcı
+bağımsız temeli A-011 sonrasında ilerleyebilir. `A-013`, IAM-001 ve gerçek provider
+entegrasyonu PLAN-005 ile A-004R3 tamamlanmadan başlayamaz. `A-007R` yalnız ilk gerçek dosya
+ihtiyacı doğduğunda READY yapılır; kapalı alfada uzak depo yoksa kritik yol değildir.
+
+### PLAN-005 sonrası sağlayıcı doğrulama kapıları
+
+- `A-004R1`; AWS `eu-central-1` bölgesinde yalnız sentetik kullanıcılarla Cognito Essentials
+  provisioning, username + geçici parola, ilk giriş parola değişimi, kayıp create yanıtı ve
+  gerçek mobil Authorization Code + PKCE akışını kanıtlar. Deney kimlik bilgileri yalnız kısa
+  ömürlü/local güvenli yüzeyden alınır; repo, artifact ve loga yazılmaz. İlk kaynak açılmadan
+  `5 USD` bütçe alarmı kurulur ve yazılı ürün sahibi onayı olmadan `10 USD` üstüne çıkılmaz.
+- `A-004R2`; refresh rotation/reuse, provider kesintisi, kullanıcı disable/global token iptali,
+  platform tek-cihaz ve kurum-kapsamlı iptal ile olay kaybı uzlaştırmasını kanıtlar. İptal edilmiş
+  veya devre dışı bırakılmış provider tokenı yeni platform oturumu üretemez; önceden üretilmiş
+  platform token aileleri idempotent iptal edilir ve kaçırılan olay fail-closed uzlaştırılır.
+- `A-004R3`; deney kanıtlarını karşılaştırır, nihai sağlayıcı kararını ve IAM-001 girdisini
+  kaydeder. Gerçekleşen maliyet ile bütçe alarmı kanıtını raporlar. User pool, app client,
+  domain, test kullanıcıları, IAM politikaları ve diğer geçici kaynakların silindiği
+  envanter/teardown kanıtıyla doğrulanır. Platform `user_id`,
+  üyelik/rol/izin, opaque token ailesi ve `session_generation` bütün görevlerde korunur.
+- `A-007R`; dosya gerçekten gerektiğinde mevcut S3 reference profilini erteleyerek koruma ile
+  R2 `eu` jurisdiction + immutable key + bağımsız backup modelini karşılaştırır. R2 bucket lock
+  S3 object versioning sayılmaz; version-ID, exact-version imha, source/backup yokluk kanıtı ve
+  restore sözleşmesi yeniden yazılmadan sağlayıcı değişmez.
+- Öğrenci kredisi, ücretsiz kota veya kişisel hesap production sahipliği değildir. Repo, domain,
+  yedek ve kurtarma erişimi proje sahibinde kalır; kredi bitiminden en az 60 gün önce ücretli
+  veya devredilebilir profile geçiş kanıtlanır.
 
 ### Faz 0 teknik doğrulama kanıtları
 
@@ -299,7 +331,7 @@ temeli başlar.
 
 | Kimlik | Boyut | Görev | Bağımlılık |
 |---|---:|---|---|
-| IAM-001 | S | Giriş/oturum API sözleşmesini kesinleştir | P-003, A-004 |
+| IAM-001 | S | Giriş/oturum API sözleşmesini kesinleştir | P-003, A-004R3 |
 | IAM-002 | S | Cihaz ve oturum iptali sözleşmesini yaz | IAM-001 |
 | ORG-001 | S | Kurum yaşam döngüsü API sözleşmesini yaz | P-008, P-009 |
 | ORG-002 | S | Marka ayarları sözleşmesini yaz | ORG-001, A-007 |
@@ -318,25 +350,26 @@ temeli başlar.
 | IAM-008 | M | Mobil güvenli oturum saklamayı uygula | IAM-002, A-005 | Mobil |
 | ORG-003 | M | Kurum migration ve repository'sini oluştur | ORG-001 | Backend |
 | ORG-004 | M | Platform yöneticisi kurum oluşturma API'si | ORG-003 | Backend |
-| ORG-005 | M | Kurum marka ayarları API'si | ORG-002, ORG-003 | Backend |
+| ORG-005 | M | Kurum adı ve renk ayarları API'si (dosyasız) | ORG-002, ORG-003 | Backend |
 | ORG-006 | M | Platform yöneticisi kurum listeleme ekranı | ORG-001, UI-001 | Mobil |
 | ORG-007 | M | Mobil kurum oluşturma akışı | ORG-001, UI-001 | Mobil |
-| ORG-008 | M | Logo/renk ayarı mobil akışı | ORG-002, UI-001 | Mobil |
+| ORG-008 | M | Kurum adı ve renk ayarı mobil akışı (dosyasız) | ORG-002, UI-001 | Mobil |
 | UI-003 | M | Ortak düğme, alan, liste ve durum bileşenleri | UI-001 | Mobil |
 | UI-004 | M | Rol bazlı mobil kabuk ve navigasyon | UI-002, UI-003 | Mobil |
 | IAM-009 | M | Entegrasyon, izolasyon, olay kaybı ve iptal gecikmesi testleri | IAM-004–IAM-008, ORG-004 | Test |
-| ORG-009 | M | Dalga 2 uçtan uca entegrasyon | Önceki Dalga 2 görevleri | Entegrasyon |
+| ORG-009 | M | Dalga 2 dosyasız çekirdek uçtan uca entegrasyon | IAM-003–IAM-008, ORG-003–ORG-008, UI-003–UI-004 | Entegrasyon |
 
 ### Güvenli paralellik
 
 Backend sözleşmeleri onaylandıktan sonra `IAM-004` ile `IAM-007`, `ORG-004` ile `ORG-006`
 paralel yapılabilir. Mobil görevler mock API kullanabilir. `ORG-009` gerçek backend ile bütün
-akışları birleştirir.
+dosyasız Dalga 2 akışlarını birleştirir. `ORG-005`/`ORG-008` logo dosyası kabul etmez; logo
+backend/mobil akışı Dalga 5'teki `ORG-010`/`ORG-011` görevlerine aittir.
 
 ### Dalga 2 çıkış kapısı
 
 - Platform yöneticisi giriş yapabilir.
-- Kurum oluşturabilir ve marka ayarlarını değiştirebilir.
+- Kurum oluşturabilir ve dosyasız kurum adı/renk ayarlarını değiştirebilir.
 - Oturum uygulama yeniden açıldığında güvenli biçimde devam eder.
 - Yönetici cihaz oturumunu iptal edebilir.
 - Başka kurum bağlamına yetkisiz erişim reddedilir.
@@ -469,7 +502,18 @@ sonra başlar.
 
 | Kimlik | Boyut | Görev | Bağımlılık |
 |---|---:|---|---|
-| OPS-005 | M | Nesne deposu provisioning ve güvenlik kontrolleri | A-007, A-010, A-011, A-013, A-014 |
+| OPS-005 | M | Nesne deposu provisioning ve güvenlik kontrolleri | A-007R, A-010, A-011, A-013, A-014 |
+
+### Kurum logosu
+
+Logo V1 kapsamındadır ancak dosyasız Dalga 2 marka görevlerine gizlice eklenmez. Nesne deposu
+kararı ve güvenlik provisioning'i tamamlandıktan sonra aşağıdaki Dalga 5 görevleri yürür; bütün
+V1 modüllerini gerektiren QA ve gerçek kurum pilotu öncesinde tamamlanır.
+
+| Kimlik | Boyut | Görev | Bağımlılık | Paralel hat |
+|---|---:|---|---|---|
+| ORG-010 | M | Güvenli kurum logosu yükleme/indirme backend akışını uygula | ORG-002, ORG-003, A-007R, OPS-005 | Backend |
+| ORG-011 | M | Mobil logo seçme, yükleme ve görüntüleme akışını uygula | ORG-010, UI-001 | Mobil |
 
 ### İçerik
 
@@ -573,15 +617,16 @@ Kritik işlemler denetim geçmişine düşer ve tanımlı işlemler geçmiş sil
 | OPS-003 | S | Üretim izleme ve alarm eşikleri | A-014 |
 | OPS-004 | M | Pilot kurum kurulum kontrol listesi | Tüm V1 modülleri |
 | OPS-006 | M | Nesne deposu yedek/geri yükleme tatbikatı | OPS-002, OPS-005, CONTENT-003, EXPORT-006 |
-| PILOT-001 | M | Sentetik veriyle iç pilot | QA-001–QA-007, OPS-001–OPS-006 |
+| PILOT-001 | M | Sentetik veriyle iç pilot | QA-001–QA-007, OPS-001–OPS-006, ORG-010–ORG-011 |
 | PILOT-002 | M | İlk gerçek kurum pilotu | PILOT-001 |
 | PILOT-003 | M | İkinci kurum kişiselleştirme pilotu | PILOT-002 |
 | RELEASE-001 | M | Yayın hazırlığı ve son kabul | PILOT-003 |
 
 ### Nesne deposu operasyon görevlerinin kabul sınırı
 
-- `OPS-005`; ADR-007'de bağlanan development, staging, production ve backup AWS hesaplarında
-  private S3 bucket'larını, ayrı SSE-KMS key policy'lerini, Block Public Access, versioning,
+- `OPS-005`; yalnız gerçek dosya ihtiyacı ve A-007R sağlayıcı kararı sonrasında başlar. S3
+  seçilmişse ADR-007'de bağlanan gerekli ortam/backup AWS hesaplarında private bucket'ları,
+  ayrı SSE-KMS key policy'lerini, Block Public Access, versioning,
   Object Lock/retention, lifecycle, cross-account yedek hedefini ve §5.4 rollerini IaC ile
   kurar. Source `storage_disposal` ile backup hesabındaki ayrı `storage_backup_disposal` trust
   policy/session sınırını ve object-data yetkisiz ayrı `storage_version_verifier` trust/broker
@@ -594,7 +639,9 @@ Kritik işlemler denetim geçmişine düşer ve tanımlı işlemler geçmiş sil
   governance bypass, roller arası assume ve genel delete negatiflerini otomatik doğrular.
   Production+backup ile
   development/staging KMS/rotation basamaklarını güncel fiyatlarla yeniden hesaplar. Hukukî
-  retention süresini seçmez ve application durable manifest/durum akışını geliştirmez.
+  retention süresini seçmez ve application durable manifest/durum akışını geliştirmez. R2
+  seçilmişse bu S3 kontrolleri kopyalanmış sayılmaz; A-007R'de onaylanan EU jurisdiction,
+  immutable-key, backup, restore ve imha karşılıklarını uygular.
 - `CONTENT-003`; ADR-007 §5.4'teki durable source→replica eşlemesini, iki aşamalı onay,
   target-bazlı idempotency, ayrı source/backup alt durumları, retention bekleme, exact-version
   pre-delete varlık kaydı, ağ çağrısından önce durable attempt, exact-key tam sayfalanmış version

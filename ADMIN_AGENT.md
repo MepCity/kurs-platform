@@ -8,7 +8,7 @@
 | Varsayılan dal | `main` |
 | Çalışma modeli | Modüler monolit + atomik görev branch'leri + PR incelemesi |
 | Aktif dalga ve görev kaynağı | `GOREV_DURUMU.md` |
-| Son güncelleme | 14 Temmuz 2026 |
+| Son güncelleme | 15 Temmuz 2026 |
 
 ---
 
@@ -128,6 +128,15 @@ Bu sonraki faz işleri ilk mobil sürüme gizlice eklenmez.
 - Sunucu onayı alınmayan işlem başarılı sayılmaz ve kuyruktan silinmez.
 - Aynı isteğin tekrar gönderilmesi çift kayıt üretmemelidir.
 - İlk backend modüler monolit olacaktır; erken mikroservis kullanılmayacaktır.
+- Yerel geliştirme ve sentetik kapalı alfa için dış ödeme hedefi `0 USD/ay`, gerçek kurum
+  pilotu için hedef `25–60 USD/ay`dır; gerçek öğrenci verisi kullanıcı sayısından bağımsız
+  production verisidir.
+- Öğrenci kredileri geçici maliyet desteğidir; production sahipliği ve kurtarma erişimi kişisel
+  öğrenci hesabına kalıcı bağlanamaz.
+- A-011 yalnız sağlayıcı bağımsız fiziksel iskelet/mimari testleri üretir; auth/storage portu,
+  provider SDK'sı, cloud secret, gerçek migration veya deployment kaynağı eklemez.
+- Nihai kimlik sağlayıcısı A-004R1–A-004R3 Cognito Essentials deney zinciriyle; nesne deposu
+  ise gerçek dosya ihtiyacında A-007R ile doğrulanmadan provider entegrasyonu başlatılmaz.
 
 Ayrıntı ve olası güncellemeler için ana planın karar günlüğünü kontrol et.
 

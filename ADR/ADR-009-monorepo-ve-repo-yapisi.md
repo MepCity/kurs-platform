@@ -2,7 +2,7 @@
 
 | Alan | Değer |
 |---|---|
-| Durum | Önerildi — inceleme bekliyor |
+| Durum | Kabul edildi |
 | Tarih | 15 Temmuz 2026 |
 | Görev | A-009 — Monorepo/repo yapısı ADR'si |
 | Karar | Tek Git reposu; üretim uygulamaları, deneyler ve repo araçları açık üst seviye sınırlarla ayrılır |
