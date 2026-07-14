@@ -49,9 +49,14 @@ Kaynak/endpoint envanteri bu belgenin kapsamı değildir. Senkronizasyon kuyruğ
 
 ## 4. Kimlik doğrulama, oturum ve kurum bağlamı
 
-- Kimlik doğrulama gereken uçlarda `Authorization: Bearer <access-token>` zorunludur. Eksik, geçersiz, süresi dolmuş veya iptal edilmiş token `401 UNAUTHENTICATED` döndürür.
+- Kimlik doğrulama gereken uçlarda `Authorization: Bearer <platform-access-token>` zorunludur. Bu, IAM'in verdiği 256-bit rastgele **opaque** token'dır; Keycloak ID tokenı ve Keycloak access tokenı iş API'lerinde kabul edilmez. Eksik, geçersiz, süresi dolmuş veya iptal edilmiş token `401 UNAUTHENTICATED` döndürür.
+- Native OIDC Authorization Code + PKCE akışında `state`, `nonce`, `code_verifier` ve `code_challenge` mobil istemcinin sorumluluğundadır; `state`/`nonce` callback'te eşleşmeden, `S256` PKCE doğrulanmadan kod kabul edilmez. IAM, mobilin aldığı Keycloak **access tokenını** issuer JWKS ile imza, `iss`, `aud`, `azp`, süre ve gerekli scope bakımından doğrular; API erişimi için ID tokenı kabul etmez.
+- IAM'in platform token üretmesi, doğrulanmış Keycloak `issuer` + `subject` çiftinin `user_identities` eşlemesine dayanır. Kullanıcı adı, e-posta, ad/soyad veya istemciden gelen `userId` ile hesap eşleme/oluşturma yapılamaz.
 - Kurum kapsamlı token tek etkin kurum üyeliğine bağlıdır. İstemci kurum kimliğini yol, sorgu veya gövdeye koyarak token kapsamını genişletemez.
-- Kurum bağlamsız token yalnızca kullanıcının kurumlarını listeleme ve etkin üyelik için kurum kapsamlı token değişimi yapabilir. Kurum kapsamlı API'ye erişirse `403 ORGANIZATION_CONTEXT_REQUIRED` döner.
+- `contextSelectionToken`, en az 256-bit opaque, 5 dakikalık, refresh edilemeyen ve tek
+  kullanımlı kurum-bağlamsız tokendir. Yalnız kullanıcının kurumlarını listeler ve bir etkin
+  üyelik için tek kurum-token değişimi yapar; listeleme tokenı tüketmez, başarılı seçim tüketir.
+  Kurum kapsamlı API'ye erişirse `403 ORGANIZATION_CONTEXT_REQUIRED` döner.
 - Her kurum kapsamlı istekte sunucu üyeliğin etkinliğini, tokenın `sessionGeneration` değerini, rolün geri alınmadığını ve işlem iznini doğrular. Bu kontroller veritabanı FK'lerinin yerine geçmez.
 - Kurum yöneticisi yalnızca kendi kurumunda işlem yapabilir. Hoca operasyonel sınıf verisine yalnızca etkin atandığı sınıfta erişebilir; dar metaveri izni bu sınırı genişletmez.
 - Platform yöneticisinin kurum erişimi açık hedef kurum bağlamıyla yürütülür ve her görüntüleme/değişiklik denetlenir.
@@ -149,6 +154,10 @@ sözleşmesinde tanımlar; bu tabloyla çelişen ikinci bir anlam veremez.
 ### 7.2. İdempotent yazma
 
 - Her mobil oluşturma, güncelleme, arşivleme, geri alma ve durum değiştiren komut benzersiz `Idempotency-Key` başlığı taşır. Bu anahtar istemcinin `clientMutationId` değeridir; yeniden denemede aynen korunur.
+- Sunucu idempotency kapsamını doğrulanmış `actorUserId` ile kurar: kurum işleminde
+  `organizationId + actorUserId + clientMutationId`, global işlemde `actorUserId +
+  clientMutationId`. Bir güvenlik komutunun `targetUserId`si bu tekillik anahtarı değildir;
+  farklı hedefle aynı anahtar yeniden kullanılırsa istek parmak izi çelişki olarak reddedilir.
 - Kurum kapsamlı yazmada kapsam kurum, kullanıcı ve anahtardır. Yalnızca platform yöneticisinin
   henüz kurum oluşmadan yaptığı açık global işlemlerde kapsam global, kullanıcı ve anahtardır;
   sunucu bu istisnayı rol ve işlem türüyle doğrular. Aynı anahtar farklı işlem türü, hedef yol
@@ -187,7 +196,8 @@ sözleşmesinde tanımlar; bu tabloyla çelişen ikinci bir anlam veremez.
 ## 9. Zorunlu kabul senaryoları
 
 1. Geçerli kurum tokenı başka kurum kaydını okuyamaz, değiştiremez veya varlığını öğrenemez.
-2. Kurum bağlamsız token kurum kapsamlı uca erişemez; etkin olmayan üyelik için token değişimi üretemez.
+2. Tek kullanımlı `contextSelectionToken` kurum kapsamlı uca erişemez; etkin olmayan üyelik için
+   token değişimi üretemez veya ikinci kez kurum ailesi oluşturamaz.
 3. Askıya alınmış üyelik, geri alınmış rol veya eski `sessionGeneration` taşıyan token reddedilir.
 4. Hoca, atanmamış sınıfın operasyonel verisini doğrudan kimlikle veya liste filtresiyle göremez; metaveri izni bu sınırı genişletmez.
 5. Aynı `Idempotency-Key` ve eşdeğer istek iki kayıt/denetim kaydı üretmez; farklı istekle tekrar kullanım çelişki döndürür.
@@ -204,7 +214,7 @@ sözleşmesinde tanımlar; bu tabloyla çelişen ikinci bir anlam veremez.
 
 ## 10. Kapsam dışı kararlar
 
-- Kimlik sağlayıcısı, token biçimi/ömürleri, parola özetleme algoritması ve oran sınırlama eşikleri `A-004` ile operasyonel kararlar kapsamındadır.
+- Kimlik sağlayıcısı, platform token biçimi/ömürleri ve parola sahipliği `A-004` ile kesinleştirilmiştir; kesin endpoint listesi ve oran sınırlama eşikleri ilgili uygulama/operasyon görevindedir.
 - Kesin endpoint listesi, kaynak alan şemaları, filtre beyaz listeleri ve sayfa boyutu sınırı ilgili modül sözleşmelerinde tanımlanacaktır.
 - Gerçek zamanlı taşıma, çevrimdışı kuyruk durum makinesi, yeniden bağlanma ve çakışma çözümü `SENKRONIZASYON_VE_CAKISMA.md`de tanımlıdır.
 - Geri alınabilir işlem listesi ve ters işlem sözleşmesi `DENETIM_VE_GERI_ALMA_ILKELERI.md`; Excel rapor sözleşmesi ve indirme yaşam döngüsü `P-012` kapsamındadır.

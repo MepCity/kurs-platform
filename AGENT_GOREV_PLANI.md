@@ -300,7 +300,7 @@ temeli başlar.
 | Kimlik | Boyut | Görev | Bağımlılık |
 |---|---:|---|---|
 | IAM-001 | S | Giriş/oturum API sözleşmesini kesinleştir | P-003, A-004 |
-| IAM-002 | S | Güvenilir cihaz ve oturum iptali sözleşmesini yaz | IAM-001 |
+| IAM-002 | S | Cihaz ve oturum iptali sözleşmesini yaz | IAM-001 |
 | ORG-001 | S | Kurum yaşam döngüsü API sözleşmesini yaz | P-008, P-009 |
 | ORG-002 | S | Marka ayarları sözleşmesini yaz | ORG-001, A-007 |
 | UI-001 | S | Mobil tasarım tokenlarını tanımla | P-005, P-006 |
@@ -310,10 +310,10 @@ temeli başlar.
 
 | Kimlik | Boyut | Görev | Bağımlılık | Paralel hat |
 |---|---:|---|---|---|
-| IAM-003 | M | Kullanıcı/oturum veritabanı migration'ı | IAM-001 | Backend |
-| IAM-004 | M | Giriş backend akışını uygula | IAM-003 | Backend |
-| IAM-005 | M | Yenileme ve çıkış backend akışını uygula | IAM-004 | Backend |
-| IAM-006 | M | Güvenilir cihaz kaydı ve iptalini uygula | IAM-002, IAM-005 | Backend |
+| IAM-003 | M | IAM tabloları, roller ve migration'ı uygula | IAM-001 | Backend |
+| IAM-004 | M | Giriş/token değişimi ve provider command akışını uygula | IAM-003 | Backend |
+| IAM-005 | M | Refresh ailesi, yenileme, çıkış ve tekrar kullanım tespitini uygula | IAM-004 | Backend |
+| IAM-006 | M | Cihaz kaydı, DEVICE_SESSION_REVOKE ve yeniden doğrulamayı uygula | IAM-002, IAM-005 | Backend |
 | IAM-007 | M | Mobil giriş ekranını uygula | IAM-001, UI-001 | Mobil |
 | IAM-008 | M | Mobil güvenli oturum saklamayı uygula | IAM-002, A-005 | Mobil |
 | ORG-003 | M | Kurum migration ve repository'sini oluştur | ORG-001 | Backend |
@@ -324,7 +324,7 @@ temeli başlar.
 | ORG-008 | M | Logo/renk ayarı mobil akışı | ORG-002, UI-001 | Mobil |
 | UI-003 | M | Ortak düğme, alan, liste ve durum bileşenleri | UI-001 | Mobil |
 | UI-004 | M | Rol bazlı mobil kabuk ve navigasyon | UI-002, UI-003 | Mobil |
-| IAM-009 | M | Kimlik ve kurum entegrasyon testleri | IAM-004–IAM-008, ORG-004 | Test |
+| IAM-009 | M | Entegrasyon, izolasyon, olay kaybı ve iptal gecikmesi testleri | IAM-004–IAM-008, ORG-004 | Test |
 | ORG-009 | M | Dalga 2 uçtan uca entegrasyon | Önceki Dalga 2 görevleri | Entegrasyon |
 
 ### Güvenli paralellik
