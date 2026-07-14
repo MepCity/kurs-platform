@@ -101,7 +101,8 @@ iOS kanıt kapısı tamamlanmıştır.
 
 ### Olumlu
 
-- A-009, kabul edilen bu karara dayanarak Flutter mobil iskeletini kurabilir.
+- A-009, kabul edilen bu karara dayanarak repo topolojisini belirleyebilir; Flutter mobil
+  iskeletini bu topoloji içinde A-011 kurabilir.
 - iOS ve Android için aynı ekran, kuyruk durumu ve erişim kontrolü senaryosu yazılabilir.
 - Yerel/uzak veri ayrımı ile P-010 kuralları paket ayrıntısından bağımsız tutulur.
 
