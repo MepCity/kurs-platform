@@ -5,7 +5,7 @@
 | Son güncelleme | 14 Temmuz 2026 |
 | Aktif dalga | Dalga 0 — Ürün ve sözleşmeler |
 | Aktif görev | Yok |
-| Sıradaki görev | P-013 — Kritik test ve kabul planını yaz |
+| Sıradaki görev | P-014 — Faz 0 bütünlük incelemesi yap |
 
 Bu dosya projenin kaldığı yeri gösteren kısa operasyon panosudur. Her çalışma oturumunun
 başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev tanımları
@@ -15,7 +15,7 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 
 | Kimlik | Görev | Boyut | Not |
 |---|---|---:|---|
-| P-013 | Kritik test ve kabul planını yaz | M | P-003, P-009 ve P-010 tamamlandı; başlamaya hazır |
+| P-014 | Faz 0 bütünlük incelemesi yap | S | P-001–P-013 tamamlandı; başlamaya hazır |
 
 ## IN_PROGRESS
 
@@ -48,6 +48,7 @@ Engellenmiş görev yok.
 | P-010 | Senkronizasyon ve çakışma sözleşmesini yaz | 14 Temmuz 2026 | `SENKRONIZASYON_VE_CAKISMA.md` — PR #11 |
 | P-011 | Denetim ve geri alma ilkelerini detaylandır | 14 Temmuz 2026 | `DENETIM_VE_GERI_ALMA_ILKELERI.md` — PR #10 |
 | P-012 | Excel rapor veri sözleşmesini tanımla | 14 Temmuz 2026 | `EXCEL_RAPOR_VERI_SOZLESMESI.md` — PR #12 |
+| P-013 | Kritik test ve kabul planını yaz | 14 Temmuz 2026 | `KRITIK_TEST_VE_KABUL_PLANI.md` — PR #13 |
 
 ## Sonraki görev nasıl READY yapılır?
 
