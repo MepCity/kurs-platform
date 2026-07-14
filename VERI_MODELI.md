@@ -1,0 +1,1558 @@
+# Çekirdek Veri Modeli Taslağı
+
+| Alan | Değer |
+|---|---|
+| Görev | P-008 — Çekirdek veri modeli taslağını yaz |
+| Belge sürümü | 4.0 |
+| Ana sözleşme | `URUN_VE_UYGULAMA_PLANI.md` |
+| Terim kaynağı | `TERIMLER_SOZLUGU.md` |
+| Yetki kaynağı | `YETKI_MATRISI.md` |
+| Veri hassasiyet kaynağı | `KISISEL_VERI_ENVANTERI.md` |
+| Çapraz kontrol | `AKTORLER_VE_KULLANIM_SENARYOLARI.md`, `YONETICI_BILGI_MIMARISI.md`, `HOCA_MOBIL_BILGI_MIMARISI.md` |
+| Son güncelleme | 14 Temmuz 2026 |
+
+---
+
+## Revizyon notu (v1.0 → v2.0)
+
+1. Global kimlik (`users`/`people`), kurum üyeliği ayrımı (`organization_memberships`).
+2. İzin ataması kurum üyeliğine bağlandı, sınıf atamasına değil.
+3. Tenant bütünlüğü için bileşik `(id, organization_id)` FK tekniği.
+4. `people.phone` `NOT NULL` yapıldı.
+5. Öğrenci–sınıf ve hoca–sınıf ilişkileri tarihçeli/ayrık tablolara taşındı.
+6. NULL-güvenli benzersizlik ilkesi (partial index'ler).
+7. `plan_items`e `sequence_no` ile aynı gün çoklu kalem desteği.
+8. Özel alan modelinde ayrılmış nullable FK + XOR CHECK.
+9. Güncellenebilir kayıt / değişmez audit ayrımı netleştirildi.
+10. `audit_logs.organization_id` nullable + `event_scope`.
+11. İzin kataloğu kategorisi referans tabloya çevrildi; `RESTORE_ARCHIVED` ortak izin kararı.
+12. Belge tutarlılığı — P-005/P-006 çapraz kontrolü.
+
+(v1.0 → v2.0 ayrıntıları için önceki PR yorumlarına ve `git log`'a bakılabilir; bu bölüm v3.0
+ile birlikte özetlenmiştir.)
+
+## Revizyon notu (v2.0 → v3.0)
+
+İkinci merkez incelemesinde bulunan sorunlar giderildi:
+
+1. **`people` yeniden kurum kapsamlı oldu; `users` global kaldı.** v2.0'da her ikisi de global
+   yapılmıştı — bu, aynı kurumun PII'sinin (ad, telefon, adres, not, fotoğraf) örtük olarak
+   kurumlar arası paylaşılan bir havuzda tutulması riskini doğuruyordu. v3.0'da yalnızca
+   kimlik doğrulama kimliği (`users`) globaldir; kişi profili (`people`) her zaman bir kuruma
+   aittir. Köprü, `organization_memberships.person_id` ile kurulur (bkz. bölüm 4).
+2. **Kurum üyeliği ile rol ayrıldı; çoklu rol desteklendi.** `organization_memberships.
+   membership_role` tekil sütunu kaldırıldı; yerine `organization_membership_roles` tarihçeli
+   çoklu-rol tablosu geldi. Aynı kullanıcı aynı kurumda hem `ORG_ADMIN` hem `TEACHER` olabilir.
+3. **Literal içeren geçersiz FK sözdizimi düzeltildi.** `(...,'TEACHER') REFERENCES ...` gibi
+   ifadeler gerçek SQL değildir. Artık her "pinlenmiş" bileşik FK, çocuk tabloda gerçek, sabit
+   bir `CHECK` ile kilitlenmiş bir sütuna (`role_code`/`target_role_code`/`granted_role_code`)
+   dayanır — bkz. bölüm 15.6.
+4. **Kurum kapsamlı oturum iptali.** `refresh_tokens` artık hangi kurum üyeliği bağlamında
+   verildiğini taşır; bir kurum yöneticisinin cihaz oturumu iptali yalnızca kendi kurumundaki
+   oturumları etkiler (bkz. bölüm 4.11, `YETKI_MATRISI.md`'ye eklenen not).
+5. **Ebeveyn-zinciri bütünlüğü.** `programs.current_program_version_id`, `plan_items.
+   source_template_day_id` gibi ilişkiler artık bileşik FK ile doğru ebeveyne bağlanmayı
+   zorunlu kılıyor; `plan_items.class_id` fazlalık/riskli ikinci kaynak olduğu için kaldırıldı
+   (sınıf, `program_version → program` üzerinden türetilir). Statik olarak ifade edilemeyen
+   zamana bağlı kurallar (öğrencinin oturum/plan tarihinde ilgili sınıfa kayıtlı olması vb.)
+   `P-009`/`P-010` kabul senaryosu adayı olarak açıkça listelendi (bölüm 15.5).
+   `student_class_enrollments`'ta tarih aralığı çakışması `EXCLUDE` kısıtıyla DB seviyesinde
+   engellendi.
+6. **Özel alan tip güvenliği güçlendirildi.** `field_type`/`entity_type` ilgili tablolara
+   denormalize edilip bileşik FK + `CHECK` ile bağlandı; `SINGLE_CHOICE` için en fazla bir
+   seçenek artık **DB seviyesinde** (partial unique index) zorlanıyor — önceki sürümde
+   "uygulama katmanı sorumluluğu" olarak bırakılmıştı.
+7. **Audit scope bütünlüğü.** `audit_logs.event_scope` gerçek bir sütun oldu;
+   `audit_action_catalog` ile bileşik FK ve `organization_id`/`event_scope` tutarlılığını
+   zorlayan `CHECK` eklendi.
+8. **Menü sırası.** `organization_modules`'a `sort_order` eklendi (§9.2).
+9. **Belge tutarlılığı.** Modül-varlık haritası, ilişki özeti, tenant istisna listesi,
+   varsayımlar, sınırlamalar ve ana plan uyum kontrolü yeni modele göre güncellendi;
+   `TERIMLER_SOZLUGU.md`'deki eski rol atama açıklaması ve `YETKI_MATRISI.md`'deki cihaz oturumu
+   iptali satırı yeni modele göre netleştirildi (bu görevin PR'ında ayrıca not edilmiştir).
+
+## Revizyon notu (v3.0 → v4.0)
+
+Üçüncü merkez incelemesinde bulunan son teknik bütünlük/güvenlik sorunları giderildi:
+
+1. **Platform yöneticisi profil fotoğrafı izolasyonu.** `platform_administrator_profiles.
+   photo_asset_id`'nin kurum kapsamlı `file_assets`'e düz FK vermesi, global bir profilin
+   herhangi bir kurumun dosyasına bağlanabilmesi riskini taşıyordu. Bu alan **kaldırılmıştır**
+   (bkz. 4.4) — V1 için en sade çözüm; platform yöneticisi profilinin fotoğrafı ilk sürümde
+   desteklenmez.
+2. **Kurum kişisi ↔ kullanıcı hesabı tekilliği.** `organization_memberships`e `UNIQUE
+   (person_id)` eklendi — bir `people` satırı en fazla bir global kullanıcı hesabına bağlanır
+   (bkz. 4.5).
+3. **Pinlenmiş rol sütunlarının tip uyumu.** `target_role_code`, `granted_role_code`,
+   `class_teacher_assignments.role_code` önceki sürümde `TEXT` idi; `organization_membership_
+   roles.role` ise `ENUM`. PostgreSQL'de bileşik bir FK'nin sütunları **aynı tipte** olmalıdır —
+   `TEXT` bir sütun bir `ENUM` sütununa böyle bir FK ile bağlanamaz. Bütün pinlenmiş sütunlar
+   artık `organization_membership_roles.role` ile **aynı** `membership_role_enum` tipini
+   kullanır (bkz. 4.6, 4.9, 7.2).
+4. **Cihaz/oturum sahiplik zinciri.** `trusted_devices`e `UNIQUE (id, user_id)`;
+   `refresh_tokens`e bileşik FK `(trusted_device_id, user_id) REFERENCES trusted_devices (id,
+   user_id)`, `token_hash` tekilliği ve aktif cihaz tekrarını önleyen partial `UNIQUE` eklendi
+   (bkz. 4.10–4.11).
+5. **Kurum bağlamsız token güvenlik sınırı.** `organization_memberships.session_generation`
+   sayacı ve `refresh_tokens.issued_at_session_generation` anlık görüntüsü eklendi; kurum
+   bağlamsız (`organization_membership_id IS NULL`) bir token'ın, iptal edilmiş bir kurum
+   üyeliği için sessizce yeni bir kurum kapsamlı token üretmesini engelleyen bağlayıcı kural
+   yazıldı (bkz. 4.11, 15.5).
+6. **Rol iptali yaşam döngüsü.** `TEACHER`/`ORG_ADMIN` rolü geri alındığında bağlı sınıf
+   atamalarına, izin atamalarına ve geçmiş grantor kayıtlarına ne olacağı bağlayıcı biçimde
+   yazıldı (yeni bölüm 4.12).
+7. **Audit geri alma tenant bütünlüğü.** `audit_logs.undo_of_audit_log_id` artık scope-pinned
+   iki bileşik FK ile korunuyor; kurumlar arası veya global/kurum karışık `undo` ilişkisi DB
+   seviyesinde imkânsız (bkz. 13.2).
+8. **`organizations.logo_asset_id` FK'si açık yazıldı** (bkz. 5.1).
+
+---
+
+## 1. Amaç ve kapsam
+
+Bu belge, `URUN_VE_UYGULAMA_PLANI.md` içinde onaylanmış ilk sürüm (V1) kapsamının bütününü
+taşıyan çekirdek veri modelini varlık/tablo seviyesinde tanımlar. `TERIMLER_SOZLUGU.md`,
+`YETKI_MATRISI.md` ve `KISISEL_VERI_ENVANTERI.md` üç görev de bu şemanın bazı kararlarını
+açıkça `P-008`'e bırakmıştır (izin şeması tasarımı, program/şablon açık yapısı, özel alan
+genişletme modeli, metaveri/operasyonel veri ayrımının veri modeli karşılığı). Bu belge o
+kararları bağlayıcı biçimde verir.
+
+Bu belge:
+
+- Bütün V1 modüllerinin (`AGENT_GOREV_PLANI.md` bölüm 5) çekirdek varlıklarını, alanlarını,
+  ilişkilerini, anahtarlarını ve kısıtlarını tanımlar.
+- Kurum izolasyonu, arşivleme, denetim ve eşzamanlılık (sürüm/idempotency) için gereken temel
+  alan ve tabloları kurar.
+- Kurumlar arası veri sızıntısını yalnızca uygulama kontrolüne bırakmaz; mümkün olan her yerde
+  veritabanı seviyesinde de (bileşik FK/UNIQUE/CHECK/EXCLUDE) zorunlu kılar (bkz. bölüm 15).
+  Uygulama katmanındaki yetki/izolasyon kontrolü buna **ek**tir, onun yerine geçmez.
+- Belirli bir veritabanı ürününe (`PostgreSQL` önerilir, kesin karar `A-003`) veya ORM'e
+  bağlanmaz; alan tipleri mantıksal düzeyde (`UUID`, `TEXT`, `INTEGER`, `BOOLEAN`, `DATE`,
+  `TIMESTAMPTZ`, `ENUM`, `JSONB`) verilir. Bölüm 15'teki teknikler (bileşik FK, pinlenmiş
+  `CHECK`, `EXCLUDE`) `PostgreSQL` ve benzer ilişkisel veritabanlarında doğrudan uygulanabilir;
+  farklı bir veritabanı seçilirse eşdeğer bir kısıt mekanizması (ör. tetikleyici) kullanılmalıdır.
+
+Bu belge **değildir**:
+
+- API istek/cevap şeması (`P-009` kapsamı).
+- Senkronizasyon/çakışma protokolünün tam tel (wire) sözleşmesi (`P-010` kapsamı). Bu belge
+  yalnızca `P-010`'un üzerine inşa edeceği temel alanları (sürüm sayacı, idempotency anahtarı
+  deposu) kurar.
+- Geri alma komutlarının kesin listesi ve kuralları (`P-011` kapsamı).
+- Excel rapor sorgu/filtre sözleşmesi (`P-012` kapsamı).
+- Belirli bir backend dili/framework'ü, hosting sağlayıcısı veya kimlik doğrulama sağlayıcısı
+  seçimi (`A-002`, `A-003`, `A-004` ADR kapsamı).
+- Gerçek migration dosyaları veya kod (Dalga 1 uygulama görevleri kapsamı).
+
+---
+
+## 2. Ortak tasarım ilkeleri
+
+### 2.1. Birincil anahtar ve kimlik türü
+
+- Bütün tablolarda birincil anahtar `UUID` olacaktır (`id`).
+- Gerekçe: (1) istemci tarafında (mobil) çevrimdışı oluşturulan kayıtların sunucu ile
+  çakışmadan kimliklenebilmesi (`P-010`) için otomatik artan tamsayıdan daha uygundur; (2) kurum
+  kimliğinin sıralı tamsayı olması durumunda oluşabilecek bilgi sızıntısı riskleri azalır. Bu,
+  bağlayıcı bir `P-008` kararıdır; `A-002`/`A-003` bu kararla çelişmeyecek bir veritabanı/
+  hosting seçimi yapmalıdır.
+
+### 2.2. Kurum izolasyonu ve global kimlik ayrımı
+
+- Bir kuruma bağlı her tabloda açık bir `organization_id UUID` sütunu bulunur
+  (`URUN_VE_UYGULAMA_PLANI.md` §11.4). **`people` bu kurala tabidir** — kurum kapsamlıdır,
+  global değildir (bkz. bölüm 4.2; bu, önceki `v2.0` sürümünden farklıdır).
+- **Yalnızca `users`, `platform_administrators` ve `platform_administrator_profiles` global
+  kimlik/rol tablolarıdır** (bkz. bölüm 4.1, 4.3, 4.4). Aynı giriş hesabının birden fazla
+  kurumda farklı rollere sahip olabilmesi (`TERIMLER_SOZLUGU.md` §3.1) bu üç tabloyla değil,
+  **`users` (global kimlik doğrulama) ile `organization_memberships`/`organization_membership_
+  roles` (kurum kapsamlı üyelik ve rol) arasındaki köprüyle** sağlanır: her kurum, o kullanıcı
+  için **kendi ayrı `people` satırını** (kendi PII kopyasını) tutar — bkz. bölüm 4.5.
+- Global kimlik tablolarının var olması, kurum izolasyonunu **gevşetmez**: bir kullanıcının
+  hangi kurumlarda üyeliği olduğu bilgisi dahi yalnızca yetkili bağlamda sorgulanmalıdır.
+- `organization_id` taşımayan bütün tabloların tam listesi ve gerekçesi bölüm 15.4'tedir.
+- Kurum kapsamlı varlıklar arasındaki ilişkilerin **aynı kurum içinde kalması** yalnızca
+  uygulama kontrolüne bırakılmaz; bölüm 15'te tanımlanan tekniklerle veritabanı seviyesinde de
+  zorunlu kılınır. Sunucu tarafı yetki/rol doğrulaması (kullanıcının bu kuruma/sınıfa erişim
+  **hakkı** olup olmadığı) yine de zorunludur ve bu belgenin kapsamı dışındadır (`P-009`);
+  veritabanı kısıtları yalnızca **veri bütünlüğünü** korur, **yetkilendirmenin** yerine geçmez.
+
+### 2.3. Zaman, sürüm ve denetim alanları
+
+Aşağıdaki alan seti, aksi belirtilmedikçe her mutlak (silinmeyen/arşivlenen) çekirdek tabloda
+tutarlı biçimde tekrarlanır:
+
+| Alan | Tip | Açıklama |
+|---|---|---|
+| `created_at` | `TIMESTAMPTZ` | Kayıt oluşturulma zamanı (UTC saklanır, kurum saat dilimiyle sunulur). |
+| `updated_at` | `TIMESTAMPTZ` | Son güncelleme zamanı. |
+| `row_version` | `INTEGER`, varsayılan `1` | Her güncellemede artan iyimser eşzamanlılık sayacı. İstemci, değiştirdiği `row_version`'ı sunucuya bildirir; sunucu eşleşmiyorsa isteği reddeder (`URUN_VE_UYGULAMA_PLANI.md` §12.1). Kesin çakışma davranışı varlık türüne göre `P-010`'da ayrıntılandırılır. |
+| `created_by_user_id` | `UUID`, nullable | Kaydı oluşturan kullanıcı (sistem/otomatik süreçlerde `NULL` olabilir). |
+| `updated_by_user_id` | `UUID`, nullable | Kaydı son değiştiren kullanıcı. |
+
+Bu beş alan aşağıdaki varlık tablolarında ayrıca tek tek yazılmamış, "temel alanlar" notuyla
+başvurulmuştur. Aktör alanları (`created_by_user_id`, `recorded_by_user_id`, `granted_by_*`
+hariç — bkz. bölüm 15.3) kasıtlı olarak `users(id)`'ye **düz** (bileşik olmayan) FK'dir.
+
+### 2.4. Durum (status) alanları ve değişmezlik ayrımı
+
+- Ana planın bölüm 14 hükmü gereği **öğrenci, sınıf, program ve kurum** normal arayüzden
+  fiziksel silinmez; bunlarda `status` alanı zorunludur ve en az `ACTIVE`/`ARCHIVED` (kurum için
+  ayrıca `SUSPENDED`) değerlerini taşır.
+- Kullanıcı (`users`) fiziksel silinmez; `status` alanı `ACTIVE`/`SUSPENDED` taşır.
+- **Güncellenebilir güncel-durum tabloları:** `attendance_records` ve `progress_records`
+  **değişmez geçmiş kaydı değildir** — bunlar bir öğrencinin/oturumun **güncel** durumunu
+  tutan, `row_version` ile korunan, yerinde güncellenebilir satırlardır (§12.1, §12.4). Her
+  güncelleme, eski ve yeni değeri `audit_logs`'a ayrıca yazar (§8.5, §8.10).
+- **Yalnızca `audit_logs` değişmezdir:** Normal uygulama akışında güncellenmeyen veya
+  silinmeyen tek tablo `audit_logs`'tur; geçmiş "ne olduğu" bilgisinin tek doğru kaynağı budur.
+
+### 2.5. Kişisel veri ve hassasiyet işaretlemesi
+
+`KISISEL_VERI_ENVANTERI.md` içinde "yüksek riskli kişisel veri (ürün içi sınıf)" olarak
+işaretlenen her alan (telefon, adres, doğum tarihi, profil fotoğrafı, serbest metin not, kimlik
+doğrulama sırrı, güvenilir cihaz bilgisi, yoklama durumu, ilerleme notu) aşağıdaki tablolarda
+**[Hassas]** etiketiyle ayrıca işaretlenmiştir; bu etiket bölüm 2 KVKK sınıflaması değildir,
+yalnızca bu envanterin ürün içi risk sınıfına geri referanstır.
+
+### 2.6. NULL-güvenli benzersizlik ilkesi
+
+PostgreSQL ve standart SQL'de `NULL`, kendisi dahil hiçbir değere eşit sayılmaz; bu nedenle
+**nullable bir sütun bir `UNIQUE` kısıtının anahtar tuple'ının parçasıysa**, o sütun `NULL`
+olduğunda kısıt tekrarları **engellemez**. Bu belgede bu hataya düşmemek için üç kural izlenir:
+
+1. Bir kavramın kapsamı (ör. "global" ile "kurum kapsamlı") nullable bir ayırt edici sütunla
+   ifade edilmek yerine, **ayrı tablolara bölünür** (ör. `platform_administrators` ile
+   `organization_memberships`).
+2. "Yalnızca aktif/güncel kaydı benzersiz kıl" ihtiyacı, nullable sütunu (ör. `revoked_at`,
+   `unassigned_at`, `ended_at`) **kısıt tuple'ının dışında, yalnızca partial index `WHERE`
+   koşulunda** kullanarak karşılanır — asla uniqueness anahtarının bir parçası olarak değil.
+3. Bir varlığın kendisi doğası gereği "ya A ya B" şeklinde nullable iki ayrı hedefe işaret
+   ediyorsa, her hedef için **ayrı bir partial unique index** tanımlanır; tek bir birleşik
+   `UNIQUE` asla kullanılmaz.
+
+---
+
+## 3. Modül → varlık haritası
+
+| Modül kodu | Modül | Bu belgede tanımlanan varlıklar |
+|---|---|---|
+| CORE | Ortak çekirdek | Ortak alanlar (bölüm 2), kapalı katalog tabloları |
+| IAM | Kimlik ve erişim | `users`, `people`, `platform_administrators`, `platform_administrator_profiles`, `organization_memberships`, `organization_membership_roles`, `permission_categories`, `permission_catalog`, `organization_membership_permissions`, `trusted_devices`, `refresh_tokens` |
+| ORG | Kurum | `organizations`, `organization_brand_colors`, `organization_modules` |
+| TERM | Dönem ve takvim | `terms`, `term_calendar_days` |
+| CLS | Sınıf | `classes`, `class_teacher_assignments` |
+| PEOPLE | Kişiler | `students`, `student_class_enrollments`, `student_guardians`, `custom_field_definitions`, `custom_field_options`, `custom_field_values`, `custom_field_value_selected_options` |
+| ATT | Yoklama | `attendance_sessions`, `attendance_records`, `organization_attendance_statuses` |
+| CONTENT | İçerik | `file_assets`, `contents` |
+| PROGRAM | Program | `starter_program_templates`, `programs`, `program_versions`, `program_templates`, `program_template_days`, `plan_items` |
+| PROGRESS | İlerleme | `progress_records` |
+| AUDIT | Denetim | `audit_action_catalog`, `audit_logs` |
+| EXPORT | Dışa aktarma | Bu görevde ayrı tablo tanımlanmaz; `P-012` kapsamındadır. |
+| SYNC | Senkronizasyon | `idempotency_keys` (temel iskelet); tam sözleşme `P-010` kapsamındadır. |
+| REALTIME | Gerçek zaman | Ayrı tablo gerektirmez; `row_version`/`updated_at` temel alır. |
+| NOTIFY | Bildirim | Bu görevde tablo tanımlanmaz (Dalga 8). |
+
+---
+
+## 4. IAM — Kimlik ve erişim
+
+### 4.1. `users` (GLOBAL — yalnızca kimlik doğrulama)
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `username` | TEXT, **global UNIQUE** | Hayır | Platform genelinde tek bir giriş kimliği. |
+| `password_hash` | TEXT | Hayır | **[Hassas]** — geri döndürülemez özet; algoritma `A-004` ADR'sinde kesinleşir. |
+| `must_change_password` | BOOLEAN, varsayılan `true` | Hayır | İlk giriş sonrası zorunlu parola değişimi (§10.1). |
+| `status` | ENUM(`ACTIVE`,`SUSPENDED`) | Hayır | Kullanıcı normal arayüzden fiziksel silinmez (§14). Hesabın **kendisinin** genel durumudur; belirli bir kurumdaki üyeliğin askıya alınması `organization_memberships.status`'tadır (bkz. 4.5). |
+| temel alanlar | — | — | bkz. §2.3 |
+
+**`users` artık `person_id` taşımaz.** Bir global kullanıcının, üye olduğu her kurumda **ayrı
+bir `people` satırı** (o kurumun kendi tuttuğu PII kopyası) vardır; tek bir global "kişi"
+kaydına indirgenemez (bkz. 4.2, 4.5). Bu, önceki sürümdeki `v2.0`'da `people`'ın da global
+yapılmasının yol açtığı "kurumlar arası PII paylaşımı" riskini ortadan kaldırır.
+
+### 4.2. `people` (KURUM KAPSAMLI)
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `organization_id` | UUID (FK → `organizations.id`) | Hayır | |
+| `first_name` | TEXT | Hayır | |
+| `last_name` | TEXT | Hayır | |
+| `phone` | TEXT | **Hayır** | **[Hassas]** — `URUN_VE_UYGULAMA_PLANI.md` §7.1 gereği ad/soyad ile birlikte zorunlu çekirdek alan. |
+| `photo_asset_id` | UUID | Evet | **[Hassas]** — Bileşik FK: `(photo_asset_id, organization_id) REFERENCES file_assets (id, organization_id)`. |
+| `birth_date` | DATE | Evet | **[Hassas]** |
+| `address` | TEXT | Evet | **[Hassas]** |
+| `school` | TEXT | Evet | |
+| `note` | TEXT | Evet | **[Hassas]** — serbest metin |
+| temel alanlar | — | — | bkz. §2.3 |
+
+Kısıt: `UNIQUE (id, organization_id)` — bileşik FK zinciri için (bkz. bölüm 15). Bu tablo,
+öğrenci, veli ve kurum içindeki hoca/yönetici profillerinin **ortak, kurum kapsamlı** çekirdek
+kaydıdır (`TERIMLER_SOZLUGU.md`'deki "Kişi" tanımı); `students`, `student_guardians` ve
+`organization_memberships` bu tabloya bileşik FK ile (aynı kurum) bağlanır (bkz. 4.5, 8.1, 8.3).
+
+**Anne/baba bilgisinin isteğe bağlı olması nasıl sağlanır:** Ana planın §7.3 hükmü,
+`people.phone`'u koşullu yaparak değil, **anne/baba `student_guardians` kaydının kendisinin hiç
+oluşturulmamasıyla** sağlanır. Oluşturulan her `people` satırı çekirdek alan kuralına (ad,
+soyad, telefon zorunlu) tabidir.
+
+İndeks: `(organization_id, last_name, first_name)`.
+
+### 4.3. `platform_administrators` (GLOBAL)
+
+Platform yöneticisi rolü global kapsamlıdır (`URUN_VE_UYGULAMA_PLANI.md` §5.1) ve hiçbir kurum
+üyeliği gerektirmez.
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `user_id` | UUID (FK → `users.id`, **UNIQUE**) | Hayır | |
+| `granted_by_user_id` | UUID (FK → `users.id`) | Evet | İlk kurulumda `NULL` olabilir. |
+| `granted_at` | TIMESTAMPTZ | Hayır | |
+| `revoked_at` | TIMESTAMPTZ | Evet | Dolu ise artık platform yöneticisi değildir. |
+
+### 4.4. `platform_administrator_profiles` (GLOBAL, isteğe bağlı)
+
+Platform yöneticisinin, hiçbir kuruma ait olmayan, **ayrı ve açık** global profilidir. `people`
+tablosuna kasıtlı olarak eklenmemiştir — `people` artık kurum kapsamlı olduğundan (bkz. 4.2),
+kurum bağlamsız bir profili orada `organization_id` nullable yaparak tutmak, kurum kapsamı
+ilkesini (bölüm 2.2) yeniden bulanıklaştırırdı. Bu satır **isteğe bağlıdır**: platform
+yöneticisi teknik olarak yalnızca `users` + `platform_administrators` ile de çalışabilir; bu
+tablo yalnızca arayüzde ad/iletişim gösterilmesi gerekirse kullanılır.
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `user_id` | UUID (FK → `users.id`, **UNIQUE**) | Hayır | |
+| `first_name` | TEXT | Hayır | |
+| `last_name` | TEXT | Hayır | |
+| `phone` | TEXT | Evet | **[Hassas]** |
+| `note` | TEXT | Evet | **[Hassas]** |
+| temel alanlar | — | — | bkz. §2.3 |
+
+**Profil fotoğrafı bilinçli olarak desteklenmez.** Önceki sürümde bu satırda kurum kapsamlı
+`file_assets`'e **düz** (bileşik olmayan) bir FK veren bir `photo_asset_id` alanı vardı; bu,
+"bilinçli istisna" gerekçesiyle bırakılan gerçek bir tenant izolasyonu açığıydı — global bir
+profilin, herhangi bir kurumun dosya kaydına serbestçe bağlanabilmesi mümkündü. Bu görev, iki
+seçenekten (alanı tamamen kaldırmak / kurum bağlamsız dosyalar için ayrı bir global dosya
+tablosu tanımlamak) V1 için en sade olanı seçmiştir: **alan kaldırılmıştır.** Platform
+yöneticisinin profil fotoğrafı ihtiyacı ilk sürümde yoktur; ileride gerekirse ayrı, açıkça
+global bir `platform_file_assets` tablosu (kurum kapsamlı `file_assets`'ten tamamen bağımsız)
+tanımlanarak eklenebilir — bu, ayrı bir görev/karar gerektirir. **[Kapsam dışı]**
+
+### 4.5. `organization_memberships`
+
+Global kimlik (`users`) ile kurum kapsamlı profili (`people`) ve kurum bağlamını birbirine
+bağlayan köprü tablodur.
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `organization_id` | UUID (FK → `organizations.id`) | Hayır | |
+| `user_id` | UUID (FK → `users.id`) | Hayır | |
+| `person_id` | UUID | Hayır | Bu kullanıcının **bu kurumdaki kendi** profili. Bileşik FK: `(person_id, organization_id) REFERENCES people (id, organization_id)`. |
+| `status` | ENUM(`ACTIVE`,`SUSPENDED`) | Hayır | Kurum yöneticisinin "hoca hesabını askıya alma" işlemi (`KURUM-04`) burada uygulanır; kullanıcının **başka kurumdaki** üyeliğini etkilemez. |
+| `session_generation` | INTEGER, varsayılan `1` | Hayır | Bu üyeliğin oturum "kuşak" sayacı. `status` `SUSPENDED`'a çekildiğinde veya bir rolü geri alındığında artırılır; kurum kapsamlı `refresh_tokens`'ın hâlâ geçerli olup olmadığını doğrulamak için kullanılır (bkz. 4.11, 15.5). |
+| `granted_by_user_id` | UUID (FK → `users.id`) | Evet | |
+| `granted_at` | TIMESTAMPTZ | Hayır | |
+
+Kısıtlar:
+
+- `UNIQUE (organization_id, user_id)` — bir kullanıcının bir kurumda en fazla bir üyeliği
+  (dolayısıyla en fazla bir `people` profili) olur. **Aynı kullanıcı farklı kurumlarda farklı
+  satırlarla, farklı `people` profilleriyle üye olabilir** (`TERIMLER_SOZLUGU.md` §3.1) — her
+  kurum kendi PII kopyasını tutar, hiçbir alan kurumlar arasında paylaşılmaz.
+- `UNIQUE (person_id)` — bir kurum kapsamlı `people` satırı en fazla **bir** global kullanıcı
+  hesabına bağlanabilir; iki ayrı giriş hesabı aynı kişi profilini paylaşamaz. Kullanıcı–kişi
+  bağı tek ve belirsiz olmayan bir kaynaktır. (`person_id` zaten `people.id` UUID'sine işaret
+  ettiğinden ve her `people` satırı tam olarak bir kuruma ait olduğundan, bu tekillik hem
+  "aynı kurum içinde" hem "kurumlar arasında" anlamına gelir — aynı `people` satırı zaten
+  yalnızca bir kurumda var olabilir.)
+- `UNIQUE (id, organization_id)` — bileşik FK zinciri için.
+- `UNIQUE (id, user_id)` — `refresh_tokens`'ın bu üyeliğe bağlanırken aynı kullanıcıya ait
+  olduğunu doğrulaması için (bkz. 4.11).
+
+Rol, bu tabloda **değil**, ayrı `organization_membership_roles`'ta tutulur (bkz. 4.6) — bu
+ayrım, aynı üyeliğin birden fazla aktif role sahip olabilmesini sağlar.
+
+### 4.6. `organization_membership_roles`
+
+Bir kurum üyeliğine verilmiş, tarihçeli ve **çoklu** rol atamalarıdır. Önceki sürümdeki tekil
+`organization_memberships.membership_role` sütunu, "aynı kullanıcı aynı kurumda hem `ORG_ADMIN`
+hem `TEACHER` olamaz" gibi ana planda dayanağı olmayan bir kısıtlamaya yol açtığı için
+kaldırılmıştır.
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `organization_membership_id` | UUID | Hayır | Bileşik FK: `(organization_membership_id, organization_id) REFERENCES organization_memberships (id, organization_id)`. |
+| `organization_id` | UUID (FK → `organizations.id`) | Hayır | Denormalize; aşağıdaki pinlenmiş bileşik FK'ler için (bkz. 15.6). |
+| `role` | `membership_role_enum` (`ORG_ADMIN`,`TEACHER`) | Hayır | Kapalı, ürün seviyesinde sabit rol kümesi (ana plan §5). **Adlandırılmış bir PostgreSQL `ENUM` tipi** olarak tanımlanır (`CREATE TYPE membership_role_enum AS ENUM ('ORG_ADMIN', 'TEACHER')`) — bölüm 4.9 ve 7.2'deki pinlenmiş sütunlar (`target_role_code`, `granted_role_code`, `role_code`) bileşik FK verebilmek için **aynı** bu tipte tanımlanmalıdır; bir `TEXT` sütun bir `ENUM` sütununa bileşik FK ile bağlanamaz (bkz. 15.6). |
+| `granted_by_user_id` | UUID (FK → `users.id`) | Evet | |
+| `granted_at` | TIMESTAMPTZ | Hayır | |
+| `revoked_at` | TIMESTAMPTZ | Evet | |
+
+Kısıtlar:
+
+- `UNIQUE (organization_membership_id, role) WHERE revoked_at IS NULL` (partial) — aynı role
+  aynı anda yalnızca bir aktif atama; ancak bir üyelik **hem `ORG_ADMIN` hem `TEACHER`**
+  satırına sahip olabilir (iki ayrı satır) — çoklu rol buradan gelir.
+- `UNIQUE (id, organization_id, role)` — bölüm 4.9 ve 7.2'deki pinlenmiş bileşik FK'lerin
+  hedefidir; `id` zaten `PRIMARY KEY` olduğundan bu üçlü doğası gereği tekildir, ancak
+  PostgreSQL'de bileşik bir FK'nin hedef sütun kümesi üzerinde **açıkça tanımlı** bir
+  `UNIQUE`/`PRIMARY KEY` bulunmalıdır — bu nedenle ayrı bir indeks olarak tanımlanır.
+
+### 4.7. `permission_categories`
+
+`YETKI_MATRISI.md` §4.3'teki beş devredilebilir izin kategorisinin genişletilebilir kataloğu.
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `code` | TEXT | Hayır | PK: `CLASS_STUDENT_GUARDIAN`, `PROGRAM`, `ATTENDANCE_REPORTING`, `ORG_SETTINGS`, `STAFF_MANAGEMENT`. |
+| `label` | TEXT | Hayır | |
+
+### 4.8. `permission_catalog`
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `code` | TEXT | Hayır | PK. |
+| `category_code` | TEXT (FK → `permission_categories.code`) | Hayır | |
+| `label` | TEXT | Hayır | |
+| `description` | TEXT | Evet | |
+| `introduced_in_version` | TEXT | Hayır | |
+
+**İzin kodu listesi:**
+
+| Kategori | Kod(lar) |
+|---|---|
+| `CLASS_STUDENT_GUARDIAN` | `CLASS_MANAGE`, `STUDENT_MANAGE`, `GUARDIAN_MANAGE`, `GUARDIAN_CONTACT_VIEW`, `RESTORE_ARCHIVED`, `TERM_CALENDAR_MANAGE` |
+| `PROGRAM` | `PROGRAM_MANAGE`, `EVALUATION_SCHEMA_MANAGE` |
+| `ATTENDANCE_REPORTING` | `ATTENDANCE_BACKDATE_CORRECT`, `REPORT_EXPORT`, `AUDIT_LOG_VIEW`, `AUDIT_UNDO` |
+| `ORG_SETTINGS` | `BRAND_MANAGE`, `MODULE_MANAGE`, `CUSTOM_ATTENDANCE_STATUS_MANAGE` |
+| `STAFF_MANAGEMENT` | `TEACHER_ACCOUNT_MANAGE`, `TEACHER_CLASS_ASSIGN`, `TEACHER_PERMISSION_VIEW`, `DEVICE_SESSION_REVOKE` |
+
+**Bağlayıcı karar — `RESTORE_ARCHIVED` tek ve ortak izindir:** Öğrenci ve sınıf arşiv geri
+yükleme tek, ortak bir izin kodudur; varlık başına ayrı izin yoktur (`YONETICI_BILGI_MIMARISI.md`
+ve `HOCA_MOBIL_BILGI_MIMARISI.md`'deki açık soruyu kapatan karar, bkz. bölüm 19).
+
+**Tasarım kararı:** İzin ve kategori kümeleri `ENUM` değil, `TEXT` kodlu referans tablolardır —
+yeni izinler/kategoriler migration gerektirmeden eklenir.
+
+### 4.9. `organization_membership_permissions`
+
+Kurum yöneticisinin bir hocaya (belirli bir `TEACHER` rol atamasına) verdiği bağımsız izin
+atamalarıdır. Sınıf atamasına değil, doğrudan **kurum üyeliğinin `TEACHER` rolüne** bağlıdır —
+hiç sınıfa atanmamış bir hocanın da kurum kapsamlı izinlerini kullanabilmesi için zorunludur.
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `organization_id` | UUID (FK → `organizations.id`) | Hayır | |
+| `target_membership_role_id` | UUID | Hayır | İzni alan hocanın **rol** ataması. |
+| `target_role_code` | `membership_role_enum`, varsayılan `'TEACHER'` | Hayır | `CHECK (target_role_code = 'TEACHER')` — gerçek, sabit bir sütun; bileşik FK'nin "pinlenmesi" bu sütun üzerinden yapılır (bkz. 15.6). **`organization_membership_roles.role` ile aynı `ENUM` tipi** (`membership_role_enum`) — bileşik FK'nin tip uyumu için zorunludur. Bileşik FK: `(target_membership_role_id, organization_id, target_role_code) REFERENCES organization_membership_roles (id, organization_id, role)`. |
+| `permission_code` | TEXT (FK → `permission_catalog.code`) | Hayır | |
+| `granted_by_membership_role_id` | UUID | Evet | Kurum yöneticisi tarafından verildiyse dolu. |
+| `granted_role_code` | `membership_role_enum` | `granted_by_membership_role_id` doluyken zorunlu, aksi hâlde `NULL` | `CHECK (granted_role_code IS NULL OR granted_role_code = 'ORG_ADMIN')`. **`organization_membership_roles.role` ile aynı `ENUM` tipi.** Bileşik FK: `(granted_by_membership_role_id, organization_id, granted_role_code) REFERENCES organization_membership_roles (id, organization_id, role)` (bir sütun `NULL` olduğunda çok sütunlu FK hiç doğrulanmaz — bu yalnızca `granted_by_membership_role_id` dolu iken devreye girer). |
+| `granted_by_platform_admin_user_id` | UUID (FK → `platform_administrators.user_id`) | Evet | Platform yöneticisi destek amaçlı erişimde verdiyse dolu. |
+| `granted_at` | TIMESTAMPTZ | Hayır | |
+| `revoked_at` | TIMESTAMPTZ | Evet | |
+
+Kısıtlar:
+
+- `CHECK (num_nonnulls(granted_by_membership_role_id, granted_by_platform_admin_user_id) = 1)`
+  — grantor ya kurum yöneticisi ya platform yöneticisidir.
+- `CHECK ((granted_by_membership_role_id IS NULL AND granted_role_code IS NULL) OR
+  (granted_by_membership_role_id IS NOT NULL AND granted_role_code = 'ORG_ADMIN'))` —
+  `granted_role_code`'un yalnızca `granted_by_membership_role_id` doluyken ve yalnızca
+  `'ORG_ADMIN'` değeriyle dolu olmasını zorunlu kılar. Bu ikinci `CHECK` olmadan,
+  `granted_by_membership_role_id` dolu bırakılıp `granted_role_code` yanlışlıkla `NULL`
+  bırakılabilirdi — bileşik FK'de bir sütun `NULL` olduğunda çok sütunlu FK hiç
+  doğrulanmadığından, bu durumda `granted_by_membership_role_id` **hiçbir doğrulama olmadan**
+  herhangi bir role (bir `TEACHER` rolü dahil) işaret edebilirdi ve "hoca yapısal olarak
+  grantor olamaz" iddiası delinirdi. Bu iki `CHECK` birlikte, `granted_role_code`'un her zaman
+  doğru ve tutarlı doldurulmasını garanti eder; ancak nihayetinde "bir hoca grantor olamaz"
+  garantisi asıl olarak bileşik FK'nin kendisinden (bkz. 15.6) gelir — bu `CHECK`'ler FK'nin
+  atlanabilir hâle gelmesini engeller.
+- `UNIQUE (target_membership_role_id, permission_code) WHERE revoked_at IS NULL` (partial).
+
+**Önceki sürümdeki hata ve düzeltmesi:** `v2.0`'da bu bileşik FK'ler `(...,'TEACHER')
+REFERENCES ...` biçiminde, FK ifadesinin içine doğrudan bir **literal** gömülerek yazılmıştı —
+bu geçerli bir SQL sözdizimi değildir (FK yalnızca gerçek sütunlara referans verebilir). `v3.0`
+bunu, çocuk tabloda gerçek ve `CHECK` ile sabit bir değere kilitlenmiş bir sütun
+(`target_role_code`, `granted_role_code`) ekleyerek düzeltir; bileşik FK artık yalnızca gerçek
+sütunlara işaret eder (bkz. 15.6).
+
+### 4.10. `trusted_devices`
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `user_id` | UUID (FK → `users.id`) | Hayır | |
+| `device_identifier` | TEXT | Hayır | **[Hassas]** |
+| `device_name` | TEXT | Evet | |
+| `platform` | ENUM(`IOS`,`ANDROID`) | Hayır | |
+| `trusted_at` | TIMESTAMPTZ | Hayır | |
+| `last_seen_at` | TIMESTAMPTZ | Evet | |
+| `revoked_at` | TIMESTAMPTZ | Evet | Kullanıcının **kendi** cihazını tamamen kaldırması veya platform yöneticisinin global iptali burada uygulanır — bu, kurum kapsamlı oturum iptalinden (bkz. 4.11) farklı, cihazın **bütün** kurum bağlamlarını etkileyen bir işlemdir. |
+
+Kısıtlar:
+
+- `UNIQUE (id, user_id)` — `refresh_tokens`'ın aşağıdaki bileşik FK'sinin hedefidir.
+- `UNIQUE (user_id, device_identifier) WHERE revoked_at IS NULL` (partial) — aynı kullanıcı ve
+  fiziksel cihaz kimliği için **birden fazla aktif** güvenilir cihaz kaydı oluşamaz; bu
+  önlenmezse aynı fiziksel cihaz için yinelenen, birbirinden habersiz kayıtlar (ve dolayısıyla
+  tutarsız iptal davranışı) oluşabilirdi.
+
+### 4.11. `refresh_tokens` — kurum kapsamlı oturum iptali ve güvenlik sınırı
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `user_id` | UUID (FK → `users.id`) | Hayır | |
+| `trusted_device_id` | UUID | Hayır | Bileşik FK: `(trusted_device_id, user_id) REFERENCES trusted_devices (id, user_id)` — cihazın gerçekten bu token'ın sahibi kullanıcıya ait olmasını zorunlu kılar (önceki sürümde bu alan yalnızca `trusted_devices.id`'ye düz FK veriyordu; teknik olarak user A'nın token satırı user B'nin cihaz kaydını gösterebilirdi — bu artık DB seviyesinde imkânsızdır). |
+| `organization_membership_id` | UUID | Evet | Bu oturumun **hangi kurum bağlamında** açıldığı. Bileşik FK: `(organization_membership_id, user_id) REFERENCES organization_memberships (id, user_id)` — üyeliğin gerçekten bu token'ın sahibi kullanıcıya ait olmasını zorunlu kılar. Platform yöneticisi oturumlarında veya kurum bağlamı henüz seçilmemiş bir oturumda `NULL` olabilir (bkz. altta "kurum bağlamsız token" davranışı). |
+| `issued_at_session_generation` | INTEGER | Yalnızca `organization_membership_id` doluyken zorunlu, aksi hâlde `NULL` | Token üretildiği andaki `organization_memberships.session_generation` anlık görüntüsü (bkz. 4.5). `CHECK ((organization_membership_id IS NULL AND issued_at_session_generation IS NULL) OR (organization_membership_id IS NOT NULL AND issued_at_session_generation IS NOT NULL))`. |
+| `token_hash` | TEXT, **UNIQUE** | Hayır | **[Hassas]** — ham belirteç saklanmaz, yalnızca geri döndürülemez özeti; tekildir (iki token aynı özete sahip olamaz). |
+| `issued_at` | TIMESTAMPTZ | Hayır | |
+| `expires_at` | TIMESTAMPTZ | Hayır | |
+| `revoked_at` | TIMESTAMPTZ | Evet | |
+
+**Kurum kapsamlı iptalin çalışma şekli:** `DEVICE_SESSION_REVOKE` iznine sahip bir kurum
+yöneticisi/hoca "kullanıcının cihaz oturumlarını iptal etme" işlemini yaptığında, bu işlem
+**tek bir işlemde** şunları yapar: (1) `WHERE user_id = <hedef> AND organization_membership_id
+IN (<işlemi yapanın kurumundaki üyelikler>)` koşuluyla eşleşen `refresh_tokens` satırlarını
+`revoked_at` ile iptal eder; (2) hedef kullanıcının o kurumdaki `organization_memberships.
+session_generation` sayacını **artırır**. Hedef kullanıcının **başka bir kurumdaki** bağlamda
+açılmış oturumları bu işlemden **etkilenmez** — bu, `YETKI_MATRISI.md` §2.2 madde 2 "kurum
+kapsamlı roller kurum dışına çıkamaz" mutlak sınırının doğal bir sonucudur.
+
+**Kurum bağlamsız (`organization_membership_id IS NULL`) token'ın güvenlik sınırı:** Böyle bir
+token (ör. giriş sonrası, kullanıcı henüz hangi kurum bağlamında çalışacağını seçmeden önce
+verilen "ön" token) **hiçbir kurum kapsamlı API'ye doğrudan erişemez**; yalnızca şu iki işlem
+için kullanılabilir: (a) kullanıcının üye olduğu kurumların listesini görme, (b) seçilen bir
+kurum için **yeni, `organization_membership_id` dolu, kurum kapsamlı bir token üretme** (token
+"değişimi"). Bu değişim işlemi, hedef `organization_memberships.status = ACTIVE` **ve** ilgili
+rolün (`organization_membership_roles`) `revoked_at IS NULL` olduğunu doğrulamadan **yeni token
+üretemez**. Bu, kurum bağlamsız bir token'ın, kurum yöneticisi tarafından iptal edilmiş
+(`status = SUSPENDED` veya rolü geri alınmış) bir üyelik için sessizce yeni bir kurum kapsamlı
+token üreterek iptali **dolanmasını** engeller — bu bir DB kısıtı değil, token değişimi
+işleminin zorunlu ön koşuludur (bkz. 15.5).
+
+**`session_generation` kontrolü — halihazırda verilmiş token'lar için:** Her kurum kapsamlı API
+isteği, sunulan token'ın `issued_at_session_generation`'ının, ilgili `organization_memberships.
+session_generation`'ının **güncel** değerine eşit olduğunu doğrulamalıdır. Bir üyelik askıya
+alındığında veya bir rolü geri alındığında sayaç arttığı için, o ana kadar üretilmiş **bütün**
+eski token'lar (henüz `revoked_at` ile tek tek işaretlenmemiş olsalar bile) bu kontrolde
+otomatik olarak geçersiz sayılır — bu, toplu iptal (`revoked_at`) işleminde bir satırın gözden
+kaçması durumuna karşı ikinci bir savunma katmanıdır. Bu kontrol, iki farklı mutlak satırın
+(token + üyelik) canlı karşılaştırılmasını gerektirdiğinden statik bir FK/CHECK ile ifade
+edilemez; **zorunlu bir uygulama katmanı kuralı** olarak bölüm 15.5'te de kaydedilmiştir.
+`YETKI_MATRISI.md` §3.3/§8.1 "kullanıcının bütün cihaz oturumlarını iptal etme" satırındaki
+"bütün" ifadesinin kapsamına dair açıklayıcı not, bu görevin PR'ında `YETKI_MATRISI.md`'ye
+eklenmiştir (bağlayıcı yeni bir yetki kararı değildir; mevcut kurum izolasyonu mutlak sınırının
+teknik sonucudur). Kesin token/oturum sağlayıcı teknolojisi `A-004` ADR'sine bırakılmıştır; bu
+belge yalnızca dolanmayı engelleyen değişmezi (invariant) tanımlar.
+
+Kesin özetleme algoritması ve erişim belirteci ömrü `A-004` ADR'sine bırakılmıştır.
+
+### 4.12. Rol iptali yaşam döngüsü (bağlayıcı kural)
+
+Bölüm 15.6'da belirtildiği gibi, pinlenmiş bileşik FK tekniği bir rolün `revoked_at IS NULL`
+(aktiflik) koşulunu **doğrulayamaz** — yalnızca rolün türünü (`ORG_ADMIN`/`TEACHER`) doğrular.
+Bu nedenle, bir rolün geri alınmasının bağlı kayıtlara ne yapacağı burada **bağlayıcı bir
+davranış kuralı** olarak yazılır (atomik işlem/tetikleyici veya değerlendirme-zamanı kontrolü
+olup olmayacağı `P-009`/`P-011` uygulama görevlerine bırakılmıştır; sonuç burada sabittir):
+
+1. **Bir `TEACHER` rolü geri alındığında (`organization_membership_roles.revoked_at`
+   doldurulduğunda), bu işlemle **aynı işlemde**:**
+   - O role bağlı **aktif** `class_teacher_assignments` satırları `unassigned_at` ile
+     kapatılır (bir hoca artık var olmayan bir role dayanarak bir sınıfa "atanmış" görünemez).
+   - O role bağlı **aktif** `organization_membership_permissions` satırları (bu rol `target_
+     membership_role_id` olarak) `revoked_at` ile kapatılır.
+   - Bu iki adım atlanırsa, rolü geri alınmış bir hoca hâlâ aktif görünen sınıf ataması/izin
+     kayıtlarına sahip kalır; bu, bölüm 15.6'nın FK seviyesinde doğrulayamadığı boşluğun
+     **uygulama seviyesinde kapatılması gereken tam noktasıdır**.
+2. **Bir `ORG_ADMIN` rolü geri alındığında,** bu rolün **geçmişte grantor olarak verdiği**
+   `organization_membership_permissions` satırları **kendiliğinden iptal edilmez veya
+   silinmez** — grantor geçmişi (denetim bütünlüğü için) korunur; hocaya verilmiş izinlerin
+   kendisi, onu veren yöneticinin rolünün sonraki kaderinden bağımsız olarak geçerliliğini
+   sürdürür (yalnızca kurum yöneticisinin kendisi veya başka bir `ORG_ADMIN` bu izinleri ayrıca
+   geri alırsa sona erer).
+3. **Yeni bir yetki değerlendirmesi (bir işlemin yapılıp yapılamayacağı kontrolü) her zaman
+   üç koşulun aynı anda sağlanmasını gerektirir:** (a) `organization_memberships.status =
+   ACTIVE`, (b) ilgili `organization_membership_roles.revoked_at IS NULL`, (c) ilgili
+   `organization_membership_permissions.revoked_at IS NULL` (devredilmiş izin gerekiyorsa).
+   Üçünden biri eksikse işlem reddedilir. Değerlendirme algoritmasının kesin uygulaması
+   `PERM-002` kapsamındadır; bağlayıcı olan bu üç koşulun **birlikte ve her zaman** kontrol
+   edilmesi gerektiğidir.
+
+---
+
+## 5. ORG — Kurum
+
+### 5.1. `organizations`
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `name` | TEXT | Hayır | |
+| `short_name` | TEXT | Evet | |
+| `logo_asset_id` | UUID | Evet | Bileşik FK: `FOREIGN KEY (logo_asset_id, id) REFERENCES file_assets (id, organization_id)` — burada `organizations.id`, `file_assets.organization_id` ile eşleşen tenant değeri olarak kullanılır (yani logo dosyasının `organization_id`'si **bu kurumun kendi `id`'sine** eşit olmalıdır). |
+| `primary_color` | TEXT (hex) | Evet | |
+| `status` | ENUM(`ACTIVE`,`SUSPENDED`,`ARCHIVED`) | Hayır | Yalnızca platform yöneticisi değiştirir. |
+| `default_timezone` | TEXT | Hayır, varsayılan `Europe/Istanbul` | §6.1 |
+| temel alanlar | — | — | bkz. §2.3 |
+
+`organizations` bileşik FK zincirinin köküdür; kendi `id`'si (PK) yeterlidir. `logo_asset_id`
+istisnadır — `organizations`'ın kendisi bir `organization_id` sütunu taşımadığından (kendisi
+kurumun ta kendisidir), bileşik FK'de ikinci sütun olarak kendi `id`'si kullanılır; bu, bölüm
+15.1'deki genel `(child.parent_id, child.organization_id) → parent (id, organization_id)`
+deseninin `organizations` özelinde tek istisnasıdır ve yukarıda açıkça yazılmıştır.
+
+### 5.2. `organization_brand_colors`
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `organization_id` | UUID (FK → `organizations.id`) | Hayır | PK'nin parçası |
+| `color_hex` | TEXT | Hayır | PK'nin parçası |
+| `sort_order` | INTEGER | Hayır | |
+
+### 5.3. `organization_modules`
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `organization_id` | UUID (FK → `organizations.id`) | Hayır | PK'nin parçası |
+| `module_code` | TEXT | Hayır | PK'nin parçası; `AGENT_GOREV_PLANI.md` §5'teki sabit modül kod listesi. |
+| `is_enabled` | BOOLEAN, varsayılan `true` | Hayır | `KURUM-*` etkin modül yönetimi (§8.2). |
+| `sort_order` | INTEGER, varsayılan `0` | Hayır | Kurum yöneticisinin menü sırasını kontrollü biçimde değiştirebilmesi için (`URUN_VE_UYGULAMA_PLANI.md` §9.2 "menü sırası kontrollü bir yapı içinde değiştirilebilir olmalıdır"). Bu alan yalnızca **görünüm sırasını** etkiler; bir modülün menüde görünüp görünmeyeceği veya erişilebilirliği `is_enabled` ve kullanıcının yetkisiyle belirlenir — `sort_order` hiçbir şekilde yetkisiz erişim sağlamaz. |
+| `updated_at` | TIMESTAMPTZ | Hayır | |
+| `updated_by_user_id` | UUID (FK → `users.id`) | Evet | |
+
+---
+
+## 6. TERM — Dönem ve takvim
+
+### 6.1. `terms`
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `organization_id` | UUID (FK → `organizations.id`) | Hayır | |
+| `name` | TEXT | Hayır | |
+| `start_date` | DATE | Hayır | |
+| `end_date` | DATE | Hayır | |
+| `status` | ENUM(`ACTIVE`,`ARCHIVED`) | Hayır | |
+| temel alanlar | — | — | bkz. §2.3 |
+
+Kısıt: `UNIQUE (id, organization_id)`.
+
+### 6.2. `term_calendar_days`
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `organization_id` | UUID (FK → `organizations.id`) | Hayır | |
+| `term_id` | UUID | Hayır | Bileşik FK: `(term_id, organization_id) REFERENCES terms (id, organization_id)`. |
+| `calendar_date` | DATE | Hayır | |
+| `day_type` | ENUM(`WORKING`,`HOLIDAY`,`NON_INSTRUCTIONAL`) | Hayır | |
+
+Kısıt: `UNIQUE (term_id, calendar_date)`.
+
+---
+
+## 7. CLS — Sınıf
+
+### 7.1. `classes`
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `organization_id` | UUID (FK → `organizations.id`) | Hayır | |
+| `term_id` | UUID | Hayır | Bileşik FK: `(term_id, organization_id) REFERENCES terms (id, organization_id)`. |
+| `name` | TEXT | Hayır | |
+| `status` | ENUM(`ACTIVE`,`ARCHIVED`) | Hayır | |
+| temel alanlar | — | — | bkz. §2.3 |
+
+Kısıt: `UNIQUE (id, organization_id)`. `primary_teacher_user_id` gibi bir sütun **yoktur** —
+ana hoca bilgisi yalnızca `class_teacher_assignments.is_primary`'den okunur (tek kaynak).
+
+### 7.2. `class_teacher_assignments`
+
+Hoca–sınıf atamasının tek kaynağıdır; kurum üyeliğinin `TEACHER` rolüne bağlıdır (bir `TEACHER`
+rolü hiçbir sınıfa atanmamış olabilir, bkz. 4.9).
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `organization_id` | UUID (FK → `organizations.id`) | Hayır | |
+| `class_id` | UUID | Hayır | Bileşik FK: `(class_id, organization_id) REFERENCES classes (id, organization_id)`. |
+| `organization_membership_role_id` | UUID | Hayır | Atanan `TEACHER` rolü. |
+| `role_code` | `membership_role_enum`, varsayılan `'TEACHER'` | Hayır | `CHECK (role_code = 'TEACHER')`. **`organization_membership_roles.role` ile aynı `ENUM` tipi.** Bileşik FK: `(organization_membership_role_id, organization_id, role_code) REFERENCES organization_membership_roles (id, organization_id, role)` (bkz. 15.6 — gerçek, pinlenmiş sütun tekniği). |
+| `is_primary` | BOOLEAN, varsayılan `false` | Hayır | |
+| `assigned_at` | TIMESTAMPTZ | Hayır | |
+| `assigned_by_user_id` | UUID (FK → `users.id`) | Evet | |
+| `unassigned_at` | TIMESTAMPTZ | Evet | |
+
+Kısıtlar:
+
+- `UNIQUE (class_id, organization_membership_role_id) WHERE unassigned_at IS NULL`
+- `UNIQUE (class_id) WHERE is_primary AND unassigned_at IS NULL`
+
+---
+
+## 8. PEOPLE — Kişiler
+
+### 8.1. `students`
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `organization_id` | UUID (FK → `organizations.id`) | Hayır | |
+| `person_id` | UUID | Hayır | Bir kişi en fazla bir öğrenci kaydına sahip olabilir (`UNIQUE`). Bileşik FK: `(person_id, organization_id) REFERENCES people (id, organization_id)`. |
+| `term_id` | UUID | Hayır | Bileşik FK: `(term_id, organization_id) REFERENCES terms (id, organization_id)`. |
+| `enrollment_date` | DATE | Hayır | |
+| `status` | ENUM(`ACTIVE`,`INACTIVE`,`ARCHIVED`) | Hayır | |
+| temel alanlar | — | — | bkz. §2.3 |
+
+Kısıtlar: `UNIQUE (id, organization_id)`; `UNIQUE (person_id)`.
+
+**`class_id` yoktur** — öğrenci–sınıf ilişkisi tarihçeli `student_class_enrollments`'ta tutulur
+(bkz. 8.2); güncel sınıf, oradaki aktif (`ended_at IS NULL`) satırdan okunur.
+
+İndeks: `(organization_id, status)`.
+
+### 8.2. `student_class_enrollments`
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `organization_id` | UUID (FK → `organizations.id`) | Hayır | |
+| `student_id` | UUID | Hayır | Bileşik FK: `(student_id, organization_id) REFERENCES students (id, organization_id)`. |
+| `class_id` | UUID | Hayır | Bileşik FK: `(class_id, organization_id) REFERENCES classes (id, organization_id)`. |
+| `started_at` | TIMESTAMPTZ | Hayır | |
+| `ended_at` | TIMESTAMPTZ | Evet | `NULL` ise hâlâ aktif üyeliktir. |
+| `ended_reason` | ENUM(`TRANSFERRED`,`CLASS_ARCHIVED`,`STUDENT_ARCHIVED`) | Yalnızca `ended_at` dolu iken | |
+| `created_by_user_id` | UUID (FK → `users.id`) | Evet | |
+| `created_at` | TIMESTAMPTZ | Hayır | |
+
+Kısıtlar:
+
+- `UNIQUE (student_id) WHERE ended_at IS NULL` (partial) — en fazla bir **aktif** üyelik.
+- `EXCLUDE USING gist (student_id WITH =, tstzrange(started_at, COALESCE(ended_at,
+  'infinity'::timestamptz)) WITH &&)` — bu `EXCLUDE` kısıtı (`btree_gist` eklentisi gerektirir),
+  **tarih aralığı çakışmasını** DB seviyesinde engeller: yukarıdaki partial index yalnızca
+  "aynı anda birden fazla açık (`ended_at IS NULL`) üyelik" durumunu engellerken, bu kısıt
+  ayrıca **geçmişe dönük** (backdated) bir üyeliğin daha önce kapatılmış başka bir üyelikle
+  tarih aralığı olarak çakışmasını da engeller. Bu, önceki sürümde yalnızca uygulama katmanına
+  bırakılan bir tutarlılık kuralının veritabanı seviyesinde ifade edilebilen gerçek bir
+  örneğidir.
+
+### 8.3. `student_guardians`
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `organization_id` | UUID (FK → `organizations.id`) | Hayır | |
+| `student_id` | UUID | Hayır | Bileşik FK: `(student_id, organization_id) REFERENCES students (id, organization_id)`. |
+| `person_id` | UUID | Hayır | Velinin kendi kişi kaydı. Bileşik FK: `(person_id, organization_id) REFERENCES people (id, organization_id)`. |
+| `relation_type` | ENUM(`MOTHER`,`FATHER`) | Hayır | |
+| temel alanlar | — | — | bkz. §2.3 |
+
+Kısıt: `UNIQUE (student_id, relation_type)`.
+
+### 8.4. Kuruma özel alanlar
+
+Ana planın "her şeyi tek bir JSON alanında tutma veya tamamen dinamik EAV kullanma" yasağına
+(§3.3) uyacak biçimde kurulmuş, **kontrollü, tip güvenli genişletme modelidir**. Bu, klasik
+serbest EAV değildir: her değer, tanım tablosundan denormalize edilmiş `field_type`/
+`entity_type` ile eşleştirilmiş, `CHECK`'lerle sınırlanmış özel sütunlarda tutulur.
+
+**`custom_field_definitions`**
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `organization_id` | UUID (FK → `organizations.id`) | Hayır | |
+| `entity_type` | ENUM(`PERSON`,`STUDENT`) | Hayır | |
+| `field_key` | TEXT | Hayır | |
+| `label` | TEXT | Hayır | |
+| `field_type` | ENUM(`SHORT_TEXT`,`LONG_TEXT`,`NUMBER`,`DATE`,`BOOLEAN`,`SINGLE_CHOICE`,`MULTI_CHOICE`) | Hayır | |
+| `is_required` | BOOLEAN | Hayır | |
+| `is_visible` | BOOLEAN | Hayır | |
+| `sort_order` | INTEGER | Hayır | |
+| temel alanlar | — | — | bkz. §2.3 |
+
+Kısıtlar: `UNIQUE (organization_id, entity_type, field_key)`; `UNIQUE (id, organization_id)`;
+`UNIQUE (id, entity_type)`; `UNIQUE (id, field_type)` — hepsi aşağıdaki bileşik FK'ler için
+(her biri gerçekten kullanılır, bkz. altta).
+
+**`custom_field_options`**
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `organization_id` | UUID (FK → `organizations.id`) | Hayır | |
+| `field_definition_id` | UUID | Hayır | Bileşik FK: `(field_definition_id, organization_id) REFERENCES custom_field_definitions (id, organization_id)`. |
+| `field_type` | ENUM(`SHORT_TEXT`,`LONG_TEXT`,`NUMBER`,`DATE`,`BOOLEAN`,`SINGLE_CHOICE`,`MULTI_CHOICE`) | Hayır | Denormalize. Bileşik FK: `(field_definition_id, field_type) REFERENCES custom_field_definitions (id, field_type)`. |
+| `option_value` | TEXT | Hayır | |
+| `sort_order` | INTEGER | Hayır | |
+
+Kısıtlar:
+
+- `CHECK (field_type IN ('SINGLE_CHOICE', 'MULTI_CHOICE'))` — bir seçenek satırı, ancak
+  tanımının türü seçim tipiyse var olabilir; bu, bileşik FK ile denormalize edilen
+  `field_type`'ın kendisi üzerinden **DB seviyesinde** zorlanır (tanım `NUMBER` iken bu satıra
+  `field_type='NUMBER'` yazılamaz çünkü bileşik FK tanımla eşleşmesini zaten zorunlu kılar; bu
+  `CHECK` ayrıca `SHORT_TEXT` vb. türlerin hiç seçenek satırı almamasını garanti eder).
+- `UNIQUE (field_definition_id, option_value)`.
+- `UNIQUE (id, field_definition_id)` — aşağıdaki bileşik FK'ler için.
+
+**`custom_field_values`**
+
+Polimorfik tek `entity_id` yerine hedefe göre ayrılmış nullable FK; `field_type`/`entity_type`
+denormalize edilerek değer sütunlarının ve hedefin türle tutarlılığı DB seviyesinde
+sağlanmıştır.
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `organization_id` | UUID (FK → `organizations.id`) | Hayır | |
+| `field_definition_id` | UUID | Hayır | Bileşik FK: `(field_definition_id, organization_id) REFERENCES custom_field_definitions (id, organization_id)`. |
+| `entity_type` | ENUM(`PERSON`,`STUDENT`) | Hayır | Denormalize. Bileşik FK: `(field_definition_id, entity_type) REFERENCES custom_field_definitions (id, entity_type)`. |
+| `field_type` | ENUM(...) | Hayır | Denormalize. Bileşik FK: `(field_definition_id, field_type) REFERENCES custom_field_definitions (id, field_type)`. |
+| `target_person_id` | UUID | `entity_type = PERSON` iken dolu | Bileşik FK: `(target_person_id, organization_id) REFERENCES people (id, organization_id)`. |
+| `target_student_id` | UUID | `entity_type = STUDENT` iken dolu | Bileşik FK: `(target_student_id, organization_id) REFERENCES students (id, organization_id)`. |
+| `value_text` | TEXT | Evet | |
+| `value_number` | NUMERIC | Evet | |
+| `value_date` | DATE | Evet | |
+| `value_boolean` | BOOLEAN | Evet | |
+
+Kısıtlar:
+
+- `CHECK ((entity_type = 'PERSON' AND target_person_id IS NOT NULL AND target_student_id IS
+  NULL) OR (entity_type = 'STUDENT' AND target_student_id IS NOT NULL AND target_person_id IS
+  NULL))` — hedef, tanımın `entity_type`'ıyla DB seviyesinde tutarlıdır (yalnızca soyut bir XOR
+  değil, hangi tarafın doğru olduğu da zorlanır).
+- `CHECK` — değer sütunu `field_type`'a göre sınırlıdır (tek `CHECK`, alt sütun karşılaştırmaları
+  ile, alt sorgu gerektirmez, gerçek Postgres `CHECK`'i):
+  ```
+  (field_type IN ('SHORT_TEXT','LONG_TEXT') AND value_text IS NOT NULL
+     AND value_number IS NULL AND value_date IS NULL AND value_boolean IS NULL)
+  OR (field_type = 'NUMBER' AND value_number IS NOT NULL
+     AND value_text IS NULL AND value_date IS NULL AND value_boolean IS NULL)
+  OR (field_type = 'DATE' AND value_date IS NOT NULL
+     AND value_text IS NULL AND value_number IS NULL AND value_boolean IS NULL)
+  OR (field_type = 'BOOLEAN' AND value_boolean IS NOT NULL
+     AND value_text IS NULL AND value_number IS NULL AND value_date IS NULL)
+  OR (field_type IN ('SINGLE_CHOICE','MULTI_CHOICE')
+     AND value_text IS NULL AND value_number IS NULL
+     AND value_date IS NULL AND value_boolean IS NULL)
+  ```
+- `UNIQUE (field_definition_id, target_person_id) WHERE target_person_id IS NOT NULL` (partial)
+- `UNIQUE (field_definition_id, target_student_id) WHERE target_student_id IS NOT NULL` (partial)
+- `UNIQUE (id, field_definition_id)`; `UNIQUE (id, field_type)` — aşağıdaki
+  `custom_field_value_selected_options` bileşik FK'leri için.
+
+**`custom_field_value_selected_options`**
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `custom_field_value_id` | UUID | Hayır | PK'nin parçası. |
+| `custom_field_option_id` | UUID | Hayır | PK'nin parçası. |
+| `field_definition_id` | UUID | Hayır | Denormalize. |
+| `field_type` | ENUM(...) | Hayır | Denormalize. |
+
+Kısıtlar:
+
+- `PRIMARY KEY (custom_field_value_id, custom_field_option_id)`
+- Bileşik FK: `(custom_field_value_id, field_definition_id) REFERENCES custom_field_values
+  (id, field_definition_id)`
+- Bileşik FK: `(custom_field_value_id, field_type) REFERENCES custom_field_values (id,
+  field_type)`
+- Bileşik FK: `(custom_field_option_id, field_definition_id) REFERENCES custom_field_options
+  (id, field_definition_id)`
+- `UNIQUE (custom_field_value_id) WHERE field_type = 'SINGLE_CHOICE'` (partial) — **`SINGLE_
+  CHOICE` için en fazla bir seçenek seçilmesi artık veritabanı seviyesinde zorunlu kılınır**
+  (önceki sürümde bu, `field_type` bilgisi bu tabloda bulunmadığı için yalnızca uygulama
+  katmanı sorumluluğu olarak bırakılmıştı; `field_type`'ın denormalize edilmesiyle artık bir
+  partial `UNIQUE` ile ifade edilebilir hâle gelmiştir).
+
+Bu tablodaki üç bileşik FK birlikte, seçilen seçeneğin her zaman değerin ait olduğu tanımla
+aynı `field_definition_id` ve `field_type`'a sahip olmasını DB seviyesinde garanti eder.
+
+---
+
+## 9. ATT — Yoklama
+
+### 9.1. `organization_attendance_statuses`
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `organization_id` | UUID (FK → `organizations.id`) | Hayır | |
+| `code` | TEXT | Hayır | |
+| `label` | TEXT | Hayır | |
+| `is_active` | BOOLEAN, varsayılan `true` | Hayır | |
+| temel alanlar | — | — | bkz. §2.3 |
+
+Kısıt: `UNIQUE (organization_id, code)`; `UNIQUE (id, organization_id)`. `Geldi`/`Gelmedi` bu
+tabloda **değildir** — sabit ürün durumlarıdır, `attendance_records.status_type`'ta `ENUM`
+olarak tutulur.
+
+### 9.2. `attendance_sessions`
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `organization_id` | UUID (FK → `organizations.id`) | Hayır | |
+| `class_id` | UUID | Hayır | Bileşik FK: `(class_id, organization_id) REFERENCES classes (id, organization_id)`. |
+| `session_date` | DATE | Hayır | |
+| `created_at` | TIMESTAMPTZ | Hayır | |
+
+Kısıt: `UNIQUE (class_id, session_date)`; `UNIQUE (id, organization_id)`.
+
+### 9.3. `attendance_records`
+
+**Bu tablo güncel-durum tablosudur, değişmez geçmiş kaydı değildir** (bkz. §2.4).
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `organization_id` | UUID (FK → `organizations.id`) | Hayır | |
+| `attendance_session_id` | UUID | Hayır | Bileşik FK: `(attendance_session_id, organization_id) REFERENCES attendance_sessions (id, organization_id)`. |
+| `student_id` | UUID | Hayır | Bileşik FK: `(student_id, organization_id) REFERENCES students (id, organization_id)`. |
+| `status_type` | ENUM(`PRESENT`,`ABSENT`,`CUSTOM`) | Hayır | |
+| `custom_status_id` | UUID | Yalnızca `status_type=CUSTOM` iken dolu | Bileşik FK: `(custom_status_id, organization_id) REFERENCES organization_attendance_statuses (id, organization_id)`. |
+| `recorded_by_user_id` | UUID (FK → `users.id`) | Hayır | |
+| `recorded_at` | TIMESTAMPTZ | Hayır | |
+| `row_version` | INTEGER, varsayılan `1` | Hayır | |
+
+Kısıtlar: `UNIQUE (attendance_session_id, student_id)`; `CHECK ((status_type = 'CUSTOM' AND
+custom_status_id IS NOT NULL) OR (status_type IN ('PRESENT','ABSENT') AND custom_status_id IS
+NULL))` — "yalnızca `status_type=CUSTOM` iken dolu" ifadesi salt prose olarak kalmaz, aynı
+satırdaki sütunlara bakan bu `CHECK` ile DB seviyesinde de zorunlu kılınır.
+
+**[Hassas]** `status_type=CUSTOM` ve ilgili durum "Hasta" gibi bir değer taşıdığında,
+`KISISEL_VERI_ENVANTERI.md` satır 12'deki dolaylı sağlık verisi çıkarımı riskini taşır.
+
+**Statik olarak ifade edilemeyen kural — öğrencinin oturum tarihinde ilgili sınıfa kayıtlı
+olması:** Bir `attendance_records` satırının `student_id`'si, `attendance_session_id`'nin
+işaret ettiği `attendance_sessions.class_id`'ye, o oturumun `session_date`'inde geçerli bir
+`student_class_enrollments` aralığıyla kayıtlı olmalıdır. Bu, iki farklı tablo arasında,
+**zamana bağlı bir aralık koşuluyla** ifade edilen bir kuraldır; statik FK/CHECK bunu ifade
+edemez (bkz. bölüm 15.5 — uygulama katmanı zorunluluğu ve `P-009`/`P-010` kabul senaryosu
+adayı).
+
+---
+
+## 10. CONTENT — İçerik
+
+### 10.1. `file_assets`
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `organization_id` | UUID (FK → `organizations.id`) | Hayır | |
+| `storage_key` | TEXT | Hayır | |
+| `original_filename` | TEXT | Hayır | |
+| `mime_type` | TEXT | Hayır | |
+| `size_bytes` | BIGINT | Hayır | |
+| `uploaded_by_user_id` | UUID (FK → `users.id`) | Hayır | |
+| `created_at` | TIMESTAMPTZ | Hayır | |
+
+Kısıt: `UNIQUE (id, organization_id)`. `people.photo_asset_id` ve içerik PDF ekleri (`contents.
+pdf_asset_id`) bu tabloya bileşik FK ile (aynı kurum) bağlanır; `organizations.logo_asset_id`
+kendi `id`'sini tenant değeri olarak kullanan tek istisnadır (bkz. bölüm 5.1). Bu tabloya düz
+(bileşik olmayan) FK veren **hiçbir global tablo/alan yoktur** — `platform_administrator_
+profiles`'ın (bölüm 4.4) bu tabloyla hiçbir ilişkisi yoktur; profil fotoğrafı v1 kapsamında
+desteklenmez (bkz. bölüm 15.4).
+
+### 10.2. `contents`
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `organization_id` | UUID (FK → `organizations.id`) | Hayır | |
+| `content_type` | ENUM(`TEXT`,`TEXT_WITH_PDF`) | Hayır | |
+| `body_text` | TEXT | Hayır | |
+| `pdf_asset_id` | UUID | Yalnızca `content_type=TEXT_WITH_PDF` iken dolu | Bileşik FK: `(pdf_asset_id, organization_id) REFERENCES file_assets (id, organization_id)`. |
+| temel alanlar | — | — | bkz. §2.3 |
+
+Kısıtlar: `UNIQUE (id, organization_id)`; `CHECK ((content_type = 'TEXT_WITH_PDF' AND
+pdf_asset_id IS NOT NULL) OR (content_type = 'TEXT' AND pdf_asset_id IS NULL))`.
+
+---
+
+## 11. PROGRAM — Program, şablon ve plan
+
+### 11.1. `starter_program_templates`
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `code` | TEXT | Hayır | PK, ör. `MEMORIZATION_DAILY`, `SURAH_DUA_LIST`, `CARD_SECTION`, `QURAN_PAGE_TRACKING`, `ELIF_BA`, `PRAYER_TRACKING`, `FREE_TASK`. |
+| `label` | TEXT | Hayır | |
+| `description` | TEXT | Evet | |
+
+Yalnızca sistemin önerdiği bir başlangıç kısayoludur; bir `program` bu kataloğa referans
+vermek zorunda değildir (bkz. 11.7).
+
+### 11.2. `programs`
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `organization_id` | UUID (FK → `organizations.id`) | Hayır | |
+| `class_id` | UUID | Hayır | Bileşik FK: `(class_id, organization_id) REFERENCES classes (id, organization_id)`. |
+| `name` | TEXT | Hayır | |
+| `based_on_starter_template_id` | TEXT (FK → `starter_program_templates.code`) | Evet | |
+| `status` | ENUM(`ACTIVE`,`PASSIVE`,`ARCHIVED`) | Hayır | |
+| `current_program_version_id` | UUID | Evet | Bileşik FK: `(current_program_version_id, id) REFERENCES program_versions (id, program_id)` — bu, referans verilen sürümün **gerçekten bu programa ait** olmasını (başka bir programın sürümü olamayacağını) DB seviyesinde zorunlu kılar (kendi `id`'sini FK tuple'ının bir parçası olarak kullanan, PostgreSQL'de geçerli bir öz-referans tekniğidir; `program_versions` üzerinde `UNIQUE (id, program_id)` gerektirir, bkz. 11.3). |
+| temel alanlar | — | — | bkz. §2.3 |
+
+Kısıt: `UNIQUE (id, organization_id)`.
+
+### 11.3. `program_versions`
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `organization_id` | UUID (FK → `organizations.id`) | Hayır | |
+| `program_id` | UUID | Hayır | Bileşik FK: `(program_id, organization_id) REFERENCES programs (id, organization_id)`. |
+| `version_no` | INTEGER | Hayır | |
+| `evaluation_score_enabled` | BOOLEAN, varsayılan `false` | Hayır | |
+| `evaluation_note_enabled` | BOOLEAN, varsayılan `false` | Hayır | |
+| `evaluation_repeat_required_enabled` | BOOLEAN, varsayılan `false` | Hayır | |
+| `content_planning_mode` | ENUM(`MANUAL`,`TEMPLATE`,`MIXED`) | Hayır | |
+| `created_by_user_id` | UUID (FK → `users.id`) | Evet | |
+| `created_at` | TIMESTAMPTZ | Hayır | |
+
+Kısıtlar: `UNIQUE (program_id, version_no)`; `UNIQUE (id, organization_id)`; `UNIQUE (id,
+program_id)` — bölüm 11.2'deki öz-referans bileşik FK'nin hedefi.
+
+**Not — büyük/küçük değişiklik eşiği:** `PROGRAM-003`'te kesinleştirilecektir.
+**[Öneri/bekleyen karar]**
+
+### 11.4. `program_templates`
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `organization_id` | UUID (FK → `organizations.id`) | Hayır | |
+| `name` | TEXT | Hayır | |
+| `day_count` | INTEGER | Hayır | |
+| temel alanlar | — | — | bkz. §2.3 |
+
+Kısıt: `UNIQUE (id, organization_id)`.
+
+### 11.5. `program_template_days`
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `organization_id` | UUID (FK → `organizations.id`) | Hayır | |
+| `program_template_id` | UUID | Hayır | Bileşik FK: `(program_template_id, organization_id) REFERENCES program_templates (id, organization_id)`. |
+| `day_offset` | INTEGER | Hayır | |
+| `sequence_no` | INTEGER, varsayılan `1` | Hayır | |
+| `content_id` | UUID | Evet | Bileşik FK: `(content_id, organization_id) REFERENCES contents (id, organization_id)`. |
+| `title` | TEXT | Evet | |
+
+Kısıtlar: `UNIQUE (program_template_id, day_offset, sequence_no)`; `UNIQUE (id,
+organization_id)`; `UNIQUE (id, program_template_id)` — aşağıdaki `plan_items` bileşik FK'si
+için.
+
+### 11.6. `plan_items`
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `organization_id` | UUID (FK → `organizations.id`) | Hayır | |
+| `program_version_id` | UUID | Hayır | Bileşik FK: `(program_version_id, organization_id) REFERENCES program_versions (id, organization_id)`. |
+| `planned_date` | DATE | Hayır | |
+| `sequence_no` | INTEGER, varsayılan `1` | Hayır | |
+| `content_id` | UUID | Evet | Bileşik FK: `(content_id, organization_id) REFERENCES contents (id, organization_id)`. |
+| `source` | ENUM(`MANUAL`,`TEMPLATE`) | Hayır | |
+| `source_program_template_id` | UUID | Yalnızca `source=TEMPLATE` iken dolu | Bileşik FK: `(source_program_template_id, organization_id) REFERENCES program_templates (id, organization_id)`. |
+| `source_template_day_id` | UUID | Yalnızca `source=TEMPLATE` iken dolu | Bileşik FK: `(source_template_day_id, source_program_template_id) REFERENCES program_template_days (id, program_template_id)` — referans verilen günün **gerçekten** `source_program_template_id` şablonuna ait olmasını zorunlu kılar (önceki sürümde bu iki alan arasında tutarlılığı zorlayan bir kısıt yoktu). |
+| `created_by_user_id` | UUID (FK → `users.id`) | Hayır | |
+| `row_version` | INTEGER, varsayılan `1` | Hayır | |
+| `created_at` | TIMESTAMPTZ | Hayır | |
+
+Kısıtlar: `UNIQUE (program_version_id, planned_date, sequence_no)`; `UNIQUE (id,
+organization_id)`; `CHECK ((source = 'TEMPLATE' AND source_program_template_id IS NOT NULL AND
+source_template_day_id IS NOT NULL) OR (source = 'MANUAL' AND source_program_template_id IS
+NULL AND source_template_day_id IS NULL))`.
+
+**`class_id` sütunu kaldırıldı.** Önceki sürümde `plan_items` doğrudan bir `class_id` taşıyordu;
+bu, `program_version_id → program_id → programs.class_id` zincirinden **bağımsız, ikinci bir
+kaynak** olduğundan, uygulama hatasıyla `plan_items.class_id`'nin ilgili programın gerçek
+sınıfından **farklı** bir değere sahip olması mümkündü (hiçbir FK bu ikisinin eşleşmesini
+zorlamıyordu). Sınıf bilgisi artık yalnızca `program_version_id → program_versions.program_id →
+programs.class_id` zinciri üzerinden **türetilir**; ikinci bir kaynak yoktur. Sorgu
+performansı için bu zincirin bir görünüm (`VIEW`) veya sorgu zamanı `JOIN` ile okunması
+önerilir; kalıcı bir önbellek sütunu gerekirse bu, uygulama görevinde (`ATT-*`/`PROGRAM-*`)
+ayrıca değerlendirilecek bir performans kararıdır, bir şema zorunluluğu değildir.
+
+### 11.7. Takip türlerinin plan/program modeliyle örnek eşlemesi
+
+| Takip türü | `programs.based_on_starter_template_id` | Günlük `plan_items` düzeni |
+|---|---|---|
+| Günlük ezber | `MEMORIZATION_DAILY` | Genelde günde 1 kalem. |
+| Haftalık ezber | `MEMORIZATION_DAILY` | Haftanın belirli günlerinde 1'er kalem. |
+| Sûre ve dua listeleri | `SURAH_DUA_LIST` | Aynı günde birden fazla kalem (`sequence_no=1,2`). |
+| Kart/bölüm sistemi | `CARD_SECTION` | Her kart/bölüm ayrı bir kalem. |
+| Kur'an sayfa takibi | `QURAN_PAGE_TRACKING` | Günde 1+ kalem. |
+| Elif-Ba ilerlemesi | `ELIF_BA` | Genelde günde 1 kalem. |
+| Namaz takibi | `PRAYER_TRACKING` | Aynı günde 5 kalem (her vakit için). |
+| Serbest görev/ödev | `FREE_TASK` / `NULL` | Tamamen serbest. |
+
+---
+
+## 12. PROGRESS — İlerleme
+
+### 12.1. `progress_records`
+
+**Bu tablo güncel-durum tablosudur, değişmez geçmiş kaydı değildir** (bkz. §2.4).
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `organization_id` | UUID (FK → `organizations.id`) | Hayır | |
+| `plan_item_id` | UUID | Hayır | Bileşik FK: `(plan_item_id, organization_id) REFERENCES plan_items (id, organization_id)`. |
+| `student_id` | UUID | Hayır | Bileşik FK: `(student_id, organization_id) REFERENCES students (id, organization_id)`. |
+| `completed` | BOOLEAN, varsayılan `false` | Hayır | |
+| `score` | SMALLINT | Evet | `CHECK (score BETWEEN 0 AND 10)`. |
+| `teacher_note` | TEXT | Evet | **[Hassas]** |
+| `repeat_required` | BOOLEAN | Evet | |
+| `recorded_by_user_id` | UUID (FK → `users.id`) | Hayır | |
+| `recorded_at` | TIMESTAMPTZ | Hayır | |
+| `row_version` | INTEGER, varsayılan `1` | Hayır | |
+| `updated_at` | TIMESTAMPTZ | Hayır | |
+
+Kısıt: `UNIQUE (plan_item_id, student_id)`.
+
+**[Hassas]** `KISISEL_VERI_ENVANTERI.md` satır 13'teki risk sınıfı geçerlidir.
+
+**Statik olarak ifade edilemeyen kural — öğrencinin plan tarihinde programın sınıfına kayıtlı
+olması:** `plan_item_id`'nin işaret ettiği planın `planned_date`'inde, `student_id`'nin ilgili
+programın sınıfına (`plan_items.program_version_id → programs.class_id` zinciri) geçerli bir
+`student_class_enrollments` kaydıyla kayıtlı olması gerekir. Zamana bağlı ve çok adımlı bir
+zincir olduğundan statik FK/CHECK ile ifade edilemez (bkz. bölüm 15.5).
+
+---
+
+## 13. AUDIT — Denetim ve geri alma temeli
+
+### 13.1. `audit_action_catalog`
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `code` | TEXT | Hayır | PK, ör. `STUDENT_CREATED`, `STUDENT_ARCHIVED`, `GUARDIAN_UPDATED`, `CLASS_ENROLLMENT_CHANGED`, `TEACHER_ASSIGNMENT_CHANGED`, `ATTENDANCE_RECORD_CHANGED`, `PROGRAM_CHANGED`, `CONTENT_CHANGED`, `PROGRESS_CHANGED`, `PERMISSION_CHANGED`, `ORG_SETTING_CHANGED`, `REPORT_EXPORTED`, `PLATFORM_ADMIN_ORG_ACCESS`, `LOGIN_SUCCEEDED`, `SESSION_REVOKED`. |
+| `target_entity_type` | TEXT | Hayır | |
+| `event_scope` | ENUM(`ORGANIZATION`,`GLOBAL`) | Hayır | Bu işlem türünün doğası gereği bir kuruma mı bağlı olduğu, yoksa gerçekten global mi olduğu. |
+| `is_undoable` | BOOLEAN, varsayılan `false` | Hayır | |
+
+Kısıt: `UNIQUE (code, event_scope, target_entity_type)` — `code` zaten `PRIMARY KEY` olduğundan
+bu üçlü doğası gereği tekildir; aşağıdaki `audit_logs` bileşik FK'sinin hedefidir.
+
+### 13.2. `audit_logs`
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `organization_id` | UUID (FK → `organizations.id`) | `event_scope=GLOBAL` iken `NULL` | `CHECK ((event_scope = 'GLOBAL' AND organization_id IS NULL) OR (event_scope = 'ORGANIZATION' AND organization_id IS NOT NULL))`. |
+| `actor_user_id` | UUID (FK → `users.id`) | Evet | Sistem/otomatik süreç kaynaklı olaylarda `NULL` olabilir. |
+| `action_type` | TEXT | Hayır | Bileşik FK: `(action_type, event_scope, target_entity_type) REFERENCES audit_action_catalog (code, event_scope, target_entity_type)` — bu, bir denetim kaydının `event_scope`/`target_entity_type` alanlarının, o `action_type` için katalogda tanımlanmış değerlerle **tutarlı** olmasını DB seviyesinde zorunlu kılar (önceki sürümde `event_scope` yalnızca metinde anlatılıyordu, gerçek bir sütun/kısıt değildi). |
+| `event_scope` | ENUM(`ORGANIZATION`,`GLOBAL`) | Hayır | Artık gerçek bir sütundur (bkz. yukarıdaki `CHECK` ve bileşik FK). |
+| `target_entity_type` | TEXT | Hayır | |
+| `target_entity_id` | UUID | Hayır | Bilinçli olarak polimorfik ve **FK'siz**dir (bkz. bölüm 15.4) — hedef varlık kümesi sabit iki tür değil, onlarca türdür; `custom_field_values`'teki ayrılmış-FK tekniği burada pratik değildir. |
+| `old_value` | JSONB | Evet | |
+| `new_value` | JSONB | Evet | |
+| `occurred_at` | TIMESTAMPTZ | Hayır | |
+| `ip_address` | TEXT | Evet | |
+| `device_id` | UUID (FK → `trusted_devices.id`) | Evet | |
+| `is_undo` | BOOLEAN, varsayılan `false` | Hayır | `CHECK ((is_undo = true AND undo_of_audit_log_id IS NOT NULL) OR (is_undo = false AND undo_of_audit_log_id IS NULL))`. |
+| `undo_of_audit_log_id` | UUID | Evet | Hangi orijinal denetim kaydını geri aldığı. `CHECK (undo_of_audit_log_id <> id)` — bir kayıt kendisini geri alamaz. **İki ayrı, scope-pinned bileşik FK** (bkz. altta) — düz `FK (undo_of_audit_log_id) REFERENCES audit_logs (id)` **kasıtlı olarak kullanılmamıştır**. |
+
+Kısıtlar: `UNIQUE (id, organization_id)`; `UNIQUE (id, event_scope)` — aşağıdaki iki bileşik
+FK'nin hedefidir (her ikisi de `id` zaten `PRIMARY KEY` olduğundan doğası gereği tekildir).
+
+**`undo_of_audit_log_id` tenant/scope bütünlüğü — iki bileşik FK birlikte:** Düz bir FK
+(yalnızca `id`'ye referans), A kurumundaki bir geri alma kaydının B kurumundaki (veya global bir
+kaydın kurum kapsamlı bir kaydın) `id`'sini göstermesine izin verirdi — `id` tek başına tekil
+olduğundan hiçbir çapraz kurum/scope kontrolü yapmaz. Bunun yerine iki bileşik FK **birlikte**
+tanımlanmıştır:
+
+1. `FOREIGN KEY (undo_of_audit_log_id, organization_id) REFERENCES audit_logs (id,
+   organization_id)` — `event_scope=ORGANIZATION` olan satırlar için (ikisinin de
+   `organization_id`'si `NOT NULL` olduğundan bu FK gerçekten doğrulanır), hedefin **aynı
+   kurumda** olmasını zorunlu kılar. `event_scope=GLOBAL` satırlarda `organization_id` her iki
+   tarafta da `NULL` olduğundan bu FK **doğrulanmaz** (çok sütunlu FK'de bir sütun `NULL` ise
+   FK atlanır) — bu durumda tenant eşleşmesi zaten anlamsızdır (global kaydın kurumu yoktur),
+   ikinci FK devreye girer.
+2. `FOREIGN KEY (undo_of_audit_log_id, event_scope) REFERENCES audit_logs (id, event_scope)` —
+   `event_scope` **hiçbir zaman `NULL` olmadığından** bu FK **her zaman** doğrulanır ve hedefin
+   `event_scope`'unun geri alan kayıtla **aynı** olmasını zorunlu kılar.
+
+Bu iki FK birlikte: bir `ORGANIZATION` kapsamlı geri alma yalnızca **aynı kurumdaki ve yine
+`ORGANIZATION` kapsamlı** bir kaydı gösterebilir (FK 1 kurumu, FK 2 kapsamı doğrular); bir
+`GLOBAL` geri alma yalnızca **başka bir `GLOBAL`** kaydı gösterebilir (FK 2 kapsamı doğrular,
+FK 1 organization_id'nin ikisi de `NULL` olduğu için zaten anlamsızdır). Kurumlar arası veya
+global/kurum karışık bir `undo` ilişkisi bu ikisiyle birlikte **DB seviyesinde imkânsızdır**.
+`P-011`, hangi işlemlerin gerçekten geri alınabilir olduğunu (`is_undoable`) belirleyecektir;
+bu belge yalnızca yapısal kapsam bütünlüğünü sağlar.
+
+**Global olay örnekleri (`event_scope=GLOBAL`, `organization_id=NULL`):** Platform yöneticisinin
+kendi girişi/çıkışı, sistem genelinde bir bakım işi. `PLATFORM_ADMIN_ORG_ACCESS` her zaman
+`event_scope=ORGANIZATION` ile katalogda tanımlıdır ve hedef `organization_id` ile doldurulur.
+
+Denetim kaydı hiçbir normal uygulama akışında güncellenmez veya silinmez.
+
+İndeks: `(organization_id, occurred_at DESC)`, `(organization_id, target_entity_type,
+target_entity_id)`.
+
+---
+
+## 14. SYNC temeli — `idempotency_keys`
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `organization_id` | UUID (FK → `organizations.id`) | Hayır | |
+| `user_id` | UUID (FK → `users.id`) | Hayır | Düz FK (bileşik değil) — bkz. bölüm 15.3. |
+| `client_mutation_id` | TEXT | Hayır | |
+| `operation_type` | TEXT | Hayır | |
+| `status` | ENUM(`PENDING`,`COMPLETED`,`FAILED`) | Hayır | |
+| `result_entity_id` | UUID | Evet | |
+| `created_at` | TIMESTAMPTZ | Hayır | |
+| `completed_at` | TIMESTAMPTZ | Evet | |
+
+Kısıt: `UNIQUE (organization_id, user_id, client_mutation_id)`. Kesin durum makinesi `P-010`'da
+kesinleşecektir. **[Öneri/bekleyen karar]**
+
+---
+
+## 15. Tenant bütünlüğü ve ilişkisel bütünlük teknikleri
+
+### 15.1. Bileşik `(id, organization_id)` FK tekniği
+
+Her kurum-kapsamlı tablo `UNIQUE (id, organization_id)` taşır; her çocuk tablo ebeveynine
+`(parent_id, organization_id) REFERENCES parent (id, organization_id)` ile bağlanır. Bir
+uygulama hatası B kurumuna ait bir kaydı A kurumunun `organization_id`'siyle ilişkilendirmeye
+çalışırsa, veritabanı bunu **FK ihlali olarak reddeder**.
+
+### 15.2. Bileşik FK zincirinin kapsamı
+
+`classes→terms`, `student_class_enrollments→students,classes`, `class_teacher_assignments→
+classes,organization_membership_roles`, `students→people,terms`, `student_guardians→
+students,people`, `attendance_sessions→classes`, `attendance_records→attendance_sessions,
+students,organization_attendance_statuses`, `programs→classes`, `program_versions→programs`,
+`programs.current_program_version_id→program_versions` (öz-referans), `program_template_days→
+program_templates`, `plan_items→program_versions,contents,program_templates,
+program_template_days` (şablon günü ayrıca kendi şablonuna bileşik FK ile bağlı), `progress_
+records→plan_items,students`, `contents→file_assets`, `people→file_assets` (fotoğraf),
+`organizations.logo_asset_id→file_assets`, `custom_field_options→custom_field_definitions`,
+`custom_field_values→custom_field_definitions,people,students`, `custom_field_value_selected_
+options→custom_field_values,custom_field_options`, `organization_memberships→people`,
+`organization_membership_roles→organization_memberships`, `organization_membership_
+permissions→organization_membership_roles` (hedef ve grantor için ayrı, pinlenmiş bileşik
+FK'ler — bkz. 15.6), `refresh_tokens→organization_memberships` (kurum bağlamı; bkz. 4.11),
+`refresh_tokens→trusted_devices` (cihaz sahipliği; bkz. 4.10–4.11), `term_calendar_days→terms`,
+`audit_logs→audit_logs` (öz-referans `undo_of_audit_log_id`; iki ayrı scope-pinned bileşik FK
+— bkz. 13.2). `organizations.logo_asset_id→file_assets` listede yukarıda geçer; tek istisnası
+kendi `id`'sinin tenant değeri olarak kullanılmasıdır (bkz. 5.1).
+
+### 15.3. Kapsam dışı bırakılan ilişki türü — aktör/işleyen kullanıcı alanları
+
+`created_by_user_id`, `recorded_by_user_id`, `assigned_by_user_id`, `uploaded_by_user_id`,
+`actor_user_id`, `idempotency_keys.user_id` gibi "bu işlemi kim yaptı" alanları **bilinçli
+olarak** bileşik FK ile `organization_memberships`'e bağlanmamıştır (yalnızca düz `users.id`
+FK'dir). Gerekçe: platform yöneticisi, kendi kurum üyeliği **olmadan**, destek amaçlı erişimle
+bu alanların birçoğunu doldurabilir. `refresh_tokens.organization_membership_id` bu genel
+kuralın **istisnasıdır** — o alan "kim yaptı" değil, "bu oturum hangi kurum bağlamında açıldı"
+bilgisini taşır ve bilinçli olarak bileşik FK ile korunur (bkz. 4.11).
+
+### 15.4. `organization_id` taşımayan tablolar ve gerekçesi
+
+| Tablo | Neden `organization_id` yok | Tenant bağlamı nasıl korunur |
+|---|---|---|
+| `users` | Global kimlik doğrulama — bkz. bölüm 2.2, 4.1. | Kendisi tenant verisi değildir; `organization_memberships` üzerinden kurum bağlamına girilir. |
+| `platform_administrators`, `platform_administrator_profiles` | Rol/profil global kapsamlıdır (§5.1). | Kapsam dışı — tanımı gereği kurum bağlamsızdır. |
+| `permission_categories`, `permission_catalog`, `audit_action_catalog`, `starter_program_templates` | Platform genelinde paylaşılan, kuruma özel olmayan kataloglardır. | İçerikleri kuruma özel değildir; kurum bağlamı bunlara referans veren tablolarda taşınır. |
+
+**Not:** `people` artık bu listede **değildir** — `v2.0`'daki global `people` kararı bu sürümde
+geri alınmış, kurum kapsamına döndürülmüştür (bkz. bölüm 4.2, 19 madde 1). **`v3.0`'daki tek
+"bilinçli istisna" olan `platform_administrator_profiles.photo_asset_id`'nin kurum kapsamlı
+`file_assets`'e düz FK vermesi de kaldırılmıştır** (bkz. 4.4) — bu, gerçek bir tenant izolasyonu
+açığıydı ve "bilinçli istisna" olarak adlandırılması onu güvenli kılmıyordu. `v4.0` itibarıyla
+bu tabloda **hiçbir kurum kapsamlı tabloya düz (bileşik olmayan) FK veren global tablo/alan
+yoktur**; tek kalan istisna, `organizations.logo_asset_id`'nin kendi `id`'sini tenant değeri
+olarak kullanmasıdır (bkz. 5.1) — bu bir izolasyon açığı değildir, çünkü `organizations`
+zaten kurumun kendisidir.
+
+### 15.5. DB'nin ifade edemediği kalan iş kuralları
+
+Aşağıdakiler hâlâ **yalnızca uygulama katmanında** doğrulanabilir; bu, ana planın §15 "kurum
+izolasyonu otomatik testlerle doğrulanmalıdır" ilkesi gereği zorunlu kalır ve DB kısıtlarının
+**yerine geçmez**, onları tamamlar:
+
+- Bir kullanıcının belirli bir işlemi yapmaya yetkisi olup olmadığı (`PERM-002` kapsamı).
+- Kurum yöneticisinin yalnızca kendi yetki tavanındaki izinleri devredebilmesi
+  (`YETKI_MATRISI.md` §4.1).
+- **Öğrencinin, yoklama oturumu/plan kaleminin tarihinde ilgili sınıfa kayıtlı olması**
+  (bkz. §9.3, §12.1 sonu) — zamana bağlı, çok tablolu bir koşuldur.
+- **Öğrencinin `term_id`'sinin aktif sınıf üyeliğinin dönemiyle tutarlı olması** — aynı şekilde
+  zamana bağlıdır.
+- **Kurum kapsamlı `refresh_tokens`'ın `issued_at_session_generation`'ının, ilgili
+  `organization_memberships.session_generation`'ının güncel değerine eşit olması** (bkz. 4.11)
+  — iki mutlak satırın canlı karşılaştırılmasını gerektirdiğinden statik FK/CHECK ile ifade
+  edilemez; her kurum kapsamlı API isteğinde zorunlu bir kontroldür.
+- **Kurum bağlamsız (`organization_membership_id IS NULL`) bir token'ın kurum kapsamlı bir
+  token'a "değişim"i sırasında hedef üyeliğin `status = ACTIVE` ve ilgili rolün `revoked_at IS
+  NULL` olduğunun doğrulanması** (bkz. 4.11) — bu, iptal edilmiş bir üyelik için kurum
+  bağlamsız bir token üzerinden yeni erişim üretilmesini (dolanma) engelleyen zorunlu bir
+  ön koşuldur.
+- **Rol iptali yaşam döngüsü** (bkz. 4.12): bir `TEACHER` rolü geri alındığında bağlı
+  `class_teacher_assignments`/`organization_membership_permissions` satırlarının aynı işlemde
+  kapatılması gerekir; bu, pinlenmiş bileşik FK'nin doğrulayamadığı "rol hâlâ aktif mi" boşluğunu
+  kapatan zorunlu bir uygulama kuralıdır.
+
+Bu maddeler, `P-009`/`P-010`/`P-011` görevlerinde **kabul senaryosu adayı** olarak işlenmelidir (ör.
+"geçmişte farklı bir sınıfa kayıtlıyken alınmış bir yoklamanın öğrenci geçtikten sonra da
+doğru sınıfa referans verdiğinin testi"); bu belge yalnızca kuralın var olduğunu ve DB
+tarafından ifade edilemediğini kaydeder, test senaryosunun kendisini yazmaz.
+
+**Artık bu listede olmayan, önceki sürümde burada sayılan bir madde:** `custom_field_values`'te
+`SINGLE_CHOICE` alanı için en fazla bir seçenek seçilmiş olması — bu artık §8.4'teki partial
+`UNIQUE (custom_field_value_id) WHERE field_type = 'SINGLE_CHOICE'` ile **DB seviyesinde**
+zorunlu kılınmaktadır; uygulama katmanı listesinden çıkarılmıştır.
+
+### 15.6. Gerçek (literal içermeyen) pinlenmiş bileşik FK tekniği
+
+Bu belgede birçok yerde (bkz. 4.9, 7.2) "bir FK'nin hedef satırının belirli bir sabit değere
+sahip olmasını DB seviyesinde zorunlu kılma" ihtiyacı doğar (ör. "bu izin yalnızca `TEACHER`
+rolüne verilebilir", "bu grantor yalnızca `ORG_ADMIN` olabilir"). Bunu ifade etmenin **geçersiz**
+yolu, FK tanımının içine doğrudan bir literal yazmaktır (`v2.0`'daki hata):
+
+```text
+FOREIGN KEY (target_membership_id, organization_id, 'TEACHER')
+  REFERENCES organization_memberships (id, organization_id, membership_role)   -- GEÇERSİZ SQL
+```
+
+**Geçerli teknik:** Çocuk tabloya, `CHECK` ile tek bir değere sabitlenmiş **gerçek bir sütun**
+eklenir (ör. `target_role_code membership_role_enum NOT NULL DEFAULT 'TEACHER' CHECK
+(target_role_code = 'TEACHER')`), ve bileşik FK bu gerçek sütuna referans verir:
+
+```text
+FOREIGN KEY (target_membership_role_id, organization_id, target_role_code)
+  REFERENCES organization_membership_roles (id, organization_id, role)         -- GEÇERLİ SQL
+```
+
+Bu, standart ve çalışan bir PostgreSQL tekniğidir: `target_role_code` her zaman `'TEACHER'`
+olduğundan (CHECK bunu garanti eder), FK yalnızca hedef tablodaki `role = 'TEACHER'` olan
+satırlarla eşleşebilir — çünkü hedef tablodaki `(id, organization_id, role)` üçlüsü tekildir
+(bkz. ilgili tabloların `UNIQUE` kısıtları) ve FK, üçlünün tamamının (sabitlenmiş üçüncü değer
+dahil) hedefte var olmasını ister. Bu belgede bu teknik `organization_membership_roles`'a
+pinlenen üç yerde (4.9 hedef, 4.9 grantor, 7.2) kullanılmıştır.
+
+**Kritik önkoşul — tip uyumu:** PostgreSQL'de bileşik bir FK'nin her sütunu, karşılık geldiği
+hedef sütunla **aynı tipte** olmalıdır (örtük dönüşüm bileşik FK'ler için yeterli değildir).
+`organization_membership_roles.role` bir `ENUM` (`membership_role_enum`) olduğundan,
+`target_role_code`/`granted_role_code`/`role_code` sütunlarının **`TEXT` değil, aynı
+`membership_role_enum` tipinde** tanımlanması zorunludur — önceki bir sürümde bu sütunlar
+yanlışlıkla `TEXT` olarak tanımlanmıştı; bu, `CREATE TABLE` aşamasında tip uyuşmazlığı
+hatasına yol açardı. Bu belgede artık dört sütunun tamamı (`role`, `target_role_code`,
+`granted_role_code`, `role_code`) aynı adlandırılmış `ENUM` tipini kullanır (bkz. 4.6, 4.9,
+7.2).
+
+**Sınırlama:** Bu teknik yalnızca **rolün kendisini** (statik bir alan değerini) doğrular;
+`revoked_at IS NULL` (aktiflik) gibi zamana bağlı bir koşulu FK ile ifade edemez — bir izin,
+teknik olarak geri alınmış (`revoked_at` dolu) bir role de FK seviyesinde "bağlı" kalabilir. Bu
+nedenle aktiflik kontrolü (bir rolün gerçekten hâlâ geçerli olup olmadığı) her zaman uygulama
+katmanında da yapılmalıdır; bu, bölüm 15.5'teki genel ilkeyle tutarlıdır.
+
+---
+
+## 16. Metaveri / operasyonel veri ayrımının şema karşılığı
+
+| Kategori | Bu şemadaki karşılığı |
+|---|---|
+| Metaveri (kurum kapsamlı izinle erişilebilir) | `classes.id`/`name`/`term_id`/`status`; `organization_memberships`/`organization_membership_roles` (yalnızca kurum içindeki hoca listesi ve rol bilgisi); `class_teacher_assignments` (atama var/yok bilgisi); `organization_attendance_statuses`; `organization_brand_colors`; `organization_modules`. |
+| Operasyonel veri (yalnızca atanmış sınıfta + ilgili işlem izniyle) | `students.*`, `student_class_enrollments.*`, `student_guardians.*`, `people.*` (öğrenci/veli kişileri), `attendance_records.*`, `progress_records.*`, `plan_items.*`, `contents.*`. |
+
+---
+
+## 17. İlişki özeti (metinsel)
+
+```text
+organizations 1—n terms, classes, people, students, programs, contents,
+  organization_memberships
+terms 1—n classes, students, term_calendar_days
+classes 1—n student_class_enrollments, class_teacher_assignments, programs,
+  attendance_sessions
+people 1—1 students (nullable, person_id üzerinden)
+people 1—n student_guardians (veli olarak), organization_memberships (bir kurumdaki profil)
+users 1—n organization_memberships, trusted_devices
+users 0—1 platform_administrators, platform_administrator_profiles
+trusted_devices 1—n refresh_tokens (bileşik FK, aynı user_id — bkz. 4.10–4.11)
+organization_memberships 1—n organization_membership_roles, refresh_tokens (kurum bağlamı)
+organization_membership_roles 1—n class_teacher_assignments (yalnızca TEACHER)
+organization_membership_roles 1—n organization_membership_permissions (hedef; yalnızca TEACHER)
+organization_membership_roles 0—n organization_membership_permissions (grantor; yalnızca ORG_ADMIN)
+permission_catalog 1—n organization_membership_permissions
+permission_categories 1—n permission_catalog
+students 1—n student_class_enrollments, student_guardians, attendance_records,
+  progress_records
+custom_field_definitions 1—n custom_field_options, custom_field_values
+custom_field_values 1—n custom_field_value_selected_options (custom_field_options ile birlikte)
+attendance_sessions 1—n attendance_records
+organization_attendance_statuses 1—n attendance_records (custom_status_id)
+programs 1—n program_versions; programs 0—1 program_versions (current_program_version_id,
+  öz-referans)
+program_versions 1—n plan_items
+program_templates 1—n program_template_days
+program_template_days 0..1—n plan_items (source=TEMPLATE, bileşik FK ile şablonuyla eşleşen)
+plan_items 1—n progress_records
+contents 0..1—n plan_items, program_template_days
+file_assets 0..1—n people (photo), organizations (logo, kendi id'si tenant değeri olarak),
+  contents (pdf) — platform_administrator_profiles'ın artık bir dosya ilişkisi yoktur
+  (photo_asset_id kaldırıldı, bkz. 4.4)
+audit_action_catalog 1—n audit_logs
+audit_logs 0..1 self-reference (undo_of_audit_log_id; iki ayrı scope-pinned bileşik FK ile)
+```
+
+---
+
+## 18. Ana ürün planıyla ve önceki Dalga 0 belgeleriyle uyum kontrolü
+
+- Kurum, sınıf, kişi, öğrenci, anne/baba, program, program şablonu, plan, günlük görev, içerik,
+  değerlendirme, ilerleme, yoklama oturumu, yoklama kaydı, denetim kaydı ve geri alma
+  varlıklarının tamamı `TERIMLER_SOZLUGU.md` bölüm 2 ile uyumludur. "Kullanıcı" teriminin "bir
+  kullanıcı birden fazla rol atamasına sahip olabilir" tanımı artık hem kurumlar arası (`users`
+  + `organization_memberships`, her kurumda ayrı `people` profili) hem kurum içi (`organization_
+  membership_roles` ile aynı üyelikte birden fazla aktif rol) düzeyde tam karşılanmaktadır.
+- Bölüm 4 (izin kataloğu) `YETKI_MATRISI.md` §4.3/§6.2 ile uyumludur; mutlak sınır "hoca
+  izinlerini değiştirme" veri modelinde hocaya hiçbir yazma yolu açılmayarak yansıtılmıştır —
+  `organization_membership_permissions.granted_by_membership_role_id` yalnızca gerçek, `CHECK`
+  ile pinlenmiş bir sütun üzerinden `ORG_ADMIN` rolüne bağlı bir satıra referans verebilir (bkz.
+  4.9, 15.6); bir `TEACHER` rolü bu sütuna hiçbir zaman yerleştirilemez.
+- `YONETICI_BILGI_MIMARISI.md` ve `HOCA_MOBIL_BILGI_MIMARISI.md`'nin bıraktığı açık soru —
+  "arşivlenmiş kayıt geri yükleme öğrenci/sınıf için ortak mı ayrı mı izin" — tek, ortak
+  `RESTORE_ARCHIVED` kodu olarak bağlayıcı biçimde kapatılmıştır (bkz. bölüm 19).
+- `KISISEL_VERI_ENVANTERI.md` tablosundaki 17 veri öğesinin tamamı bu belgede bir karşılık
+  bulur; **[Hassas]** notuyla tekrar edilmiştir.
+- Kurum, sınıf, program, öğrenci ve kullanıcının fiziksel silinmeyeceği (§14) `status` alanıyla
+  karşılanmıştır.
+- Eşzamanlılık, idempotency ve gerçek zamanlı yayılım (§12) `row_version`/`idempotency_keys`
+  ile desteklenir; `attendance_records`/`progress_records`in güncellenebilir, yalnızca `audit_
+  logs`ın değişmez olduğu §2.4'te netleştirilmiştir.
+- Kurum izolasyonu (§11.4, §15) hem bileşik FK zinciriyle (§15.1–15.4) hem de bunun ifade
+  edemediği zamana bağlı kuralların açıkça kaydedilmesiyle (§15.5) ele alınmıştır; bu, uygulama
+  testlerine **ek** bir güvence katar, onların yerine geçmez.
+- Menü sırasının kontrollü değiştirilebilirliği (§9.2) `organization_modules.sort_order` ile
+  karşılanmıştır; bu alanın yetkilendirme etkisi olmadığı açıkça belirtilmiştir.
+- Bu belgede taranan bölümler için ana plana veya önceki Dalga 0 belgelerine aykırı bir tanım
+  saptanmamıştır; bu, bu belgeyi hazırlayan agent tarafından yapılan bir çapraz kontrolün
+  sonucudur.
+
+---
+
+## 19. Varsayımlar ve bu görevde alınan bağlayıcı kararlar
+
+1. **`people` kurum kapsamlı, `users` global (bölüm 2.2, 4.1–4.2):** `v2.0`'daki "her ikisi de
+   global" kararı geri alınmıştır; PII'nin kurumlar arası paylaşılmaması için `people` her
+   zaman bir kuruma aittir. `organization_memberships.person_id` köprüsü kurulmuştur. `[Karar]`.
+2. **Kurum üyeliği ile rol ayrımı, çoklu rol desteği (bölüm 4.5–4.6):** Bir kullanıcı aynı
+   kurumda hem `ORG_ADMIN` hem `TEACHER` olabilir; önceki sürümün "tek rol" basitleştirmesi
+   kaldırılmıştır. `[Karar]`.
+3. **İzin ataması kurum üyeliğinin rolüne bağlı, sınıf atamasına değil (bölüm 4.9):** Hiç
+   sınıfı olmayan bir hocanın kurum kapsamlı izinleri kullanabilmesi için zorunludur. `[Karar]`.
+4. **Gerçek, pinlenmiş bileşik FK tekniği (bölüm 15.6):** Literal içeren geçersiz FK
+   sözdiziminin yerine, `CHECK` ile sabitlenmiş gerçek sütunlar kullanılmıştır. `[Karar]`.
+5. **Kurum kapsamlı oturum iptali (bölüm 4.11):** `refresh_tokens.organization_membership_id`
+   ile bir kurumun cihaz oturumu iptali yalnızca o kurumun bağlamındaki oturumları etkiler.
+   `[Karar]`.
+6. **`programs.current_program_version_id` öz-referans bileşik FK'si (bölüm 11.2):** Yanlış
+   programın sürümüne işaret edilmesini engeller. `[Karar]`.
+7. **`plan_items.class_id` kaldırıldı, sınıf türetilir (bölüm 11.6):** İkinci, tutarsız
+   olabilecek bir veri kaynağını ortadan kaldırır. `[Karar]`.
+8. **`student_class_enrollments` tarih aralığı çakışması `EXCLUDE` ile engellenir (bölüm 8.2):**
+   `btree_gist` gerektiren, gerçek bir DB kısıtıdır. `[Karar]`.
+9. **Özel alan tip güvenliği — denormalize `field_type`/`entity_type` + `CHECK` + partial
+   `UNIQUE` (bölüm 8.4):** `SINGLE_CHOICE` tekilliği artık DB seviyesinde zorunludur. `[Karar]`.
+10. **Audit `event_scope` gerçek sütun + bileşik FK + `CHECK` (bölüm 13):** `[Karar]`.
+11. **`organization_modules.sort_order` (bölüm 5.3):** Ana plan §9.2 menü sırası hükmünü
+    karşılar; yetkilendirmeyi etkilemez. `[Karar]`.
+12. **`RESTORE_ARCHIVED` öğrenci ve sınıf için tek, ortak izin kodudur (bölüm 4.8):** P-005/P-006
+    açık sorusunu kapatan karar. `[Karar]`.
+13. **Program açık yapı kararı, program sürümleme, aynı gün birden fazla plan kalemi, özel alan
+    ayrılmış nullable FK modeli, değerlendirme şemasının program sürümüne gömülü olması, UUID
+    birincil anahtar:** `v2.0`'dan devralınan kararlar, değişmeden korunmuştur.
+14. **Platform yöneticisi profil fotoğrafı desteklenmez (bölüm 4.4):** Kurum kapsamlı
+    `file_assets`'e düz FK veren "bilinçli istisna" kaldırılmıştır; V1 için en sade çözüm
+    seçilmiştir. `[Karar]`.
+15. **`organization_memberships.person_id` tekildir (bölüm 4.5):** Bir kişi profili en fazla
+    bir global kullanıcı hesabına bağlanabilir. `[Karar]`.
+16. **Bütün pinlenmiş rol sütunları aynı `membership_role_enum` tipindedir (bölüm 4.6, 4.9,
+    7.2):** `TEXT`↔`ENUM` bileşik FK tip uyumsuzluğu giderilmiştir. `[Karar]`.
+17. **`refresh_tokens` hem cihaz hem kurum üyeliği için bileşik FK ile sahiplik doğrular; kurum
+    bağlamsız token'lar `session_generation` ile korunur (bölüm 4.11):** `[Karar]`.
+18. **Rol iptali yaşam döngüsü bağlayıcı kural olarak yazıldı (bölüm 4.12):** Rol geri
+    alındığında bağlı sınıf ataması/izin kayıtlarının aynı işlemde kapatılması zorunludur;
+    grantor geçmişi (ORG_ADMIN rolü geri alınsa da) korunur. `[Karar]`.
+19. **`audit_logs.undo_of_audit_log_id` iki ayrı scope-pinned bileşik FK ile korunur (bölüm
+    13.2):** Kurumlar arası veya global/kurum karışık `undo` ilişkisi DB seviyesinde
+    imkânsızdır. `[Karar]`.
+20. **`organizations.logo_asset_id` FK'sinde kendi `id`'si tenant değeri olarak kullanılır
+    (bölüm 5.1):** Genel bileşik FK deseninin tek, açıkça yazılmış istisnasıdır. `[Karar]`.
+
+---
+
+## 20. Bilinen sınırlamalar
+
+- Fiziksel indeks/performans ayarları (`A-003` ve ilgili uygulama görevlerinde netleşir).
+- Bölüm 15.6'daki teknik `PostgreSQL`/benzer veritabanlarında doğrudan uygulanabilir; farklı
+  bir veritabanı seçilirse (`A-003`) eşdeğer bir mekanizma (tetikleyici) gerekir. Aynı şekilde
+  bölüm 8.2'deki `EXCLUDE` kısıtı `btree_gist` eklentisini (veya eşdeğerini) gerektirir.
+- Bölüm 15.5'te sayılan zamana bağlı kurallar (öğrenci-sınıf-tarih tutarlılığı, `session_
+  generation` kontrolü, kurum bağlamsız token değişimi ön koşulu, rol iptali yaşam döngüsü)
+  veritabanı kısıtlarıyla ifade edilemez; uygulama katmanında zorunludur ve `P-009`/`P-010`/
+  `P-011` kabul senaryosu adayı olarak kaydedilmiştir.
+- Rol iptalinin bağlı kayıtları kapatmasının **atomik bir işlem** (tek transaction) olarak mı
+  yoksa yalnızca **değerlendirme-zamanı kontrolü** olarak mı uygulanacağı (bölüm 4.12)
+  `P-009`/`P-011`'e bırakılmıştır; bu belge yalnızca nihai davranışı (bağlı kayıtların aktif
+  kalmaması gerektiğini) bağlayıcı olarak belirler.
+- `session_generation`'ın artırılma tetikleyicisi (uygulama kodu mu, DB tetikleyicisi mi)
+  belirtilmemiştir; bu bir uygulama görevi kararıdır.
+- `role_assignments`, `role_assignment_permissions` (v1.0) ve `organization_memberships.
+  membership_role` (v2.0) bu belgede artık **yoktur**; yerine `organization_memberships` +
+  `organization_membership_roles` geçmiştir.
+- `plan_items.class_id` kaldırıldığından, bu alana bağımlı olabilecek gelecekteki uygulama
+  sorgularının `program_version_id → program_id → class_id` zincirini kullanması gerekir; bu,
+  ilgili uygulama görevlerinde (`ATT-*`, `PROGRAM-*`) bir performans/indeksleme kararı
+  gerektirebilir.
+- `EXPORT`/`NOTIFY` modülleri için tablo tanımlanmamıştır (`P-012`, Dalga 8).
+- Program "büyük değişiklik" eşiği, idempotency durum makinesi ve `people` dedüplikasyonu
+  `[Öneri/bekleyen karar]` olarak işaretlidir.
+- Eski Excel/HTML/Apps Script dosyaları bu repoda bulunmadığından, bu şemanın eski sistemle
+  karşılaştırması yapılmamıştır.
+
+---
+
+## 21. Kapsam dışı bırakılanlar
+
+- API istek/cevap sözleşmesi ve sayfalama/filtreleme standardı (`P-009`).
+- Senkronizasyon kuyruğu, yeniden bağlanma ve çakışma çözümü protokolünün tam ayrıntısı
+  (`P-010`).
+- Geri alma komutlarının kesin listesi ve her komutun ters işlem tanımı (`P-011`).
+- Excel rapor filtre/sorgu sözleşmesi ve dosya yaşam döngüsü (`P-012`).
+- Gerçek veritabanı migration dosyaları (Dalga 1 uygulama görevleri).
+- Belirli bir backend/veritabanı/kimlik doğrulama/dosya depolama/bildirim sağlayıcısı seçimi
+  (`A-002`–`A-008` ADR'leri).
+- Veli/öğrenci girişi için ayrıntılı veri modeli genişletmesi (sonraki faz, Dalga 8 `PORTAL-*`).
+- Var olan bir `people` kaydının kurumlar arası aranıp yeniden bağlanması akışı — ilerideki bir
+  görevin kapsamıdır.
+- Bölüm 15.5'teki zamana bağlı kuralların kesin kabul test senaryolarının yazımı (`P-009`/
+  `P-010`).
