@@ -17,8 +17,11 @@ yeni ürünün kod tabanı değildir; yalnızca ürün davranışları için ref
 
 ## Güncel durum
 
-Aktif dalga: **Dalga 0 — Ürün ve sözleşmeler**
+Aktif dalga ve sıradaki görev bu dosyada sabitlenmez; tek operasyonel kaynak
+[`GOREV_DURUMU.md`](GOREV_DURUMU.md) dosyasıdır.
 
 Güncel görev durumu ve sıradaki iş için [`GOREV_DURUMU.md`](GOREV_DURUMU.md) esas alınır.
 
-Kod geliştirmeye, Dalga 0 sözleşmeleri ve Faz 0 kabul kapısı tamamlanmadan başlanmamalıdır.
+Dalga 0 belge kapısı tamamlanmıştır. Faz 0'ın sınırlı teknik doğrulama/ADR işleri
+(`A-001`–`A-010`) üretim geliştirmesi değildir ve bu kapıyı kanıtla kapatmak için yürütülür;
+uygulama iskeleti `A-011` ile, Faz 0 teknik kabul kapısı tamamlandıktan sonra başlar.

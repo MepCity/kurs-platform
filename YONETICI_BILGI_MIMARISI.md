@@ -3,12 +3,12 @@
 | Alan | Değer |
 |---|---|
 | Görev | P-005 — Yönetici mobil bilgi mimarisini çiz |
-| Belge sürümü | 1.3 |
+| Belge sürümü | 1.5 |
 | Ana sözleşme | `URUN_VE_UYGULAMA_PLANI.md` |
 | Terim kaynağı | `TERIMLER_SOZLUGU.md` |
 | Aktör/senaryo kaynağı | `AKTORLER_VE_KULLANIM_SENARYOLARI.md` |
 | Yetki kaynağı | `YETKI_MATRISI.md` |
-| Son güncelleme | 13 Temmuz 2026 |
+| Son güncelleme | 14 Temmuz 2026 |
 
 ---
 
@@ -91,6 +91,10 @@ geri yükleme izni, varlık başına ayrı değil, tek ve ortak bir `RESTORE_ARC
 (bkz. `VERI_MODELI.md` §4.8). Bu sürüm, bölüm 4.2, 6, 7, 9, 10 ve 11'deki ilgili "açık soru"
 işaretlerini bu bağlayıcı kararla uyumlu biçimde günceller; ekran hiyerarşisi veya izin
 bağımsızlığı ilkelerinde başka bir değişiklik yapılmamıştır.
+
+**1.5 revizyon notu:** `PLAN-004`, özel öğrenci alanı tanımlarının V1'de hocaya
+devredilemeyeceğini yetki matrisiyle bağlamış, MGT-12'yi KURUM-06 senaryosuna eşlemiş ve belge
+sürüm/tarih metaverisini güncellemiştir.
 
 ---
 
@@ -328,7 +332,8 @@ Giriş / Oturum (ORTAK-01)
       │     [Hoca delegasyonu: modül yönetimi izniyle açılabilir — bağımsız izin]
       ├─ Kuruma Özel Yoklama Durumları — Geç geldi, İzinli, Hasta vb. (§8.5)
       │     [Hoca delegasyonu: yoklama durumu tanımlama izniyle açılabilir — bağımsız izin]
-      └─ Özel Öğrenci Alanları (§9.3)
+      └─ Özel Öğrenci Alanları (KURUM-06, §9.3)
+            [Hoca için V1 mutlak sınır — yalnız kurum yöneticisi ve destek modu]
 ```
 
 ### 4.3. Ekrana özel notlar
@@ -452,6 +457,7 @@ açılmaz (bkz. bölüm 2 madde 7).
 | Kurum Ayarları — Marka | Evet (destek modu) | Evet | Varsayılan kapalı → ayrı izinle açılabilir (bağımsız izin) | §3.1 |
 | Kurum Ayarları — Etkin Modüller | Evet (destek modu) | Evet | Varsayılan kapalı → ayrı izinle açılabilir (bağımsız izin) | §3.1 |
 | Kurum Ayarları — Kuruma Özel Yoklama Durumları | Evet (destek modu) | Evet | Varsayılan kapalı → ayrı izinle açılabilir (bağımsız izin) | §3.5 |
+| Kurum Ayarları — Özel Öğrenci Alanları | Evet (destek modu) | Evet | Hayır — V1'de hocaya devredilemez | §3.1, §2.2 madde 6b |
 | Profil/Hesap — kendi oturumdan çıkış / kendi cihaz yönetimi | Evet | Evet | Evet (her aktör kendi hesabı için) | §3.3, `ORTAK-01` |
 | Profil/Hesap — eşitleme durumu görüntüleme | Evet | Evet | Evet (rol bağımsız) | `ORTAK-02` |
 

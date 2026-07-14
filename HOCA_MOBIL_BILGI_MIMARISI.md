@@ -3,12 +3,12 @@
 | Alan | Değer |
 |---|---|
 | Görev | P-006 — Hoca mobil bilgi mimarisini çiz |
-| Belge sürümü | 1.2 |
+| Belge sürümü | 1.3 |
 | Ana sözleşme | `URUN_VE_UYGULAMA_PLANI.md` |
 | Terim kaynağı | `TERIMLER_SOZLUGU.md` |
 | Aktör/senaryo kaynağı | `AKTORLER_VE_KULLANIM_SENARYOLARI.md` |
 | Yetki kaynağı | `YETKI_MATRISI.md` |
-| Son güncelleme | 13 Temmuz 2026 |
+| Son güncelleme | 14 Temmuz 2026 |
 
 ---
 
@@ -41,6 +41,10 @@ kaydını geri yükleme izni, varlık başına ayrı değil, tek ve ortak bir `R
 kodudur** (bkz. `VERI_MODELI.md` §4.8). Bu sürüm, bölüm 4, 5 ve 14'teki ilgili "açık soru"
 işaretlerini bu bağlayıcı kararla uyumlu biçimde günceller; ekran hiyerarşisi veya izin
 bağımsızlığı ilkelerinde başka bir değişiklik yapılmamıştır.
+
+**1.3 revizyon notu:** `PLAN-004`, rol ile sınıf atamasını terminolojik olarak ayırmış ve
+özel öğrenci alanı tanımı yönetiminin V1'de hoca navigasyonuna açılmayan yönetici işlemi
+olduğunu bağlayıcı yetki kaynağıyla netleştirmiştir.
 
 ---
 

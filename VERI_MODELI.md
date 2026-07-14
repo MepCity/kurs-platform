@@ -3,7 +3,7 @@
 | Alan | Değer |
 |---|---|
 | Görev | P-008 — Çekirdek veri modeli taslağını yaz |
-| Belge sürümü | 4.0 |
+| Belge sürümü | 4.1 |
 | Ana sözleşme | `URUN_VE_UYGULAMA_PLANI.md` |
 | Terim kaynağı | `TERIMLER_SOZLUGU.md` |
 | Yetki kaynağı | `YETKI_MATRISI.md` |
@@ -431,6 +431,13 @@ Kısıtlar:
 | `ATTENDANCE_REPORTING` | `ATTENDANCE_BACKDATE_CORRECT`, `REPORT_EXPORT`, `AUDIT_LOG_VIEW`, `AUDIT_UNDO` |
 | `ORG_SETTINGS` | `BRAND_MANAGE`, `MODULE_MANAGE`, `CUSTOM_ATTENDANCE_STATUS_MANAGE` |
 | `STAFF_MANAGEMENT` | `TEACHER_ACCOUNT_MANAGE`, `TEACHER_CLASS_ASSIGN`, `TEACHER_PERMISSION_VIEW`, `DEVICE_SESSION_REVOKE` |
+
+Kuruma özel öğrenci alanı tanımlarını yönetmek için V1 izin kataloğunda hoca delegasyonu
+yoktur. `custom_field_definitions` ve `custom_field_options` yazmaları yalnız kurum yöneticisi
+ve açık destek bağlamındaki platform yöneticisi tarafından yapılır (`YETKI_MATRISI.md` §2.2
+madde 6b, §3.1). Öğrenci kaydındaki özel alan **değerine** erişim ise hedef öğrenciye yönelik
+mevcut görüntüleme/yönetme yetkisinin kapsam ve alan filtrelerine tabidir; tanım yönetimiyle
+aynı işlem değildir.
 
 **Bağlayıcı karar — `RESTORE_ARCHIVED` tek ve ortak izindir:** Öğrenci ve sınıf arşiv geri
 yükleme tek, ortak bir izin kodudur; varlık başına ayrı izin yoktur (`YONETICI_BILGI_MIMARISI.md`
@@ -1357,7 +1364,7 @@ aggregate'ları aşağıdaki kapalı eşlemeyle taşır:
 | `PROGRESS_RECORD` | `true` | Öğrenci ilerleme/değerlendirme görünümünün değişikliğidir. |
 | `TERM_CALENDAR` | `false` | Dönem, takvim günü ve tatil değişikliklerinin kurum kapsamlı aggregate'ıdır. |
 | `ORGANIZATION` | `false` | Kurum temel bilgisi/marka görünümünün aggregate'ıdır. |
-| `ORGANIZATION_SETTINGS` | `false` | Etkin modül, kurum ayarı ve özel yoklama durumu değişikliklerinin aggregate'ıdır; özel yoklama durumu için ayrı V1 olay türü yoktur. |
+| `ORGANIZATION_SETTINGS` | `false` | Etkin modül, kurum ayarı, özel yoklama durumu ve özel öğrenci alanı tanımı değişikliklerinin aggregate'ıdır; bunlar için ayrı V1 olay türü yoktur. |
 
 Kurum personelinin, öğrenci/veli ilişkisi olmayan `people` değişikliği operasyonel sınıf
 akışına girmez; ilgili yönetim kaynağının normal yenilemesiyle alınır. Yeni bir V1 çekirdek
@@ -1456,6 +1463,10 @@ bilgisini taşır ve bilinçli olarak bileşik FK ile korunur (bkz. 4.11).
 | `users` | Global kimlik doğrulama — bkz. bölüm 2.2, 4.1. | Kendisi tenant verisi değildir; `organization_memberships` üzerinden kurum bağlamına girilir. |
 | `platform_administrators`, `platform_administrator_profiles` | Rol/profil global kapsamlıdır (§5.1). | Kapsam dışı — tanımı gereği kurum bağlamsızdır. |
 | `permission_categories`, `permission_catalog`, `audit_action_catalog`, `starter_program_templates` | Platform genelinde paylaşılan, kuruma özel olmayan kataloglardır. | İçerikleri kuruma özel değildir; kurum bağlamı bunlara referans veren tablolarda taşınır. |
+| `trusted_devices` | Global kullanıcıya ait fiziksel/güvenilir cihaz kaydıdır; tek kuruma özgü değildir. | `user_id` ile global hesaba bağlıdır; kurum kapsamlı oturum yetkisi taşımaz. |
+| `refresh_tokens` | Token aynı global kullanıcı ve cihaz için kurum bağlamlı veya bağlamsız olabilir; ayrıca `organization_id` kopyası tutulmaz. | Kurum bağlamlıysa `organization_membership_id` + `user_id` bileşik FK'si üyeliği doğrular; bağlamsızsa `session_generation` ve değişim ön koşulları uygulanır (§4.11). |
+| `custom_field_value_selected_options` | Çoktan seçmeli değer ile seçenek arasındaki bağlantı tablosudur; tenant sütununu tekrar etmez. | `custom_field_values` ve `custom_field_options` bileşik FK zincirleri aynı alan tanımını ve dolaylı kurum kapsamını zorlar (§8.4). |
+| `sync_entity_catalog` | Platform genelindeki kapalı mantıksal aggregate kataloğudur. | Kuruma özel veri taşımaz; gerçek değişiklik kapsamı `sync_changes.organization_id` ve katalog kapsam kuralıyla korunur (§14.1). |
 
 **Not:** `people` artık bu listede **değildir** — `v2.0`'daki global `people` kararı bu sürümde
 geri alınmış, kurum kapsamına döndürülmüştür (bkz. bölüm 4.2, 19 madde 1). **`v3.0`'daki tek
@@ -1619,7 +1630,7 @@ classes 0..1—n sync_changes (scope_class_id; değişiklik anındaki yayın kap
 - `YONETICI_BILGI_MIMARISI.md` ve `HOCA_MOBIL_BILGI_MIMARISI.md`'nin bıraktığı açık soru —
   "arşivlenmiş kayıt geri yükleme öğrenci/sınıf için ortak mı ayrı mı izin" — tek, ortak
   `RESTORE_ARCHIVED` kodu olarak bağlayıcı biçimde kapatılmıştır (bkz. bölüm 19).
-- `KISISEL_VERI_ENVANTERI.md` tablosundaki 17 veri öğesinin tamamı bu belgede bir karşılık
+- `KISISEL_VERI_ENVANTERI.md` tablosundaki 18 veri öğesinin tamamı bu belgede bir karşılık
   bulur; **[Hassas]** notuyla tekrar edilmiştir.
 - Kurum, sınıf, program, öğrenci ve kullanıcının fiziksel silinmeyeceği (§14) `status` alanıyla
   karşılanmıştır.

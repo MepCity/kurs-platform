@@ -3,10 +3,10 @@
 | Alan | Değer |
 |---|---|
 | Görev | P-002 — Aktörleri ve ana kullanım senaryolarını listele |
-| Belge sürümü | 1.0 |
+| Belge sürümü | 1.1 |
 | Ana sözleşme | `URUN_VE_UYGULAMA_PLANI.md` |
 | Terim kaynağı | `TERIMLER_SOZLUGU.md` |
-| Son güncelleme | 13 Temmuz 2026 |
+| Son güncelleme | 14 Temmuz 2026 |
 
 ---
 
@@ -83,7 +83,7 @@ işin sıklığı veya önemi hakkında sıralama iması taşımaz.
 | KURUM-03 | Sınıf oluşturma ve arşivleme | Sınıf açar; gerektiğinde arşivler (geçmiş kayıtlar korunur). | §6.3, §8.2 |
 | KURUM-04 | Hoca hesabı oluşturma/kapatma | Hoca hesabı açar, geçici giriş bilgisi verir, hesabı askıya alır. | §5.2, §8.3 |
 | KURUM-05 | Hoca sınıf ataması ve yetki tanımlama | Hocanın görebileceği sınıfları ve ayrıntılı izinlerini belirler/geri alır. | §5.2, §5.3, §8.3 |
-| KURUM-06 | Öğrenci ve veli bilgisi yönetimi | Öğrenci ekler/düzenler/arşivler; anne ve baba bilgilerini yönetir. | §5.2, §7.2, §7.3, §8.4 |
+| KURUM-06 | Öğrenci, veli ve özel alan yönetimi | Öğrenci ekler/düzenler/arşivler; anne-baba bilgilerini ve kuruma özel öğrenci alanı tanımlarını yönetir. | §5.2, §7.2, §7.3, §8.4, §9.3 |
 | KURUM-07 | Program ve takip düzeni kurma | Kuruma özgü program/ezber takip türlerini yapılandırır. | §5.2, §8.6–§8.7 |
 | KURUM-08 | Değerlendirme şeması ayarlama | Bir programa puan, not, tekrar gerekli gibi isteğe bağlı alanları ekler. | §8.8 |
 | KURUM-09 | Rapor üretme ve Excel dışa aktarma | Kurum/sınıf/öğrenci ve tarih bazlı Excel raporu talep eder. | §5.2, §8.9 |
@@ -101,7 +101,7 @@ işin sıklığı veya önemi hakkında sıralama iması taşımaz.
 | HOCA-04 | Toplu "hepsi geldi" işlemi | Bütün sınıfı tek işlemle "geldi" olarak işaretler. | §8.5 |
 | HOCA-05 | Geçmiş tarihli yoklama düzeltme | Yetkiliyse geçmiş tarihli yoklamayı değiştirir; eski/yeni değer korunur. | §8.5 |
 | HOCA-06 | Program/ilerleme kaydetme | Programa göre tamamlandı/tamamlanmadı ve isteğe bağlı puan/not/tekrar girer. | §8.8, §10.2 |
-| HOCA-07 | Öğrenci bilgisi görüntüleme | Yetkili olduğu sınıftaki öğrenci ve veli iletişim bilgilerini görür (varsayılan izin gerektirir). | §5.5, §8.4 |
+| HOCA-07 | Öğrenci bilgisi görüntüleme | Atandığı sınıftaki öğrencinin temel bilgilerini görüntüler. Anne/baba iletişim bilgisi bu erişime dahil değildir; yalnız ayrı `GUARDIAN_CONTACT_VIEW` izni verilmişse gösterilir. | §5.5, §8.4 |
 | HOCA-08 | Diğer hocaların notunu görüntüleme | Aynı sınıftaki diğer hocanın öğrenciye yazdığı normal notu görür. | §5.3, §8.8 |
 | HOCA-09 | Genişletilmiş yönetim işleri (yetkiliyse) | Yönetici tarafından verilmişse öğrenci, sınıf veya program yönetimi işlemlerini yapar. | §5.3, §5.5 |
 

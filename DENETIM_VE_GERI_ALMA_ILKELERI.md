@@ -3,7 +3,7 @@
 | Alan | Değer |
 |---|---|
 | Görev | P-011 — Denetim ve geri alma ilkelerini detaylandır |
-| Belge sürümü | 1.1 |
+| Belge sürümü | 1.2 |
 | Ana sözleşme | `URUN_VE_UYGULAMA_PLANI.md` |
 | Bağımlılıklar | P-003 (`YETKI_MATRISI.md`), P-008 (`VERI_MODELI.md`) |
 | Son güncelleme | 14 Temmuz 2026 |
@@ -77,7 +77,9 @@ anne/baba; sınıf ataması; yoklama; program/içerik; ilerleme/değerlendirme; 
 kurum ayarı; rapor dışa aktarma; platform yöneticisinin kurum verisine erişimi. Bunlara ek
 olarak, `YETKI_MATRISI.md` §4.5 uyarınca devredilmiş marka, modül, hoca hesabı, hoca-sınıf
 ataması, başka kullanıcının cihaz oturumunu iptal etme ve kuruma özel yoklama durumu değişikliği
-de denetlenir.
+de denetlenir. Kuruma özel öğrenci alanı tanımı/seçeneği oluşturma, değiştirme ve arşivleme de
+`ORG_SETTING_CHANGED` altında hedef türü ve maskelenmiş alan özetiyle yazılan zorunlu kurum
+ayarı denetim olayıdır (`YETKI_MATRISI.md` §2.2 madde 6b).
 
 Kritik oturum veya erişim olayının yalnızca başarılı sonucu değil, güvenlik açısından anlamlı
 reddi de denetlenir: örneğin yetkisiz platform yöneticisi destek erişimi denemesi veya başka

@@ -3,7 +3,7 @@
 | Alan | Değer |
 |---|---|
 | Görev | P-001 — Terimler sözlüğünü oluştur |
-| Belge sürümü | 1.0 |
+| Belge sürümü | 1.1 |
 | Ana sözleşme | `URUN_VE_UYGULAMA_PLANI.md` |
 | Son güncelleme | 14 Temmuz 2026 (Kullanıcı/Hoca veri modeli satırları `P-008`/`VERI_MODELI.md` ile uyumlu hâle getirildi) |
 
@@ -19,9 +19,10 @@ aynı anlamda kullanmalıdır.
 Bu belge yeni bir ürün kararı almaz; yalnızca onaylı ana plandaki kavramları netleştirir. Ana
 plana aykırı bir tanım bulunmamaktadır.
 
-Belge, bölüm 2'deki terim tablosunda 20 çekirdek terim tanımlar: kurum, kullanıcı, kişi, hoca,
+Belge, bölüm 2'deki terim tablosunda 23 çekirdek terim tanımlar: kurum, kullanıcı, kişi, hoca,
 öğrenci, anne, baba, sınıf, dönem, program, program şablonu, plan, günlük görev, içerik,
-değerlendirme, ilerleme, yoklama oturumu, yoklama kaydı, denetim kaydı, geri alma.
+değerlendirme, ilerleme, yoklama oturumu, yoklama kaydı, denetim kaydı, geri alma, operasyonel
+veri, metaveri ve destek modu.
 
 ### 1.1. Kaynak notu — eski sistem karşılığı
 
@@ -64,13 +65,16 @@ karşılığı**. Benzer terimlerin farkı tablo altında ayrıca açıklanmış
 | Program şablonu | Önceden hazırlanmış, birden fazla günlük içerik sırasını (örn. 20 günlük plan) tanımlayan; takvime toplu olarak dağıtılabilen kalıp. | Veri modeli: `program_template` (tablo: `program_templates`, içerik sırası ve gün sayısı taşır). Arayüz: "Program şablonu". | Tespit edilemedi — eski kaynaklar bu repoda yok. |
 | Plan | Bir programın, belirli bir tarihe/güne atanmış tekil iş/içerik birimi. İki üretim yolu vardır: hocanın elle tek tek eklemesi (bkz. "Günlük görev") veya bir program şablonunun takvime dağıtılması. | Veri modeli: `plan_item` (tablo: `plan_items`; `source = MANUAL` veya `source = TEMPLATE` ile üretim yolu ayırt edilir). Arayüz: "Plan" / "Günün planı". | Tespit edilemedi — eski kaynaklar bu repoda yok. |
 | Günlük görev | Hocanın, program şablonu kullanmadan, zamanı geldiğinde elle tek tek eklediği ve bir "plan" kaydına dönüşen iş birimi. | Veri modeli: `plan_item` kaydının `source = MANUAL` özel durumu; ayrı bir tablo değildir. Arayüz: "Günlük görev". | Tespit edilemedi — eski kaynaklar bu repoda yok. |
-| İçerik | Bir plan veya programa bağlı, metin ve isteğe bağlı PDF ekinden oluşan öğretim materyali (örn. bir sûrenin metni, bir ödev açıklaması). | Veri modeli: `content` (tablo: `contents`; `content_type = TEXT`, isteğe bağlı `pdf_asset_id`). Arayüz: "İçerik". | Tespit edilemedi — eski kaynaklar bu repoda yok. |
-| Değerlendirme | Bir programın seçtiği; hangi alanların (Tamamlandı/Tamamlanmadı zorunlu, isteğe bağlı 10 üzerinden puan, not, tekrar gerekli) kullanılacağını tanımlayan şema. | Veri modeli: `evaluation_schema` (program üzerinde alan olarak veya `evaluation_schemas` tablosu; etkin alan bayraklarını taşır). Arayüz: "Değerlendirme ayarları". | Tespit edilemedi — eski kaynaklar bu repoda yok. |
+| İçerik | Bir plan veya programa bağlı, metin ve isteğe bağlı PDF ekinden oluşan öğretim materyali (örn. bir sûrenin metni, bir ödev açıklaması). | Veri modeli: `content` (tablo: `contents`); yalnız metinde `content_type = TEXT`, PDF eki varsa `content_type = TEXT_WITH_PDF` ve `pdf_asset_id` zorunludur (`VERI_MODELI.md` §10.2). Arayüz: "İçerik". | Tespit edilemedi — eski kaynaklar bu repoda yok. |
+| Değerlendirme | Bir programın seçtiği; hangi alanların (Tamamlandı/Tamamlanmadı zorunlu, isteğe bağlı 10 üzerinden puan, not, tekrar gerekli) kullanılacağını tanımlayan şema. | Veri modeli: ayrı `evaluation_schemas` tablosu yoktur; etkin alanlar `program_versions` üzerindeki `evaluation_*_enabled` sütunlarıyla sürümlenir (`VERI_MODELI.md` §11.3). Arayüz: "Değerlendirme ayarları". | Tespit edilemedi — eski kaynaklar bu repoda yok. |
 | İlerleme | Bir öğrencinin, bir plan/program kalemi için değerlendirme şemasına göre girilmiş gerçek sonuç kaydı (örn. "Tamamlandı", puan: 8). | Veri modeli: `progress_record` (tablo: `progress_records`; `plan_item_id` + `student_id` + şema alanlarının değerleri). Arayüz: "İlerleme". | Yoklama işaretleri, Nurlu Kart/sûre işaretleri, Elif-Ba notu, namaz ve Kur'an sayfa takibi gibi eski genel takip pratikleri; yeni sistemde bunların karşılığı yapılandırılmış "ilerleme" kaydıdır. |
 | Yoklama oturumu | Bir sınıf için bir güne ait, tek bir yoklama sürecini temsil eden konteyner kayıt (sınıf + tarih ile benzersizdir; sınıf başına günde bir tane). | Veri modeli: `attendance_session` (tablo: `attendance_sessions`; `class_id` + `date` üzerinde benzersizlik kısıtı). Arayüz: "Bugünkü yoklama". | "Yoklama" — genel bilinen terim. Eski dosyalardaki tam kullanım tespit edilemedi — eski kaynaklar bu repoda yok. |
 | Yoklama kaydı | Bir yoklama oturumu içinde, her öğrenci için tutulan tekil durum satırı (Geldi/Gelmedi veya kuruma özel ek durum; değişiklik geçmişiyle birlikte). | Veri modeli: `attendance_record` (tablo: `attendance_records`; `attendance_session_id` + `student_id`). Arayüz: yoklama oturumu ekranındaki öğrenci satırı. | Tespit edilemedi — eski kaynaklar bu repoda yok. Genel karşılığı, "Yoklama" sürecinin öğrenci bazlı görünümüdür. |
 | Denetim kaydı | Kritik bir değişikliğin kim, ne, ne zaman ve hangi eski/yeni değerle yaptığını pasif olarak saklayan geçmiş kaydı. | Veri modeli: `audit_log` (tablo: `audit_logs`; kurum, kullanıcı, işlem türü, hedef kayıt, eski değer, yeni değer, zaman, istek/cihaz bağlamı alanları). Arayüz: "İşlem geçmişi". | Eski sistemde "İşlem Geçmişi" bulunuyordu. Yeni denetim kaydı bundan daha kapsamlıdır (kurum, kullanıcı, hedef kayıt, eski/yeni değer, istek/cihaz bağlamı gibi zorunlu alanlar taşır), yetki kontrollüdür (yalnızca yetkili roller görebilir) ve değiştirilemez niteliktedir (kayıt sonradan güncellenip silinemez). |
 | Geri alma | Bir denetim kaydına dayanarak, orijinal işlemi silmeden ters bir işlem uygulayıp önceki duruma dönmeyi sağlayan, yalnızca desteklenen işlem türleri için tanımlı komut. | Veri modeli: mevcut `audit_log` kaydını referans alan yeni bir işlem; kendisi de yeni bir `audit_log` kaydı üretir. Arayüz: "Geri al". | Tespit edilemedi — eski kaynaklar bu repoda yok. |
+| Operasyonel veri | Bir sınıfın eğitim faaliyetini ve öğrencilerini doğrudan anlatan öğrenci/veli, yoklama, ilerleme, değerlendirme ve normal öğretmen notu verisi. Hoca yalnız atandığı sınıfta ve ilgili işlem yetkisiyle erişebilir; kurum kapsamlı yönetim izni bu sınırı genişletmez. | Veri modeli: tek tablo değildir; `students`, `student_guardians`, `attendance_*`, `progress_records` ve ilişkili sınıf kapsamlı kayıtlardır. Arayüz: öğrenci, yoklama ve ilerleme ekranlarındaki asıl kayıtlar. | Tespit edilemedi — eski kaynaklar bu repoda yok. |
+| Metaveri | Yetkili bir yönetim işlemini gerçekleştirmek için gereken sınırlı kurum/sınıf/hoca tanımlayıcı ve liste bilgisidir; öğrenci/veli/yoklama/ilerleme ayrıntısı içermez. | Veri modeli: ayrı tablo değildir; API'nin role ve işleme göre daralttığı sınırlı alan görünümüdür (`VERI_MODELI.md` §16, `API_GENEL_KURALLARI.md` §4). Arayüz: yönetim seçim listelerindeki sınırlı özet. | Tespit edilemedi — eski kaynaklar bu repoda yok. |
+| Destek modu | Platform yöneticisinin belirli bir hedef kurum bağlamını açıkça seçerek destek amacıyla kuruma eriştiği, her erişimin denetim kaydı ürettiği istisnai çalışma bağlamı. Kurumlar arası veriyi tek görünümde karıştırmaz. | Veri modeli: ayrı rol değildir; global platform yöneticisi + açık hedef kurum bağlamı + zorunlu denetim olayıdır. Arayüz: "Destek modu" / seçili kurum göstergesi. | Tespit edilemedi — eski kaynaklar bu repoda yok. |
 
 ---
 
@@ -81,8 +85,9 @@ karşılığı**. Benzer terimlerin farkı tablo altında ayrıca açıklanmış
 - **Kişi**, ad-soyad-telefon taşıyan en temel kayıttır; hoca, yönetici, öğrenci, anne ve baba
   hepsi birer kişi kaydı paylaşır.
 - **Kullanıcı**, bir kişinin sisteme giriş yapabilen halidir (kimlik doğrulama hesabı). Kullanıcının
-  kendisi tek bir role sabitlenmez; global, kurum veya sınıf bağlamında ayrı ayrı rol ataması
-  tanımlanır ve bir kullanıcı birden fazla rol atamasına sahip olabilir. İlk sürümde yalnızca
+  kendisi tek bir role sabitlenmez; platform yöneticisi rolü global, kurum yöneticisi ve hoca
+  rolleri kurum üyeliği bağlamında atanır ve bir kullanıcı birden fazla rol atamasına sahip
+  olabilir. Sınıfa erişim ayrı bir rol ataması değil, hoca–sınıf atamasıdır. İlk sürümde yalnızca
   platform yöneticisi, kurum yöneticisi ve hoca rolü atanmış kişiler kullanıcı olabilir; öğrenci
   ve veli kişi kaydına sahiptir ama kullanıcı değildir.
 - **Öğrenci**, kişi çekirdeğine ek kurum/sınıf/dönem/durum bilgisi eklenmiş özel bir kişi türüdür.

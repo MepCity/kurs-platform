@@ -3,7 +3,7 @@
 | Alan | Değer |
 |---|---|
 | Görev | P-007 — İlk sürüm ekran envanterini çıkar |
-| Belge sürümü | 1.1 |
+| Belge sürümü | 1.2 |
 | Ana sözleşme | `URUN_VE_UYGULAMA_PLANI.md` |
 | Terim kaynağı | `TERIMLER_SOZLUGU.md` |
 | Bilgi mimarisi kaynakları | `YONETICI_BILGI_MIMARISI.md` (P-005), `HOCA_MOBIL_BILGI_MIMARISI.md` (P-006) |
@@ -87,9 +87,9 @@ gösterilir.
 
 | Kimlik | Ekran adı | Açıklama | Durumlar | Senaryo |
 |---|---|---|---|---|
-| AUTH-01 | Giriş | Kullanıcı adı ve parola ile giriş ekranı | Y, H | ORTAK-01 |
-| AUTH-02 | Parola Değiştir | İlk giriş veya zorunlu parola değişim ekranı | Y, H | ORTAK-01 |
-| AUTH-03 | Oturum Süresi Doldu | Oturum süresi dolduğunda veya iptal edildiğinde gösterilen bilgilendirme | — | ORTAK-01 |
+| AUTH-01 | Giriş | Kullanıcı adı ve parola ile giriş ekranı | Y, H | ORTAK-01, HOCA-01 |
+| AUTH-02 | Parola Değiştir | İlk giriş veya zorunlu parola değişim ekranı | Y, H | ORTAK-01, HOCA-01 |
+| AUTH-03 | Oturum Süresi Doldu | Oturum süresi dolduğunda veya iptal edildiğinde gösterilen bilgilendirme | — | ORTAK-01, HOCA-01 |
 
 ### Rol bazlı görünürlük
 
@@ -311,7 +311,7 @@ göre dallanır. Bu, ekran bazında değil akış bazında bir ayrımdır.
 | MGT-09 | Marka Ayarları | Kurum adı, logo, ana renk ve yardımcı renklerin düzenlenmesi; okunmaz renk kombinasyonu uyarısı/kısıtlaması | Y, H, Z, E | KURUM-01 |
 | MGT-10 | Etkin Modüller | Kurumda kullanılmayan modüllerin kapatılması veya açılması | Y, B, H, Z, E | — |
 | MGT-11 | Kuruma Özel Yoklama Durumları | Geç geldi, İzinli, Hasta vb. ek yoklama durumlarının tanımlanması | Y, B, H, Z, E | KURUM-07 |
-| MGT-12 | Özel Öğrenci Alanları | Zorunlu ad/soyad/telefon dışında kuruma özel ek alan tanımlama (kısa metin, uzun metin, sayı, tarih, evet/hayır, tek seçim, çoklu seçim) | Y, B, H, Z, E | — |
+| MGT-12 | Özel Öğrenci Alanları | Zorunlu ad/soyad/telefon dışında kuruma özel ek alan tanımlama (kısa metin, uzun metin, sayı, tarih, evet/hayır, tek seçim, çoklu seçim) | Y, B, H, Z, E | KURUM-06 |
 
 ### 11.4. Personel (Hoca) yönetimi
 
@@ -341,7 +341,7 @@ göre dallanır. Bu, ekran bazında değil akış bazında bir ayrımdır.
 | MGT-09 | Evet (destek modunda) | Evet | Varsayılan kapalı → marka ayarı izniyle açılır |
 | MGT-10 | Evet (destek modunda) | Evet | Varsayılan kapalı → modül yönetimi izniyle açılır |
 | MGT-11 | Evet (destek modunda) | Evet | Varsayılan kapalı → yoklama durumu tanımlama izniyle açılır |
-| MGT-12 | Evet (destek modunda) | Evet | Hayır — V1 izin kataloğunda onaylı devredilebilir izin yok |
+| MGT-12 | Evet (destek modunda) | Evet | Hayır — `YETKI_MATRISI.md` §2.2 madde 6b gereği V1'de hocaya devredilemez |
 | MGT-13 | Evet (destek modunda) | Evet | Varsayılan kapalı → dört personel izninden EN AZ BİRİYLE açılır (bkz. bölüm 15) |
 | MGT-14 | Evet (destek modunda) | Evet | Varsayılan kapalı → hoca hesabı oluşturma/kapatma izniyle açılır |
 | MGT-15 | Evet (destek modunda) | Evet | Varsayılan kapalı → hoca hesabı oluşturma/kapatma izniyle açılır |
@@ -362,10 +362,10 @@ Bu izinle MGT-06 içinde yalnızca işlemin gerektirdiği sınıf ve hoca atama 
 varsa görünür; aksi durumda öğrenci bölümü hiç üretilmez (`YETKI_MATRISI.md` §2.2 madde 3 ve
 §4.4).
 
-**Not — MGT-12 hoca kapsamı:** P-008 izin kataloğunda özel öğrenci alanı yönetimini hocaya
-devreden bir izin bulunmadığından ekran V1'de hocaya kapalıdır. İleride açılması yeni bir ürün
-kararı ve `permission_catalog` girdisi gerektirir; mevcut marka/modül/yoklama durumu izinlerinden
-hiçbiri bu ekranı açmaz.
+**Not — MGT-12 hoca kapsamı:** `YETKI_MATRISI.md` §2.2 madde 6b kararı gereği özel öğrenci
+alanı tanımı yönetimi V1'de hocaya devredilemez. İleride açılması yeni bir ürün kararı ve
+`permission_catalog` girdisi gerektirir; mevcut marka/modül/yoklama durumu izinlerinden hiçbiri
+bu ekranı açmaz.
 
 **Not — MGT-16 bağımsız alt bölümler:** Ekran dört personel izninden en az biriyle ortak
 konteyner olarak açılabilir. Hoca hesap bilgisi/eylemleri, sınıf atamaları, izin listesi ve
@@ -531,8 +531,8 @@ filtrelenir:
 
 - **Sınıf işlemleri:** CLS-01, CLS-02, ATT-01, ATT-02, STD-01..STD-09, PRG-01..PRG-04,
   PRS-01, PRS-02
-- **Yönetim:** MGT-01..MGT-11, MGT-13..MGT-18, MGT-20 (MGT-12 için V1'de onaylı
-  devredilebilir izin yoktur; MGT-19 hoca için mutlak sınırdır)
+- **Yönetim:** MGT-01..MGT-11, MGT-13..MGT-18, MGT-20 (MGT-12 ve MGT-19 hoca için V1
+  mutlak sınırlarıdır)
 - **Rapor ve denetim:** RPT-01, RPT-02, RPT-03
 - **Profil/oturum:** PRF-01..PRF-04
 
@@ -615,7 +615,7 @@ boş durum gösterilmelidir.
   `AKTORLER_VE_KULLANIM_SENARYOLARI.md` §3 ile satır satır eşleştirilmiştir; hiçbir senaryo
   dışarıda bırakılmamıştır. HOCA-09 ("Genişletilmiş yönetim işleri") bir meta senaryodur ve
   hocaya devredilebilir yönetim ekranlarını (MGT-01..MGT-11, MGT-13..MGT-18, MGT-20,
-  RPT-01..RPT-03) kapsar; MGT-12 onaylı devredilebilir izni olmadığı için bu kümede değildir.
+  RPT-01..RPT-03) kapsar; MGT-12 bağlayıcı V1 yönetici sınırı nedeniyle bu kümede değildir.
   Ekranlar ilgili bölümlerinde bağımsız izin koşullarıyla tek tek listelenmiştir.
 - Rol bazlı görünürlük tabloları `YETKI_MATRISI.md` bölüm 3 ile birebir çapraz kontrol
   edilmiştir; mutlak sınırlar ve varsayılan kapalı/açık durumlar uyumludur.
@@ -630,8 +630,8 @@ boş durum gösterilmelidir.
   işaretlenmiştir.
 - MGT-06 içinde kurum kapsamlı sınıf yönetimi izni ile operasyonel öğrenci verisi birbirinden
   ayrılmış; MGT-16 alt bölümleri dört bağımsız personel iznine göre filtrelenmiştir.
-- MGT-12, P-008 izin kataloğunda onaylı bir hoca delegasyonu bulunmadığı için V1'de yalnızca
-  kurum yöneticisi ve destek modundaki platform yöneticisine açıktır.
+- MGT-12, `YETKI_MATRISI.md` §2.2 madde 6b kararı gereği V1'de yalnızca kurum yöneticisi ve
+  destek modundaki platform yöneticisine açıktır; KURUM-06 senaryosuna bağlıdır.
 - Tehlikeli işlem onay adımı `URUN_VE_UYGULAMA_PLANI.md` §3.1 ile uyumludur.
 - Dört durum kuralı (yükleniyor, boş, hata, yetkisiz) `URUN_VE_UYGULAMA_PLANI.md` §18.3 ve
   `AGENTS.md` görev tamamlanma koşullarıyla uyumludur.
@@ -668,6 +668,12 @@ boş durum gösterilmelidir.
 - MGT-12'nin V1'de hocaya devredilemeyeceği, gelecekte açılmasının yeni ürün/izin kararı
   gerektirdiği kaydedildi.
 
+### 19.2. Revizyon notu — v1.2
+
+- MGT-12'nin örtük katalog çıkarımı bağlayıcı `YETKI_MATRISI.md` §2.2 madde 6b kararına
+  dönüştürüldü ve ekran KURUM-06 senaryosuna bağlandı.
+- HOCA-01 giriş/oturum senaryosu AUTH-01–AUTH-03 ekranlarında doğrudan izlenebilir yapıldı.
+
 ---
 
 ## 20. Bilinen sınırlamalar
@@ -678,8 +684,8 @@ boş durum gösterilmelidir.
   kapsamıdır.
 - Çoklu rol/bağlam geçişinin kesin ürün davranışı `UI-002`'ye bırakılmış bir açık noktadır;
   bu belge yalnızca CTX-01 aday ekranını kaydeder.
-- Özel öğrenci alanı yönetiminin gelecekte hocaya devredilip devredilmeyeceği açık ürün
-  kararıdır; V1 izin kataloğunda karşılığı olmadığı için MGT-12 hocaya kapalı tutulur.
+- Özel öğrenci alanı yönetimi V1'de bağlayıcı olarak hocaya kapalıdır; gelecekte devredilmesi
+  yeni ürün kararı ve izin kataloğu girdisi gerektirir.
 - Eski sistem (Excel/HTML/Apps Script) bu repoda bulunmadığından, ekran envanterinin eski
   sistemdeki ekran/menü yapısıyla karşılaştırması yapılmamıştır; bu belge yalnızca onaylı ana
   plana ve Dalga 0 belgelerine dayanır.
