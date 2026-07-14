@@ -122,10 +122,9 @@ karara bağlanacak konudur.
 
 ## 5. Kapsam dışı
 
-- Rol/işlem bazlı ayrıntılı erişim matrisi ve izin kombinasyonları (`P-003 — Ayrıntılı yetki
-  matrisi` görevinin kapsamıdır).
-- Veritabanı şeması, kolon adı, alan tipi ve kısıt kesinleştirmesi (`P-008 — Çekirdek veri
-  modeli taslağı` görevinin kapsamıdır).
+- Rol/işlem bazlı ayrıntılı erişim matrisi ve izin kombinasyonları `YETKI_MATRISI.md`de
+  tanımlıdır.
+- Veritabanı şeması, kolon adı, alan tipi ve kısıtlar `VERI_MODELI.md`de tanımlıdır.
 - Kuruma özel tanımlanmış alanların (satır 8) içerik bazında hassasiyet etiketleme mekanizması;
   ana planda bu mekanizma tanımlı değildir, ayrı bir ürün kararı gerektirir.
 - Kişisel verinin kalıcı silinmesi prosedürünün adım adım tasarımı (ana plan bunun "ayrı ve

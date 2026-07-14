@@ -31,8 +31,8 @@ Bu belge:
 - Veri modelindeki izin/rol şemasının teknik uygulamasını tanımlamaz (`P-008` kapsamı).
 - API düzeyinde yetki denetiminin nasıl kodlanacağını tanımlamaz (uygulama görevleri kapsamı).
 - Öğrenci ve veli (anne/baba/vasi) için gelecekteki yetkileri tanımlamaz (sonraki faz, Dalga 8).
-- Onaylanan devredilebilirlik kararlarının kesin teknik veri filtrelerini tanımlamaz; bunlar
-  `P-008` ve `P-009`'a girdi olarak bırakılmıştır (bkz. bölüm 4.4).
+- Onaylanan devredilebilirlik kararlarının teknik veri filtreleri `VERI_MODELI.md` §16 ve
+  `API_GENEL_KURALLARI.md` §4'te tanımlıdır (bkz. bölüm 4.4).
 
 ---
 
@@ -74,8 +74,9 @@ Aşağıdaki ilkeler ana planda açıkça onaylanmış, tartışmasız değişme
    **operasyonel** verisine erişemez (§5.3, §15). Bu operasyonel veri sınırı, kurum kapsamlı bir
    yönetim izniyle (örn. hoca–sınıf ataması, marka yönetimi) **genişletilemez** — böyle bir izin
    yalnızca §2.2 madde 11 ve bölüm 4.4'te tanımlanan, işlemin yapılması için zorunlu sınırlı
-   kurum/sınıf **metaverisine** erişim sağlar; operasyonel sınıf verisine erişim sağlamaz. Kesin
-   metaveri alanları `P-008`/`P-009`'da tanımlanacaktır.
+   kurum/sınıf **metaverisine** erişim sağlar; operasyonel sınıf verisine erişim sağlamaz.
+   Metaveri/operasyonel veri ayrımı `VERI_MODELI.md` §16'da, sunucu tarafı erişim kuralı
+   `API_GENEL_KURALLARI.md` §4'te tanımlıdır.
 4. **Platform yöneticisi global kapsamlı istisnadır:** Platform yöneticisi bütün kurumlara
    erişebilir; ancak bu erişim kurum kapsamlı rollerin tabi olduğu izolasyon kuralının bir
    istisnasıdır ve her kurum verisi erişimi (görüntüleme dahil) ayrıca denetim kaydı üretir
@@ -224,7 +225,7 @@ durumu diğerini otomatik olarak belirlemez.
 |---|---|---|---|---|---|
 | Rapor dışa aktarma (Excel) | Evet (destek amaçlı erişimde) | Evet (kendi kurumu) | Hayır | Varsayılan kapalı — ayrı izinle açılabilir | §5.5, §8.9, KURUM-09 |
 | Kurum içi işlem geçmişi (denetim kaydı) görüntüleme | Evet (destek amaçlı erişimde) | Evet (kendi kurumu) | Hayır | Varsayılan kapalı — ayrı izinle açılabilir | §5.5, §8.10, KURUM-10 |
-| Desteklenen işlemi geri alma | Evet (destek amaçlı erişimde) | Evet (kendi kurumu) | Hayır | Varsayılan kapalı — ayrı izinle açılabilir. **Bu, hedef işlemi yapma izninden ayrı bir izindir** (bkz. bölüm 4.2); bir hocanın yoklama düzeltme iznine sahip olması, ona otomatik olarak yoklama geri alma izni vermez. Kesin geri alma kuralları `P-011`'de tanımlanacaktır | §5.2, §8.10, KURUM-10 |
+| Desteklenen işlemi geri alma | Evet (destek amaçlı erişimde) | Evet (kendi kurumu) | Hayır | Varsayılan kapalı — ayrı izinle açılabilir. **Bu, hedef işlemi yapma izninden ayrı bir izindir** (bkz. bölüm 4.2); bir hocanın yoklama düzeltme iznine sahip olması, ona otomatik olarak yoklama geri alma izni vermez. Geri alma yetki, komut, desteklenen kaynak ve ret kuralları `DENETIM_VE_GERI_ALMA_ILKELERI.md` §4–§7'de tanımlıdır | §5.2, §8.10, KURUM-10 |
 
 ---
 
@@ -301,9 +302,8 @@ istediğini bağımsız olarak açabilir:
    oturumlarını iptal etme. "Hoca izinlerini değiştirme" bu kategoride **değildir**; o mutlak
    sınırdır (§2.2 madde 6).
 
-Bu kategorilendirme, `P-008` çekirdek veri modeli görevinde izin şemasının (örn. sabit enum mu,
-genişletilebilir izin listesi mi) tasarımına başlangıç girdisidir; bağlayıcı şema kararı
-`P-008`'e aittir.
+Bu kategorilendirme, `VERI_MODELI.md` §4.7–§4.9'da tanımlanan genişletilebilir izin kataloğu
+ve kurum üyeliği rolüne bağlı izin atamasıyla uygulanır.
 
 ### 4.4. Kurum kapsamlı yönetim izni ile operasyonel sınıf verisi erişiminin ayrımı
 
@@ -321,8 +321,8 @@ sınıf listesi, kurum ayarları, hoca listesi) erişebilir; öğrenci detay ver
 ilerleme kaydı bu metaveri kapsamında **değildir** ve bunlara erişim her koşulda ayrıca sınıf
 ataması + ilgili operasyonel işlem izni gerektirir (§2.2 madde 10).
 
-Kesin metaveri alanları (örn. bir yönetim API'sinin hangi alanları döndüreceği) `P-008` ve
-`P-009`'da tanımlanacaktır; bu belge yalnızca ilkeyi kaydeder.
+Metaveri/operasyonel veri ayrımı `VERI_MODELI.md` §16 ve yönetim API'sinin sunucu tarafı
+yetki kuralı `API_GENEL_KURALLARI.md` §4 ile tanımlıdır; bu belge rol ilkesini kaydeder.
 
 ### 4.5. Devredilmiş yönetim işlemlerinde denetim zorunluluğu
 
@@ -337,9 +337,8 @@ onayıyla bu işlemler için ayrıca teyit edilmiştir):
 - Başka kullanıcının cihaz oturumunu iptal etme.
 - Kuruma özel yoklama durumu değişikliği.
 
-Veli iletişim bilgisine erişim için en azından erişim politikasının/log seviyesinin ne olacağı
-bağlayıcı olarak belirlenmemiştir; bu, `P-011 — Denetim ve geri alma ilkelerini detaylandır`
-görevinde değerlendirilecektir.
+Veli iletişim bilgisine erişim `GUARDIAN_CONTACT_VIEW` iznine bağlıdır; erişim olayı ve
+maskeli denetim görünümü `DENETIM_VE_GERI_ALMA_ILKELERI.md` §3.1–§3.3'te tanımlıdır.
 
 ---
 

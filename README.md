@@ -19,6 +19,6 @@ yeni ürünün kod tabanı değildir; yalnızca ürün davranışları için ref
 
 Aktif dalga: **Dalga 0 — Ürün ve sözleşmeler**
 
-İlk görev: **P-001 — Terimler sözlüğünü oluştur**
+Güncel görev durumu ve sıradaki iş için [`GOREV_DURUMU.md`](GOREV_DURUMU.md) esas alınır.
 
 Kod geliştirmeye, Dalga 0 sözleşmeleri ve Faz 0 kabul kapısı tamamlanmadan başlanmamalıdır.

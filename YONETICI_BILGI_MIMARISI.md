@@ -88,7 +88,7 @@ P-006 arasındaki iki sözleşme çelişkisini giderir:
 **1.4 revizyon notu:** `P-008 — Çekirdek veri modeli taslağı` (`VERI_MODELI.md`) tamamlanmış ve
 1.3'te bu belgeye bırakılan açık soruyu kesinleştirmiştir: **arşivlenmiş öğrenci/sınıf kaydını
 geri yükleme izni, varlık başına ayrı değil, tek ve ortak bir `RESTORE_ARCHIVED` izin kodudur**
-(bkz. `VERI_MODELI.md` §4.6). Bu sürüm, bölüm 4.2, 6, 7, 9, 10 ve 11'deki ilgili "açık soru"
+(bkz. `VERI_MODELI.md` §4.8). Bu sürüm, bölüm 4.2, 6, 7, 9, 10 ve 11'deki ilgili "açık soru"
 işaretlerini bu bağlayıcı kararla uyumlu biçimde günceller; ekran hiyerarşisi veya izin
 bağımsızlığı ilkelerinde başka bir değişiklik yapılmamıştır.
 
@@ -149,7 +149,8 @@ Platform yöneticisinin tek bir kurumu yoktur; bu nedenle girişten sonra doğru
 düşer. Ana işlevsel bölümler üçtür: **Kurumlar**, **Sistem Geneli Denetim** ve **Kurumlar Arası
 Rapor**. Bu üçü, `AKTORLER_VE_KULLANIM_SENARYOLARI.md` §3.1'deki `PLAT-01`–`PLAT-06`
 senaryolarının tamamını karşılar. Bu üç bölümün somut navigasyon bileşeni (sekme, menü vb.)
-`P-007`/`UI-002`'de kesinleşecektir; bu belge yalnızca bölüm hiyerarşisini tanımlar. Platform
+`EKRAN_ENVANTERI.md` §14'te öneri olarak gruplandırılmıştır; kesin bileşen seçimi `UI-002`
+sözleşmesindedir. Bu belge yalnızca bölüm hiyerarşisini tanımlar. Platform
 yöneticisinin kendi profil/oturum ekranları için bkz. bölüm 5.
 
 ### 3.2. Ekran hiyerarşisi
@@ -239,7 +240,7 @@ Giriş / Oturum (ORTAK-01)
    │     └─ Sınıfı Geri Yükle (onay adımlı)
    │           [Hoca delegasyonu: `RESTORE_ARCHIVED` izniyle açılabilir — sınıf yönetimi
    │            (oluşturma/düzenleme/arşivleme) izninden BAĞIMSIZ, ayrı bir izin. Öğrenci
-   │            geri yüklemeyle ORTAK, TEK izindir — bu, `VERI_MODELI.md` (P-008) §4.6'da
+   │            geri yüklemeyle ORTAK, TEK izindir — bu, `VERI_MODELI.md` (P-008) §4.8'de
    │            bağlayıcı olarak kesinleşmiştir (önceki sürümde bölüm 10'da açık soruydu),
    │            bkz. YETKI_MATRISI §3.4]
    │
@@ -288,7 +289,7 @@ Giriş / Oturum (ORTAK-01)
    │     └─ Öğrenciyi Geri Yükle (onay adımlı)
    │           [Hoca delegasyonu: `RESTORE_ARCHIVED` izniyle açılabilir — öğrenci yönetimi
    │            izninden BAĞIMSIZ ayrı izin. Sınıf geri yüklemeyle ORTAK, TEK izindir —
-   │            `VERI_MODELI.md` (P-008) §4.6'da bağlayıcı olarak kesinleşmiştir (bkz.
+   │            `VERI_MODELI.md` (P-008) §4.8'de bağlayıcı olarak kesinleşmiştir (bkz.
    │            bölüm 10), bkz. YETKI_MATRISI §3.4]
    │
    ├─ Program ve Ezber Takibi — kurum yöneticisi için her zaman açık
@@ -350,7 +351,7 @@ Giriş / Oturum (ORTAK-01)
   olarak yazar; bu satırın öğrenci ve sınıf için **ortak tek izin mi yoksa varlık başına ayrı
   iki izin mi** olacağı bu belgenin önceki sürümünde bağlayıcı olarak kesinleştirilmemiş,
   `HOCA_MOBIL_BILGI_MIMARISI.md` (P-006) bölüm 14 ile hizalı bir açık soru olarak `P-008`'e
-  bırakılmıştı. `VERI_MODELI.md` (P-008) §4.6 bu soruyu artık bağlayıcı biçimde kapatmıştır:
+  bırakılmıştı. `VERI_MODELI.md` (P-008) §4.8 bu soruyu artık bağlayıcı biçimde kapatmıştır:
   **`RESTORE_ARCHIVED` öğrenci ve sınıf için tek, ortak bir izin kodudur**; varlık başına ayrı
   izin yoktur. Bu geri yükleme yetkisi, sınıf/öğrenci yönetimi (oluşturma/düzenleme/arşivleme)
   izninden **bağımsız** kalmaya devam eder; bir hocaya sınıf veya öğrenci yönetimi izni
@@ -429,7 +430,7 @@ açılmaz (bkz. bölüm 2 madde 7).
 | Sistem Geneli Denetim / Kurumlar Arası Rapor | Evet | Hayır — mutlak sınır (yalnızca kendi kurumu) | Hayır — mutlak sınır | §3.1 |
 | Sınıflar — görüntüleme | Evet (destek modu) | Evet | Evet (yalnızca atanmış sınıf) | §3.2 |
 | Sınıflar — oluşturma/düzenleme/arşivleme | Evet (destek modu) | Evet | Varsayılan kapalı → ayrı izinle açılabilir | §3.2 |
-| Sınıflar — arşivlenmiş sınıf geri yükleme | Evet (destek modu) | Evet | Varsayılan kapalı → ayrı izinle açılabilir (`RESTORE_ARCHIVED` izni — sınıf yönetiminden BAĞIMSIZ; öğrenci geri yüklemeyle ORTAK tek izin, `VERI_MODELI.md` §4.6'da kesinleşti, bkz. bölüm 10) | §3.4 |
+| Sınıflar — arşivlenmiş sınıf geri yükleme | Evet (destek modu) | Evet | Varsayılan kapalı → ayrı izinle açılabilir (`RESTORE_ARCHIVED` izni — sınıf yönetiminden BAĞIMSIZ; öğrenci geri yüklemeyle ORTAK tek izin, `VERI_MODELI.md` §4.8'de kesinleşti, bkz. bölüm 10) | §3.4 |
 | Eğitim Dönemi ve Takvim | Evet (destek modu) | Evet | Varsayılan kapalı → ayrı izinle açılabilir | §3.1 |
 | Personel — Hoca Listesi (ortak giriş) | Evet (destek modu) | Evet | Dört bağımsız personel izninden EN AZ BİRİYLE açılabilir (bkz. bölüm 7) | §3.3 |
 | Personel — Hoca hesabı oluşturma/kapatma | Evet (destek modu) | Evet | Varsayılan kapalı → ayrı izinle açılabilir | §3.3 |
@@ -439,7 +440,7 @@ açılmaz (bkz. bölüm 2 madde 7).
 | Personel — Cihaz oturumu iptali | Evet (destek modu) | Evet | Varsayılan kapalı → ayrı izinle açılabilir (bağımsız izin) | §3.3 |
 | Öğrenciler — görüntüleme | Evet (destek modu) | Evet | Evet (yalnızca atanmış sınıf) | §3.4 |
 | Öğrenciler — oluşturma/düzenleme/arşivleme | Evet (destek modu) | Evet | Varsayılan kapalı → ayrı izinle açılabilir | §3.4 |
-| Öğrenciler — arşivlenmiş öğrenci geri yükleme | Evet (destek modu) | Evet | Varsayılan kapalı → ayrı izinle açılabilir (`RESTORE_ARCHIVED` izni — öğrenci yönetiminden BAĞIMSIZ; sınıf geri yüklemeyle ORTAK tek izin, `VERI_MODELI.md` §4.6'da kesinleşti, bkz. bölüm 10) | §3.4 |
+| Öğrenciler — arşivlenmiş öğrenci geri yükleme | Evet (destek modu) | Evet | Varsayılan kapalı → ayrı izinle açılabilir (`RESTORE_ARCHIVED` izni — öğrenci yönetiminden BAĞIMSIZ; sınıf geri yüklemeyle ORTAK tek izin, `VERI_MODELI.md` §4.8'de kesinleşti, bkz. bölüm 10) | §3.4 |
 | Öğrenciler — Anne/Baba bilgisi oluşturma/düzenleme | Evet (destek modu) | Evet | Varsayılan kapalı → ayrı izinle açılabilir (öğrenci görüntülemeden BAĞIMSIZ; ilgili kaydı görüntüleme+düzenleme hakkı sağlar) | §3.4 |
 | Öğrenciler — Veli iletişim bilgisi görüntüleme (salt okunur) | Evet (destek modu) | Evet | Varsayılan kapalı → ayrı izinle açılabilir (öğrenci görüntüleme VE anne/baba yönetiminden BAĞIMSIZ) | §3.4 |
 | Program ve Ezber Takibi — görüntüleme | Evet (destek modu) | Evet | Evet (yalnızca atanmış sınıf) | §3.6 |
@@ -510,7 +511,7 @@ tanımlanması veya izinlerin toplu paket gibi sunulması, ekran envanteri (`P-0
 - **Arşivlenmiş kayıt geri yükleme:** Her iki belge de bu izni sınıf/öğrenci yönetimi
   (oluşturma/düzenleme/arşivleme) izninden bağımsız sayar. Öğrenci/sınıf için ortak mı ayrı mı
   izin olacağı önceki sürümde her iki belgede de **açık soru** olarak `P-008`'e bırakılmıştı
-  (bkz. bölüm 10; `HOCA_MOBIL_BILGI_MIMARISI.md` bölüm 14); `VERI_MODELI.md` (P-008) §4.6 bunu
+  (bkz. bölüm 10; `HOCA_MOBIL_BILGI_MIMARISI.md` bölüm 14); `VERI_MODELI.md` (P-008) §4.8 bunu
   artık bağlayıcı biçimde **ortak, tek `RESTORE_ARCHIVED` izni** olarak kesinleştirmiştir.
 - **Anne/baba ve veli görünürlüğü:** Her iki belge de anne/baba bilgisi yönetme (oluşturma/
   düzenleme) ile veli iletişim bilgisi görüntülemeyi bağımsız, varsayılan kapalı iki izin olarak
@@ -572,7 +573,7 @@ getirmez.
   karşılanmış; her ikisi de sınıf/öğrenci yönetimi izninden bağımsızdır. Öğrenci/sınıf için
   ortak mı ayrı mı izin olacağı, `HOCA_MOBIL_BILGI_MIMARISI.md` (P-006) ile hizalı biçimde
   önceki sürümde **açık soru** olarak işaretlenmiş ve `P-008`'e bırakılmıştı; `VERI_MODELI.md`
-  (P-008) §4.6 bunu **ortak, tek `RESTORE_ARCHIVED` izni** olarak bağlayıcı biçimde
+  (P-008) §4.8 bunu **ortak, tek `RESTORE_ARCHIVED` izni** olarak bağlayıcı biçimde
   kesinleştirmiştir (bölüm 4.2, 6, 7, 10).
 - Anne/baba bilgisi yönetme (oluşturma/düzenleme) ve veli iletişim bilgisi görüntüleme bağımsız
   iki izin olarak ayrıştırılmıştır; öğrenci görüntüleme izninin anne/baba verisini **kapsamadığı**
@@ -613,23 +614,24 @@ getirmez.
 
 - Sekiz işlevsel bölümün (Sınıflar, Personel, Öğrenciler, Program, Takvim, Raporlar, Denetim,
   Kurum Ayarları) belirlenmesi ve adlandırılması ("Kurum Ana Sayfası" dahil), ana planın
-  §8.2–§8.10 modül gruplamasından yapılan bir bilgi mimarisi çıkarımıdır; ana planda birebir bu
-  ad ve gruplama yazılı değildir. Bağlayıcı ekran adları ve somut navigasyon bileşeni `P-007` ve
-  `UI-002`'de kesinleşecektir.
+  §8.2–§8.10 modül gruplamasından yapılan bir bilgi mimarisi çıkarımıdır; ekran kimlikleri ve
+  görünürlük `EKRAN_ENVANTERI.md`de kesinleşmiştir. Somut navigasyon bileşeni `UI-002`
+  sözleşmesinin açık kararıdır.
 - "Kurum Ana Sayfası" ve "Platform Ana Sayfası" adları bu belgeye özeldir; ana planda bir
   yönetici dashboard ekranı adı geçmez, yalnızca yönetici eylemleri sayılır (§10.3). Bu belge bu
   eylemleri barındıracak bir giriş ekranı olduğunu varsaymıştır.
 - Hocaya devredilebilir yönetim ekranlarının, kurum yöneticisininkiyle **aynı görsel ekran**
   olduğu (ayrı bir sadeleştirilmiş hoca versiyonu değil) varsayımı, `YETKI_MATRISI.md` §4.1'in
   "aynı dar eylemleri kapsar" ifadesinden çıkarılmıştır; ekran içindeki eylemler her bağımsız
-  izne göre ayrı filtrelenir (bölüm 7). Kesin ekran/alan farkı `P-007`'de netleşebilir.
+  izne göre ayrı filtrelenir (bölüm 7). P-007 ekran envanteri ve durumlarını tanımlar; kesin
+  ekran/alan ve bileşen farkları `UI-002` veya uygun sonraki mobil tasarım görevinde belirlenir.
 - **Karar — arşivleme/geri yükleme izninin öğrenci ve sınıf için ortak olması (kapatılan açık
   soru):** `YETKI_MATRISI.md` §3.4 tek bir "Arşivlenmiş öğrenci/sınıf kaydını geri yükleme"
   iznini hem öğrenci hem sınıf geri yükleme için ortak tanımlar. Bu belgede öğrenci ve sınıf
   geri yükleme ekranları (kullanıcı deneyimi netliği için) ayrı düğümler olarak gösterilir;
   bunların tek bir ortak izne mi yoksa varlık başına ayrı iki izne mi bağlı olacağı önceki
   sürümde `HOCA_MOBIL_BILGI_MIMARISI.md` (P-006) bölüm 14 ile hizalı, `P-008`'e bırakılan açık
-  bir soruydu. `VERI_MODELI.md` (P-008) §4.6 bu soruyu artık bağlayıcı biçimde kapatmıştır:
+  bir soruydu. `VERI_MODELI.md` (P-008) §4.8 bu soruyu artık bağlayıcı biçimde kapatmıştır:
   `RESTORE_ARCHIVED` öğrenci ve sınıf için **tek, ortak** bir izin kodudur; varlık başına ayrı
   izin yoktur. Bu geri yükleme yetkisi sınıf/öğrenci yönetimi (oluşturma/düzenleme/arşivleme)
   izninden bağımsız kalmaya devam eder.
@@ -650,7 +652,7 @@ getirmez.
   yapılandırılacağı (alan ekleme sihirbazı vb.) ayrıntısı bu belgenin kapsamında değildir;
   yalnızca ekranın bölümdeki yeri belirtilmiştir.
 - Geri yükleme izninin öğrenci/sınıf için ortak mı ayrı mı olacağı (bölüm 10), `VERI_MODELI.md`
-  (P-008) §4.6'da ortak tek `RESTORE_ARCHIVED` izni olarak kesinleşmiştir; bu artık bu belgede
+  (P-008) §4.8'de ortak tek `RESTORE_ARCHIVED` izni olarak kesinleşmiştir; bu artık bu belgede
   bilinen bir sınırlama değildir.
 
 ---

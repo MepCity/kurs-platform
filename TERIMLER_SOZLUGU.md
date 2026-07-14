@@ -60,7 +60,7 @@ karşılığı**. Benzer terimlerin farkı tablo altında ayrıca açıklanmış
 | Baba | Öğrenciyle `baba` ilişki türü üzerinden bağlı, ayrı bir kişi kaydı; ilk sürümde giriş hesabı yoktur. | Veri modeli: `person` kaydı + `student_guardian` ilişkisinde `relation_type = FATHER`. Arayüz: "Baba". | Tespit edilemedi — eski kaynaklar bu repoda yok. |
 | Sınıf | Bir kuruma ve bir eğitim dönemine bağlı; öğrenci ve hoca üyeliklerini barındıran çalışma birimi. Bir öğrenci ilk sürümde aynı kurumda aynı anda yalnızca bir aktif sınıfta bulunabilir. | Veri modeli: `class` (tablo: `classes`; sınıf-hoca ve sınıf-öğrenci ilişkileri ayrı ilişki tablolarında). Arayüz: "Sınıf". | "Sınıf" — örn. eski "Fındıklı" sınıf sitesindeki tek sınıf kavramının karşılığı; yeni sistemde kurum başına birden fazla sınıf olabilir. |
 | Dönem (Eğitim dönemi) | Kurumun tanımladığı, başlangıç ve bitiş tarihi olan; tatiller ve çalışılmayan günlerin de tanımlandığı zaman aralığı. Sınıflar bir döneme bağlıdır. | Veri modeli: `term` (tablo: `terms`). Arayüz: "Eğitim dönemi" / "Dönem". | Tespit edilemedi — eski kaynaklar bu repoda yok. |
-| Program | Bir sınıfta kullanılan, yapılandırılabilir eğitim takip çekirdeğinin tek örneği (örn. bir "günlük ezber" programı, bir "namaz takibi" programı). Aynı sınıfta birden fazla program aynı anda aktif olabilir. Ezber, sûre/dua listesi, kart/bölüm, Kur'an sayfa takibi, Elif-Ba ve namaz takibi, sistemin sunduğu hazır şablon/başlangıç seçenekleridir; kurumlar bunların dışında da kendi yapılandırılabilir takip düzenlerini oluşturabilir. | Veri modeli: `program` (tablo: `programs`); hazır şablon/başlangıç seçenekleri ile serbest tanımlı programların nasıl ayrıştırılacağı (kapalı enum mu, açık yapılandırma şeması mı) bağlayıcı olarak `P-008 Çekirdek veri modeli taslağı` görevinde kararlaştırılacaktır. Arayüz: "Program". | "Nurlu Kart programı", "kart/bölüm sistemi", "ezber takibi" gibi eski takip yöntemleri; yeni sistemde bunların hepsi birer "program" örneği veya hazır şablon seçeneği olarak sunulabilir. |
+| Program | Bir sınıfta kullanılan, yapılandırılabilir eğitim takip çekirdeğinin tek örneği (örn. bir "günlük ezber" programı, bir "namaz takibi" programı). Aynı sınıfta birden fazla program aynı anda aktif olabilir. Ezber, sûre/dua listesi, kart/bölüm, Kur'an sayfa takibi, Elif-Ba ve namaz takibi, sistemin sunduğu başlangıç şablonlarıdır; kurumlar bunların dışında da kendi programlarını oluşturabilir. | Veri modeli: `program` (tablo: `programs`); sistem başlangıç şablonları `starter_program_templates` kataloğundadır, program bunlardan birine isteğe bağlı bağlanır veya serbest tanımlanır (`VERI_MODELI.md` §11.1–§11.2). Arayüz: "Program". | "Nurlu Kart programı", "kart/bölüm sistemi", "ezber takibi" gibi eski takip yöntemleri; yeni sistemde bunların hepsi birer "program" örneği veya başlangıç şablonu olarak sunulabilir. |
 | Program şablonu | Önceden hazırlanmış, birden fazla günlük içerik sırasını (örn. 20 günlük plan) tanımlayan; takvime toplu olarak dağıtılabilen kalıp. | Veri modeli: `program_template` (tablo: `program_templates`, içerik sırası ve gün sayısı taşır). Arayüz: "Program şablonu". | Tespit edilemedi — eski kaynaklar bu repoda yok. |
 | Plan | Bir programın, belirli bir tarihe/güne atanmış tekil iş/içerik birimi. İki üretim yolu vardır: hocanın elle tek tek eklemesi (bkz. "Günlük görev") veya bir program şablonunun takvime dağıtılması. | Veri modeli: `plan_item` (tablo: `plan_items`; `source = MANUAL` veya `source = TEMPLATE` ile üretim yolu ayırt edilir). Arayüz: "Plan" / "Günün planı". | Tespit edilemedi — eski kaynaklar bu repoda yok. |
 | Günlük görev | Hocanın, program şablonu kullanmadan, zamanı geldiğinde elle tek tek eklediği ve bir "plan" kaydına dönüşen iş birimi. | Veri modeli: `plan_item` kaydının `source = MANUAL` özel durumu; ayrı bir tablo değildir. Arayüz: "Günlük görev". | Tespit edilemedi — eski kaynaklar bu repoda yok. |
@@ -149,19 +149,17 @@ karşılığı**. Benzer terimlerin farkı tablo altında ayrıca açıklanmış
 
 ---
 
-## 5. Varsayımlar
+## 5. Güncel kararlarla uyum notları
 
 - "Plan" ve "günlük görev" arasındaki ilişki (günlük görev = plan kaydının manuel üretilme
   biçimi) ana planın 8.7 bölümündeki iki üretim yönteminden (elle ekleme / şablon dağıtımı)
-  çıkarılmıştır; ana planda bu iki kavram arasındaki veri modeli ilişkisi ayrıca yazılı
-  değildir. Bu, bir veri modeli kararı değil, terim netleştirmesidir; `P-008 Çekirdek veri
-  modeli taslağı` görevinde teyit edilmelidir.
-- Veri modeli tercih edilen adlar (İngilizce tablo/alan adları) ileri seviye bir öneridir;
-  bağlayıcı şema kararı `P-008` görevinde verilecektir. Bu ad önerileri hiçbir şekilde `P-008`
-  için bağlayıcı değildir.
+  çıkarılmıştır; `VERI_MODELI.md` §11.6 bunu bağlayıcı olarak `plan_items.source = MANUAL`
+  kuralıyla karşılar.
+- Veri modeli tercih edilen İngilizce adlar artık `VERI_MODELI.md`deki bağlayıcı tablo/alan
+  adlarıyla güncellenmiştir; bu sözlükteki adlar o şemaya yapılan açıklayıcı başvurulardır.
 - Program teriminin eski takip yöntemlerinden (ezber, sûre/dua, kart/bölüm, Kur'an sayfa,
-  Elif-Ba, namaz) yalnızca sistemin sunduğu hazır şablon/başlangıç seçenekleri olduğu; kesin
-  veri modeli/enum kararının `P-008` görevine bırakıldığı varsayılmıştır.
+  Elif-Ba, namaz) sistemin sunduğu başlangıç seçenekleri olduğu kararı, `VERI_MODELI.md`
+  §11.1–§11.2'deki açık katalog ve isteğe bağlı program bağlantısıyla kesinleşmiştir.
 
 ## 6. Bilinen sınırlamalar
 
