@@ -14,7 +14,7 @@
 
 Bu belge, mobil istemciler ile modüler monolit uygulama API'si arasındaki ortak HTTP sözleşme kurallarını tanımlar. Sonraki modül sözleşmeleri burada belirlenen sürümleme, kimlik doğrulama, kurum bağlamı, hata, listeleme ve yazma kurallarına uyar.
 
-Kaynak/endpoint envanteri bu belgenin kapsamı değildir. Senkronizasyon kuyruğunun durum makinesi ve varlık bazlı çakışma çözümü `P-010`; geri alma komutları `P-011`; rapor uçları `P-012` kapsamındadır.
+Kaynak/endpoint envanteri bu belgenin kapsamı değildir. Senkronizasyon kuyruğunun durum makinesi ve varlık bazlı çakışma çözümü `P-010`; geri alma komutları `DENETIM_VE_GERI_ALMA_ILKELERI.md`; rapor uçları `P-012` kapsamındadır.
 
 ## 2. Bağlayıcı ilkeler
 
@@ -108,7 +108,7 @@ Tekil kaynak cevabı kaynak nesnesidir; koleksiyonlar ortak zarfla döner:
 | 401 | `UNAUTHENTICATED`, `SESSION_REVOKED` | Kimlik doğrulama/oturum geçersiz. |
 | 403 | `FORBIDDEN`, `ORGANIZATION_CONTEXT_REQUIRED` | Kimlik var, bağlam veya izin yetersiz. |
 | 404 | `RESOURCE_NOT_FOUND` | Kaynak yok veya erişim kapsamı dışında. |
-| 409 | `VERSION_CONFLICT`, `STATE_CONFLICT`, `IDEMPOTENCY_KEY_REUSED` | Durum ya da yazma anahtarı çelişkisi. |
+| 409 | `VERSION_CONFLICT`, `STATE_CONFLICT`, `IDEMPOTENCY_KEY_REUSED`, `GROUP_UNDO_CONFLICT` | Durum, sürüm, geri alma grubu ya da yazma anahtarı çelişkisi. |
 | 422 | `VALIDATION_FAILED`, `BUSINESS_RULE_VIOLATION` | Alan veya iş kuralı geçersiz. |
 | 429 | `RATE_LIMITED` | İstek hızı sınırı aşıldı; uygun olduğunda `Retry-After` eklenir. |
 | 500 | `INTERNAL_ERROR` | Beklenmeyen hata; istemci ayrıntı görmez. |
@@ -135,14 +135,25 @@ Tekil kaynak cevabı kaynak nesnesidir; koleksiyonlar ortak zarfla döner:
 - Fiziksel `DELETE`, ayrı ve denetlenen kişisel veri silme prosedürü dışında kullanılmaz; V1 normal API uçlarında desteklenmez.
 - Güncellenebilir çekirdek kaynaklar `rowVersion` içerir. İstemci güncelleme, arşivleme ve durum değiştiren komutlarda beklediği sürümü `If-Match-Row-Version` başlığıyla gönderir.
 - Sunucu sürüm eşleşmezse değişikliği uygulamaz ve `409 VERSION_CONFLICT` döndürür. Güncel kaydın yeniden okunması normal okuma yetkisine tabidir.
+- Yalnızca `SENKRONIZASYON_VE_CAKISMA.md`'de açıkça tanımlanan normal tekil/toplu yoklama
+  işaretleme ve düzeltme komutları bu red kuralının istisnasıdır. Tekil veya grup geri alma
+  komutları istisnaya dahil değildir; `DENETIM_VE_GERI_ALMA_ILKELERI.md`'deki sürüm ve grup
+  çakışması kurallarını uygular.
 - Yeni kaynak oluşturma ve değişmez denetim kayıtları bu başlığı gerektirmez. Bu belge genel "son yazan kazanır" kuralı tanımlamaz; varlık bazlı çakışma davranışı `P-010` kapsamındadır.
 
 ### 7.2. İdempotent yazma
 
 - Her mobil oluşturma, güncelleme, arşivleme, geri alma ve durum değiştiren komut benzersiz `Idempotency-Key` başlığı taşır. Bu anahtar istemcinin `clientMutationId` değeridir; yeniden denemede aynen korunur.
-- Kapsam en az kurum, kullanıcı ve anahtardır. Aynı anahtar farklı işlem türü, hedef yol veya istek özetiyle kullanılırsa sunucu işlemi uygulamaz ve `409 IDEMPOTENCY_KEY_REUSED` döndürür.
+- Kurum kapsamlı yazmada kapsam kurum, kullanıcı ve anahtardır. Yalnızca platform yöneticisinin
+  henüz kurum oluşmadan yaptığı açık global işlemlerde kapsam global, kullanıcı ve anahtardır;
+  sunucu bu istisnayı rol ve işlem türüyle doğrular. Aynı anahtar farklı işlem türü, hedef yol
+  veya istek özetiyle kullanılırsa sunucu işlemi uygulamaz ve `409 IDEMPOTENCY_KEY_REUSED`
+  döndürür.
 - Aynı anahtarla eşdeğer istek tekrarında ikinci yan etki veya denetim kaydı oluşmaz; ilk tamamlanmış sonucun eşdeğeri döner.
-- İşlem sonuçlanmamışsa durum makinesi `P-010`'da kesinleşir. İstemci ağ hatası veya `202` sonucunda kuyruğu silmez, aynı anahtarla güvenli yeniden dener.
+- İşlem sonuçlanmamışsa durum makinesi `P-010`'da kesinleşir. Ağ hatası, `429` ve `5xx`
+  idempotency sonucunu terminal yapmaz; istemci kuyruğu silmeden aynı anahtarla güvenli yeniden
+  dener. Kalıcı terminal sonuçlar yalnız ilgili sözleşmenin güvenli olarak tanımladığı hata
+  kodlarıyla saklanır.
 
 ### 7.3. Atomiklik ve denetim
 
@@ -191,7 +202,7 @@ Tekil kaynak cevabı kaynak nesnesidir; koleksiyonlar ortak zarfla döner:
 - Kimlik sağlayıcısı, token biçimi/ömürleri, parola özetleme algoritması ve oran sınırlama eşikleri `A-004` ile operasyonel kararlar kapsamındadır.
 - Kesin endpoint listesi, kaynak alan şemaları, filtre beyaz listeleri ve sayfa boyutu sınırı ilgili modül sözleşmelerinde tanımlanacaktır.
 - Gerçek zamanlı taşıma, çevrimdışı kuyruk durum makinesi, yeniden bağlanma ve çakışma çözümü `P-010` kapsamındadır.
-- Geri alınabilir işlem listesi ve ters işlem sözleşmesi `P-011`; Excel rapor sözleşmesi ve indirme yaşam döngüsü `P-012` kapsamındadır.
+- Geri alınabilir işlem listesi ve ters işlem sözleşmesi `DENETIM_VE_GERI_ALMA_ILKELERI.md`; Excel rapor sözleşmesi ve indirme yaşam döngüsü `P-012` kapsamındadır.
 - Backend framework, veritabanı ve gözlemlenebilirlik sağlayıcısı bu belgeyle seçilmez.
 
 ## 11. Kaynaklarla uyum kontrolü
