@@ -4,8 +4,8 @@
 |---|---|
 | Son güncelleme | 14 Temmuz 2026 |
 | Aktif dalga | Dalga 0 — Ürün ve sözleşmeler |
-| Aktif görev | Yok |
-| Sıradaki görev | P-010 ve P-012 paralel başlatılabilir |
+| Aktif görev | P-010 — inceleme düzeltmeleri sürüyor |
+| Sıradaki görev | P-010 tamamlanınca P-013 READY yapılabilir |
 
 Bu dosya projenin kaldığı yeri gösteren kısa operasyon panosudur. Her çalışma oturumunun
 başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev tanımları
@@ -15,8 +15,7 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 
 | Kimlik | Görev | Boyut | Not |
 |---|---|---:|---|
-| P-010 | Senkronizasyon ve çakışma sözleşmesini yaz | M | P-008 ve P-009 tamamlandı; başlamaya hazır |
-| P-012 | Excel rapor veri sözleşmesini tanımla | S | P-008 tamamlandı; başlamaya hazır |
+| — | Hazır görev yok | — | P-013, P-010'un tamamlanmasını bekliyor |
 
 ## IN_PROGRESS
 
@@ -24,7 +23,9 @@ Aktif görev yok.
 
 ## REVIEW
 
-İncelemede görev yok.
+| Kimlik | Görev | PR | Not |
+|---|---|---|---|
+| P-010 | Senkronizasyon ve çakışma sözleşmesini yaz | PR #11 | Son inceleme düzeltmeleri bekleniyor |
 
 ## BLOCKED
 
@@ -47,6 +48,7 @@ Engellenmiş görev yok.
 | P-008 | Çekirdek veri modeli taslağını yaz | 14 Temmuz 2026 | `VERI_MODELI.md` — PR #7 |
 | P-009 | API genel kurallarını yaz | 14 Temmuz 2026 | `API_GENEL_KURALLARI.md` — PR #8 |
 | P-011 | Denetim ve geri alma ilkelerini detaylandır | 14 Temmuz 2026 | `DENETIM_VE_GERI_ALMA_ILKELERI.md` — PR #10 |
+| P-012 | Excel rapor veri sözleşmesini tanımla | 14 Temmuz 2026 | `EXCEL_RAPOR_VERI_SOZLESMESI.md` — PR #12 |
 
 ## Sonraki görev nasıl READY yapılır?
 
