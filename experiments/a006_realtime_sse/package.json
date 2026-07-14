@@ -1,0 +1,14 @@
+{
+  "name": "a006-realtime-sse-experiment",
+  "private": true,
+  "version": "1.0.0",
+  "description": "A-006 iki istemcili SSE ve kanonik uzlasma deneyi",
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "experiment": "node run-experiment.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
