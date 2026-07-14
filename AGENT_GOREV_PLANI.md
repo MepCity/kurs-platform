@@ -465,13 +465,19 @@ sonra başlar.
 
 ## 13. Dalga 5 — İçerik, program ve takvim
 
+### Nesne deposu altyapısı
+
+| Kimlik | Boyut | Görev | Bağımlılık |
+|---|---:|---|---|
+| OPS-005 | M | Nesne deposu provisioning ve güvenlik kontrolleri | A-007, A-010, A-011, A-013, A-014 |
+
 ### İçerik
 
 | Kimlik | Boyut | Görev | Bağımlılık |
 |---|---:|---|---|
 | CONTENT-001 | S | Metin/PDF içerik API sözleşmesi | P-008, A-007 |
 | CONTENT-002 | M | İçerik migration ve backend CRUD | CONTENT-001 |
-| CONTENT-003 | M | Güvenli PDF yükleme/indirme | CONTENT-001, A-007 |
+| CONTENT-003 | M | Güvenli PDF yükleme/indirme | CONTENT-001, A-007, OPS-005 |
 | CONTENT-004 | M | Mobil içerik oluşturma/düzenleme | CONTENT-001, UI-003 |
 | CONTENT-005 | S | Mobil PDF seçme ve görüntüleme | CONTENT-003, CONTENT-004 |
 
@@ -547,7 +553,7 @@ Kritik işlemler denetim geçmişine düşer ve tanımlı işlemler geçmiş sil
 | EXPORT-003 | M | Yoklama Excel veri sorgusu | EXPORT-001, ATT-006 |
 | EXPORT-004 | M | İlerleme Excel veri sorgusu | EXPORT-001, PROG-003 |
 | EXPORT-005 | M | Excel dosya üretim servisi | EXPORT-002–EXPORT-004, A-008 |
-| EXPORT-006 | S | Süreli güvenli indirme bağlantısı | EXPORT-005, A-007 |
+| EXPORT-006 | S | Süreli güvenli indirme bağlantısı | EXPORT-005, A-007, OPS-005 |
 | EXPORT-007 | M | Mobil rapor filtre ve indirme ekranı | EXPORT-001, UI-003 |
 | EXPORT-008 | M | Excel içerik/doğruluk testleri | EXPORT-005, P-012 |
 
@@ -566,17 +572,59 @@ Kritik işlemler denetim geçmişine düşer ve tanımlı işlemler geçmiş sil
 | OPS-002 | M | Yedekten geri yükleme tatbikatı | OPS-001 |
 | OPS-003 | S | Üretim izleme ve alarm eşikleri | A-014 |
 | OPS-004 | M | Pilot kurum kurulum kontrol listesi | Tüm V1 modülleri |
-| PILOT-001 | M | Sentetik veriyle iç pilot | QA-001–OPS-004 |
+| OPS-006 | M | Nesne deposu yedek/geri yükleme tatbikatı | OPS-002, OPS-005, CONTENT-003, EXPORT-006 |
+| PILOT-001 | M | Sentetik veriyle iç pilot | QA-001–QA-007, OPS-001–OPS-006 |
 | PILOT-002 | M | İlk gerçek kurum pilotu | PILOT-001 |
 | PILOT-003 | M | İkinci kurum kişiselleştirme pilotu | PILOT-002 |
 | RELEASE-001 | M | Yayın hazırlığı ve son kabul | PILOT-003 |
+
+### Nesne deposu operasyon görevlerinin kabul sınırı
+
+- `OPS-005`; ADR-007'de bağlanan development, staging, production ve backup AWS hesaplarında
+  private S3 bucket'larını, ayrı SSE-KMS key policy'lerini, Block Public Access, versioning,
+  Object Lock/retention, lifecycle, cross-account yedek hedefini ve §5.4 rollerini IaC ile
+  kurar. Source `storage_disposal` ile backup hesabındaki ayrı `storage_backup_disposal` trust
+  policy/session sınırını ve object-data yetkisiz ayrı `storage_version_verifier` trust/broker
+  yüzeyini oluşturur; runtime, provisioner ve replication/restore rolüne object version silme
+  vermez. Verifier allow testi yalnız durable tek target'ın exact full key'i, `s3:prefix`
+  `StringEquals` ve sayfa başına `s3:max-keys <= 100` ile `ListBucketVersions` çalıştırır.
+  Runtime/disposal dâhil diğer rollerde geniş/dar listeleme; verifier'da `ListBucket`, başka
+  bucket/tenant/key, kısa/wildcard/koşulsuz prefix, prefixesiz veya `max-keys > 100`, eksik
+  durable kayıt, object read/write/delete; ayrıca manifestsiz/prefix silme, hold değiştirme,
+  governance bypass, roller arası assume ve genel delete negatiflerini otomatik doğrular.
+  Production+backup ile
+  development/staging KMS/rotation basamaklarını güncel fiyatlarla yeniden hesaplar. Hukukî
+  retention süresini seçmez ve application durable manifest/durum akışını geliştirmez.
+- `CONTENT-003`; ADR-007 §5.4'teki durable source→replica eşlemesini, iki aşamalı onay,
+  target-bazlı idempotency, ayrı source/backup alt durumları, retention bekleme, exact-version
+  pre-delete varlık kaydı, ağ çağrısından önce durable attempt, exact-key tam sayfalanmış version
+  postcondition'ı ile upload/finalize/orphan/purge/disposal kayıp-yanıt uzlaştırmasını ve
+  bütüncül tamamlanma kapısını uygulama katmanında gerçekleştirir. `HeadObject` `403/404`
+  hiçbir durumda yokluk sayılmaz; wrong version, yetki kayması, başka tenant/key ve eksik
+  pagination fail-closed kalır.
+- `OPS-006`; OPS-005 yedeğinden izole hedefe gerçek nesne geri yükler; DB
+  `file_assets`/`export_jobs` metaverisi, version ID, checksum, KMS erişimi, tenant izolasyonu
+  ve tokenlı indirmeyi doğrular. Ayrıca sentetik version'da source silmesini, retention nedeniyle
+  bekleyen backup imhasını ve retention kalktıktan sonra exact replica silmesini ayrı ayrı
+  aynı verifier mekanizmasıyla doğrular. Kayıp delete yanıtında target mevcut, gerçekten silinmiş,
+  yanlış version ID, verifier `403` yetki kayması ve başka kurum/key senaryolarını ayrı tatbik
+  eder; bütün item'lar iki tarafta yok olmadan tamamlanma kabul etmez. Ölçülen RPO/RTO ile
+  restore/imha kanıtını kaydeder. Veritabanı restore'unu OPS-002'den alır ve yalnız
+  “yedek/bucket var” ya da yalnız source silindi kontrolünü kabul etmez.
+- `PILOT-001`, OPS-005 ve OPS-006 tamamlanmadan başlayamaz. Bu nedenle `RELEASE-001` de pilot
+  zinciri üzerinden aynı provisioning/güvenlik ve nesne geri yükleme kalite kapılarına bağlıdır.
 
 ### Dalga 7 çıkış kapısı
 
 - Kritik/yüksek açık hata yoktur.
 - İki kurum farklı yapılandırmalarla başarıyla kullanmıştır.
 - Sessiz veri kaybı yaşanmamıştır.
-- Yedekten geri dönüş denenmiştir.
+- Veritabanı ile nesne yedeklerinden izole geri dönüş denenmiş; checksum, metaveri ve kurum
+  izolasyonu eşleşmiştir.
+- Runtime/lifecycle/backup rol sınırları, exact-key verifier allow/deny matrisi ve geniş
+  listeleme/silme negatifleri geçmiştir.
+- Sentetik onaylı imhada source ve backup version yokluğu ayrı kanıtlanmış; retention bekleme
+  durumu yanlış başarı üretmemiştir.
 - Excel raporları kaynak verilerle uyuşur.
 - iOS ve Android mağaza/yayın gereksinimleri karşılanır.
 
