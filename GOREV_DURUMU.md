@@ -4,8 +4,8 @@
 |---|---|
 | Son güncelleme | 14 Temmuz 2026 |
 | Aktif dalga | Dalga 0 — Ürün ve sözleşmeler |
-| Aktif görev | P-010 — inceleme düzeltmeleri sürüyor |
-| Sıradaki görev | P-010 tamamlanınca P-013 READY yapılabilir |
+| Aktif görev | Yok |
+| Sıradaki görev | P-013 — Kritik test ve kabul planını yaz |
 
 Bu dosya projenin kaldığı yeri gösteren kısa operasyon panosudur. Her çalışma oturumunun
 başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev tanımları
@@ -15,7 +15,7 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 
 | Kimlik | Görev | Boyut | Not |
 |---|---|---:|---|
-| — | Hazır görev yok | — | P-013, P-010'un tamamlanmasını bekliyor |
+| P-013 | Kritik test ve kabul planını yaz | M | P-003, P-009 ve P-010 tamamlandı; başlamaya hazır |
 
 ## IN_PROGRESS
 
@@ -23,9 +23,7 @@ Aktif görev yok.
 
 ## REVIEW
 
-| Kimlik | Görev | PR | Not |
-|---|---|---|---|
-| P-010 | Senkronizasyon ve çakışma sözleşmesini yaz | PR #11 | Son inceleme düzeltmeleri bekleniyor |
+İncelemede görev yok.
 
 ## BLOCKED
 
@@ -47,6 +45,7 @@ Engellenmiş görev yok.
 | P-007 | İlk sürüm ekran envanterini çıkar | 14 Temmuz 2026 | `EKRAN_ENVANTERI.md` — PR #9 |
 | P-008 | Çekirdek veri modeli taslağını yaz | 14 Temmuz 2026 | `VERI_MODELI.md` — PR #7 |
 | P-009 | API genel kurallarını yaz | 14 Temmuz 2026 | `API_GENEL_KURALLARI.md` — PR #8 |
+| P-010 | Senkronizasyon ve çakışma sözleşmesini yaz | 14 Temmuz 2026 | `SENKRONIZASYON_VE_CAKISMA.md` — PR #11 |
 | P-011 | Denetim ve geri alma ilkelerini detaylandır | 14 Temmuz 2026 | `DENETIM_VE_GERI_ALMA_ILKELERI.md` — PR #10 |
 | P-012 | Excel rapor veri sözleşmesini tanımla | 14 Temmuz 2026 | `EXCEL_RAPOR_VERI_SOZLESMESI.md` — PR #12 |
 
