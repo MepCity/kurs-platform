@@ -1,0 +1,222 @@
+name: A-001 platform spike
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/a001-platform-spike.yml"
+      - "experiments/a001_flutter_spike/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: a001-platform-spike-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: 3.44.6
+  SPIKE_DIR: experiments/a001_flutter_spike
+
+jobs:
+  android:
+    name: Android VT-01–VT-03
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+
+    steps:
+      - name: Kodu al
+        uses: actions/checkout@v4
+
+      - name: Flutter SDK'yı sabitle
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init "$RUNNER_TEMP/flutter"
+          git -C "$RUNNER_TEMP/flutter" remote add origin https://github.com/flutter/flutter.git
+          git -C "$RUNNER_TEMP/flutter" fetch --depth=1 origin \
+            "refs/tags/$FLUTTER_VERSION:refs/tags/$FLUTTER_VERSION"
+          git -C "$RUNNER_TEMP/flutter" checkout --detach "refs/tags/$FLUTTER_VERSION"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+
+      - name: Android sanallaştırma erişimini hazırla
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -e /dev/kvm
+          sudo chmod 666 /dev/kvm
+
+      - name: Android dikey akışını çalıştır
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7
+          emulator-options: >-
+            -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
+            -camera-back none -camera-front none
+          disable-animations: true
+          working-directory: experiments/a001_flutter_spike
+          script: |
+            set -eu
+            adb devices -l
+            printf 'Android release: '
+            adb shell getprop ro.build.version.release
+            printf 'Android API: '
+            adb shell getprop ro.build.version.sdk
+            printf 'Device model: '
+            adb shell getprop ro.product.model
+            flutter config --no-analytics
+            flutter --version
+            flutter precache --android
+            flutter create --platforms=android,ios --org org.mepcity.kursplatform --project-name a001_flutter_spike .
+            flutter pub get
+            flutter analyze
+            flutter test -r expanded
+            flutter test integration_test/spike_flow_test.dart -d emulator-5554 -r expanded | tee "$RUNNER_TEMP/android-integration.log"
+            grep -F "All tests passed!" "$RUNNER_TEMP/android-integration.log"
+
+      - name: Android günlüklerini sakla
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a001-android-logs
+          path: |
+            ${{ runner.temp }}/android-integration.log
+          if-no-files-found: ignore
+
+  ios:
+    name: iOS VT-01–VT-03
+    runs-on: macos-15
+    timeout-minutes: 35
+
+    steps:
+      - name: Kodu al
+        uses: actions/checkout@v4
+
+      - name: Flutter SDK'yı sabitle
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init "$RUNNER_TEMP/flutter"
+          git -C "$RUNNER_TEMP/flutter" remote add origin https://github.com/flutter/flutter.git
+          git -C "$RUNNER_TEMP/flutter" fetch --depth=1 origin \
+            "refs/tags/$FLUTTER_VERSION:refs/tags/$FLUTTER_VERSION"
+          git -C "$RUNNER_TEMP/flutter" checkout --detach "refs/tags/$FLUTTER_VERSION"
+          git -C "$RUNNER_TEMP/flutter" apply --unidiff-zero \
+            "$GITHUB_WORKSPACE/$SPIKE_DIR/ci/flutter-3.44.6-ios-simulator-log-reader.patch"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+
+      - name: iOS Simulator'ı hazırla
+        id: simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcrun simctl list devices available
+          simulator_spec=$(xcrun simctl list devices available --json | python3 -c '
+          import json, sys
+          data = json.load(sys.stdin)
+          for runtime, devices in data["devices"].items():
+              if "iOS" not in runtime:
+                  continue
+              for device in devices:
+                  device_type = device.get("deviceTypeIdentifier")
+                  if (
+                      device.get("isAvailable")
+                      and device["name"].startswith("iPhone")
+                      and device_type
+                  ):
+                      print(f"{runtime}\t{device_type}")
+                      raise SystemExit(0)
+          raise SystemExit("Kullanılabilir iPhone Simulator tanımı bulunamadı")
+          ')
+          IFS=$'\t' read -r runtime_id device_type_id <<< "$simulator_spec"
+          simulator_name="A001-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          udid=$(xcrun simctl create "$simulator_name" "$device_type_id" "$runtime_id")
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          echo "name=$simulator_name" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b
+          xcrun simctl list devices | grep "$udid"
+          xcrun simctl getenv "$udid" SIMULATOR_RUNTIME_VERSION || true
+
+      - name: iOS Flutter projesini ve statik kontrolleri hazırla
+        shell: bash
+        working-directory: experiments/a001_flutter_spike
+        run: |
+          set -euo pipefail
+          flutter config --no-analytics
+          flutter --version
+          flutter precache --ios
+          flutter create --platforms=android,ios --org org.mepcity.kursplatform --project-name a001_flutter_spike .
+          flutter pub get
+          flutter analyze
+          flutter test -r expanded
+
+      - name: iOS cihaz görünürlüğünü kaydet
+        timeout-minutes: 4
+        shell: bash
+        working-directory: experiments/a001_flutter_spike
+        run: |
+          set -euo pipefail
+          flutter devices --device-timeout 120 -v 2>&1 | tee "$RUNNER_TEMP/ios-devices.log"
+
+      - name: iOS dikey akışını çalıştır
+        timeout-minutes: 8
+        shell: bash
+        working-directory: experiments/a001_flutter_spike
+        env:
+          IOS_SIMULATOR_UDID: ${{ steps.simulator.outputs.udid }}
+        run: |
+          set -euo pipefail
+          flutter test integration_test/spike_flow_test.dart \
+            -d "$IOS_SIMULATOR_UDID" -r expanded -v \
+            2>&1 | tee "$RUNNER_TEMP/ios-integration.log"
+          grep -F "All tests passed!" "$RUNNER_TEMP/ios-integration.log"
+
+      - name: iOS hata tanılarını topla
+        if: failure() || cancelled()
+        timeout-minutes: 3
+        shell: bash
+        env:
+          IOS_SIMULATOR_UDID: ${{ steps.simulator.outputs.udid }}
+        run: |
+          set +e
+          diagnostics="$RUNNER_TEMP/ios-diagnostics"
+          mkdir -p "$diagnostics"
+          {
+            date -u
+            xcodebuild -version
+            flutter doctor -v
+            flutter devices -v
+            xcrun simctl list devices
+            xcrun simctl getenv "$IOS_SIMULATOR_UDID" SIMULATOR_RUNTIME_VERSION
+          } > "$diagnostics/environment.log" 2>&1
+          xcrun simctl spawn "$IOS_SIMULATOR_UDID" log show \
+            --last 20m --style compact \
+            --predicate 'process == "Runner" OR process == "SpringBoard" OR subsystem CONTAINS[c] "CoreSimulator"' \
+            > "$diagnostics/simulator.log" 2>&1 || true
+
+      - name: iOS günlüğünü sakla
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a001-ios-logs
+          path: |
+            ${{ runner.temp }}/ios-devices.log
+            ${{ runner.temp }}/ios-integration.log
+            ${{ runner.temp }}/ios-diagnostics
+          if-no-files-found: ignore
+
+      - name: iOS Simulator'ı temizle
+        if: always()
+        shell: bash
+        env:
+          IOS_SIMULATOR_UDID: ${{ steps.simulator.outputs.udid }}
+        run: |
+          if [[ -n "$IOS_SIMULATOR_UDID" ]]; then
+            xcrun simctl shutdown "$IOS_SIMULATOR_UDID" || true
+            xcrun simctl delete "$IOS_SIMULATOR_UDID" || true
+          fi
