@@ -5,7 +5,7 @@
 | Son güncelleme | 14 Temmuz 2026 |
 | Aktif dalga | Dalga 1 — Teknoloji kararları ve iskelet |
 | Aktif görev | Yok |
-| Sıradaki görev | A-001–A-008 — Paralel teknoloji ADR görevleri |
+| Sıradaki görev | A-001, A-003–A-008 — Paralel teknoloji ADR görevleri |
 
 Bu dosya projenin kaldığı yeri gösteren kısa operasyon panosudur. Her çalışma oturumunun
 başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev tanımları
@@ -16,7 +16,6 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 | Kimlik | Görev | Boyut | Not |
 |---|---|---:|---|
 | A-001 | Flutter ve alternatif mobil framework karşılaştırması/dikey deneme | M | P-007 ve P-010 tamamlandı; paralel başlayabilir |
-| A-002 | Backend dili ve framework ADR'si | M | P-008 ve P-009 tamamlandı; paralel başlayabilir |
 | A-003 | PostgreSQL/hosting sağlayıcısı ADR'si | M | P-004 ve P-008 tamamlandı; paralel başlayabilir |
 | A-004 | Kimlik doğrulama sağlayıcısı ADR'si | M | P-003 ve P-004 tamamlandı; paralel başlayabilir |
 | A-005 | Yerel mobil veritabanı ve kuyruk ADR'si | M | P-010 tamamlandı; paralel başlayabilir |
@@ -58,6 +57,7 @@ Engellenmiş görev yok.
 | P-012 | Excel rapor veri sözleşmesini tanımla | 14 Temmuz 2026 | `EXCEL_RAPOR_VERI_SOZLESMESI.md` — PR #12 |
 | P-013 | Kritik test ve kabul planını yaz | 14 Temmuz 2026 | `KRITIK_TEST_VE_KABUL_PLANI.md` — PR #13 |
 | P-014 | Faz 0 bütünlük incelemesi yap | 14 Temmuz 2026 | `FAZ_0_BUTUNLUK_INCELEMESI.md` — PR #14 |
+| A-002 | Backend dili ve framework ADR'si | 14 Temmuz 2026 | `ADR/ADR-002_BACKEND_DILI_VE_FRAMEWORK.md` — PR #16 |
 
 ## Sonraki görev nasıl READY yapılır?
 
