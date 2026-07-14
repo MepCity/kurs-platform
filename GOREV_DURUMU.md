@@ -5,7 +5,7 @@
 | Son güncelleme | 14 Temmuz 2026 |
 | Aktif dalga | Dalga 1 — Teknoloji kararları ve iskelet |
 | Aktif görev | Yok |
-| Sıradaki görev | A-001, A-006–A-008 ve A-010 — Paralel teknoloji/ortam kararları |
+| Sıradaki görev | A-001, A-007, A-008 ve A-010 — Paralel teknoloji/ortam kararları |
 
 Bu dosya projenin kaldığı yeri gösteren kısa operasyon panosudur. Her çalışma oturumunun
 başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev tanımları
@@ -16,7 +16,6 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 | Kimlik | Görev | Boyut | Not |
 |---|---|---:|---|
 | A-001 | Flutter ve alternatif mobil framework karşılaştırması/dikey deneme | M | P-007 ve P-010 tamamlandı; paralel başlayabilir |
-| A-006 | Gerçek zamanlı kanal ADR'si | M | P-010 tamamlandı; paralel başlayabilir |
 | A-007 | PDF/dosya depolama ADR'si | S | P-004 ve P-012 tamamlandı; paralel başlayabilir |
 | A-008 | Excel üretme yaklaşımı ADR'si | S | P-012 tamamlandı; paralel başlayabilir |
 | A-010 | Geliştirme, staging ve üretim ortam sözleşmesi | S | A-002 ve A-003 tamamlandı; paralel başlayabilir |
@@ -59,6 +58,7 @@ Engellenmiş görev yok.
 | A-003 | PostgreSQL/hosting sağlayıcısı ADR'si | 14 Temmuz 2026 | `ADR/ADR-003-postgresql-ve-hosting.md` — PR #18 |
 | A-004 | Kimlik doğrulama sağlayıcısı ADR'si | 14 Temmuz 2026 | `ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md` — PR #19 |
 | A-005 | Yerel mobil veritabanı/kuyruk ADR'si ve kalıcı yeniden deneme deneyi | 14 Temmuz 2026 | `ADR/ADR-005-yerel-mobil-veritabani-ve-kuyruk.md`, `experiments/a005_local_queue` — 17 test — PR #20 |
+| A-006 | Gerçek zamanlı kanal ADR'si ve iki istemcili yoklama olayı deneyi | 14 Temmuz 2026 | `ADR/ADR-006-gercek-zamanli-kanal.md`, `experiments/a006_realtime_sse` — 6 test — PR #21 |
 
 ## Sonraki görev nasıl READY yapılır?
 
