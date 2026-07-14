@@ -5,7 +5,7 @@
 | Son güncelleme | 15 Temmuz 2026 |
 | Aktif dalga | Dalga 1 — Teknoloji kararları ve iskelet |
 | Aktif görev | Yok |
-| Sıradaki görev | A-007 ve A-011 — Paralel teknoloji/iskelet görevleri |
+| Sıradaki görev | A-011 — Repo ve modül klasör iskeletini oluştur |
 
 Bu dosya projenin kaldığı yeri gösteren kısa operasyon panosudur. Her çalışma oturumunun
 başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev tanımları
@@ -15,7 +15,6 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 
 | Kimlik | Görev | Boyut | Not |
 |---|---|---:|---|
-| A-007 | PDF/dosya depolama ADR'si | S | P-004 ve P-012 tamamlandı; paralel başlayabilir |
 | A-011 | Repo ve modül klasör iskeletini oluştur | M | A-009 tamamlandı; fiziksel iskelet başlatılabilir |
 
 ## IN_PROGRESS
@@ -58,6 +57,7 @@ Engellenmiş görev yok.
 | A-004 | Kimlik doğrulama sağlayıcısı ADR'si | 14 Temmuz 2026 | `ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md` — PR #19 |
 | A-005 | Yerel mobil veritabanı/kuyruk ADR'si ve kalıcı yeniden deneme deneyi | 14 Temmuz 2026 | `ADR/ADR-005-yerel-mobil-veritabani-ve-kuyruk.md`, `experiments/a005_local_queue` — 17 test — PR #20 |
 | A-006 | Gerçek zamanlı kanal ADR'si ve iki istemcili yoklama olayı deneyi | 14 Temmuz 2026 | `ADR/ADR-006-gercek-zamanli-kanal.md`, `experiments/a006_realtime_sse` — 6 test — PR #21 |
+| A-007 | PDF/dosya depolama ADR'si | 15 Temmuz 2026 | `ADR/ADR-007-pdf-dosya-depolama.md` — PR #24 |
 | A-008 | Excel üretme yaklaşımı ADR'si | 15 Temmuz 2026 | `ADR/ADR-008-excel-uretim-yaklasimi.md` — PR #23 |
 | A-009 | Monorepo/repo yapısı ADR'si | 15 Temmuz 2026 | `ADR/ADR-009-monorepo-ve-repo-yapisi.md` — PR #22 |
 | A-010 | Geliştirme, staging ve üretim ortam sözleşmesi | 15 Temmuz 2026 | `ORTAM_SOZLESMESI.md` — PR #25 |
