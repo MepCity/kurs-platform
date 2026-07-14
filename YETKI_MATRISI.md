@@ -3,7 +3,7 @@
 | Alan | Değer |
 |---|---|
 | Görev | P-003 — Ayrıntılı yetki matrisini oluştur |
-| Belge sürümü | 1.2 |
+| Belge sürümü | 1.3 |
 | Ana sözleşme | `URUN_VE_UYGULAMA_PLANI.md` |
 | Terim kaynağı | `TERIMLER_SOZLUGU.md` |
 | Aktör/senaryo kaynağı | `AKTORLER_VE_KULLANIM_SENARYOLARI.md` |
@@ -38,8 +38,9 @@ Bu belge:
 
 ## 2. Roller ve temel ilkeler
 
-`TERIMLER_SOZLUGU.md` §3.1'e göre rol, kullanıcıyı sabitleyen bir kimlik değil; kullanıcıya
-bağlam (global/kurum/sınıf) bazında atanan bir yetki kümesidir. Bu matriste kullanılan üç rol:
+`TERIMLER_SOZLUGU.md` §3.1'e göre rol, kullanıcıyı sabitleyen bir kimlik değildir. Platform
+yöneticisi rolü global, kurum yöneticisi ve hoca rolleri kurum üyeliği bağlamındadır; sınıfa
+erişim ayrı bir rol değil hoca–sınıf atamasıdır. Bu matriste kullanılan üç rol:
 
 | Rol | Bağlam | Kaynak |
 |---|---|---|
@@ -97,6 +98,10 @@ Aşağıdaki ilkeler ana planda açıkça onaylanmış, tartışmasız değişme
    hocaya ayrı ve geri alınabilir izinlerle açılabilir (bkz. bölüm 3.3, bölüm 4.1). Bu izinlerin
    hiçbiri, sahibine başka bir kullanıcıya izin verme/değiştirme yetkisi sağlamaz — bu yetki
    madde 6'daki mutlak sınıra tabidir.
+6b. **Kuruma özel öğrenci alanı tanımlarını yönetme V1'de yönetici sınırıdır:** Alan tanımı
+   oluşturma, seçeneklerini değiştirme, etkinleştirme veya arşivleme yalnız kurum yöneticisi
+   ile destek modundaki platform yöneticisine açıktır; hocaya ayrı izinle devredilemez. Bu
+   sınır öğrenci kaydındaki yetkili alan değerini görüntüleme/düzenleme işleminden ayrıdır.
 7. **Sahip olunmayan veya devretme hakkı olmayan izin başkasına verilemez:** Bir kullanıcı,
    kendisinde bulunmayan veya kendisine devretme yetkisi tanınmamış bir izni başka bir
    kullanıcıya atayamaz.
@@ -149,6 +154,7 @@ tarafı doğrulama) geçerlidir; bu nedenle her hücrede tekrar yazılmamıştı
 | Kurumlar arası raporlama | Evet | Hayır (yalnızca kendi kurumu) | Hayır | Mutlak sınır — platform yöneticisi kapsamı (§2.2 madde 8) | §5.1, PLAT-06 |
 | Kurum adı/logo/renk (marka) ayarı | Evet (destek amaçlı erişimde) | Evet (kendi kurumu) | Hayır | Varsayılan kapalı — ayrı ve geri alınabilir izinle açılabilir (13 Temmuz 2026 onaylı karar 1); işlem denetim kaydı üretmelidir (bkz. bölüm 4.5) | §5.2, §8.2, §9.1, KURUM-01 |
 | Kurumda etkin modülleri belirleme | Evet | Evet (kendi kurumu) | Hayır | Varsayılan kapalı — ayrı ve geri alınabilir izinle açılabilir (13 Temmuz 2026 onaylı karar 2); işlem denetim kaydı üretmelidir (bkz. bölüm 4.5) | §8.2 |
+| Kuruma özel öğrenci alanı tanımlarını yönetme | Evet (destek amaçlı erişimde) | Evet (kendi kurumu) | Hayır | **Mutlak sınır** — V1'de hocaya devredilemez (§2.2 madde 6b); tanım/şık yönetimi denetim kaydı üretir | §5.2, §8.4, §9.3, KURUM-06 |
 | Eğitim dönemi ve takvim (çalışma günü/tatil) tanımlama | Evet (destek amaçlı erişimde) | Evet | Hayır | Varsayılan kapalı — ayrı izinle açılabilir (§5.5 "sınıf oluşturma/düzenleme" ile aynı yönetim kategorisinde sayılmıştır — bkz. bölüm 4) | §6.2, §8.2, KURUM-02 |
 
 ### 3.2. Sınıf yönetimi
@@ -195,7 +201,7 @@ kararlarına göre işaretlenmiştir; hiçbiri artık varsayım veya bekleyen ka
 | Öğrenci oluşturma/düzenleme/arşivleme | Evet (destek amaçlı erişimde) | Evet | Hayır | Varsayılan kapalı — ayrı izinle açılabilir | §5.5, §7.2, §8.4, KURUM-06 |
 | Anne/baba bilgisi yönetme | Evet (destek amaçlı erişimde) | Evet | Hayır | Varsayılan kapalı — ayrı izinle açılabilir (öğrenci yönetimiyle aynı kategoride — bkz. bölüm 4) | §5.2, §7.3, §8.4, KURUM-06 |
 | Veli iletişim bilgisi görüntüleme | Evet (destek amaçlı erişimde) | Evet (kendi kurumu) | Hayır | Varsayılan kapalı — ayrı ve geri alınabilir izinle açılabilir (13 Temmuz 2026 onaylı karar 9). Hoca bu izinle **yalnızca kendisine atanmış sınıflardaki** öğrencilerin anne/baba iletişim bilgilerini görebilir. **Öğrenci görüntüleme izni bu izni otomatik olarak sağlamaz** — ikisi bağımsız izinlerdir | §5.5, §8.4, HOCA-07 |
-| Arşivlenmiş öğrenci/sınıf kaydını geri yükleme | Evet (destek amaçlı erişimde) | Evet | Hayır | Varsayılan kapalı — ayrı izinle açılabilir (öğrenci/sınıf yönetimiyle aynı kategoride — bkz. bölüm 4) | §5.2, §14, KURUM-11 |
+| Arşivlenmiş öğrenci/sınıf kaydını geri yükleme | Evet (destek amaçlı erişimde) | Evet | Hayır | Varsayılan kapalı — ayrı ve bağımsız `RESTORE_ARCHIVED` izniyle açılabilir; öğrenci/sınıf oluşturma, düzenleme veya arşivleme izinlerinden türemez (aynı dokümantasyon kategorisindedir — bkz. bölüm 4) | §5.2, §14, KURUM-11, `VERI_MODELI.md` §4.8 |
 
 ### 3.5. Yoklama
 

@@ -320,9 +320,9 @@ merge edilmelidir.
 Planlama aşamasında otomatik testler henüz yoksa PR zorunluluğu ve inceleme koruması yine
 etkinleştirilebilir. CI kurulduğunda zorunlu durum kontrolleri eklenir.
 
-## 12. İlk görevlerin gerçek sırası
+## 12. Tarihsel ilk görev sırası
 
-Başlangıç sırası:
+Dalga 0'ın tamamlanmış tarihsel başlangıç sırası:
 
 1. `P-001` tek başına yapılır ve merge edilir.
 2. Ardından `P-002` ve `P-004` farklı agentlara paralel verilebilir.
@@ -332,7 +332,8 @@ Başlangıç sırası:
 6. `P-003` ve `P-004` tamamlanınca `P-008` yapılır.
 7. Sonraki sıra görev planındaki bağımlılık tablosundan takip edilir.
 
-Şu anda yalnızca `P-001` görevi `READY` durumundadır.
+Bu liste güncel görev durumu değildir. Her yeni oturumda `GOREV_DURUMU.md` okunur; yalnızca
+orada `READY` görünen ve bağımlılıkları doğrulanan görev başlatılır.
 
 ## 13. Koordinatöre verilecek kısa komut
 

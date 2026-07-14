@@ -3,7 +3,7 @@
 | Alan | Değer |
 |---|---|
 | Görev | P-009 — API genel kurallarını yaz |
-| Belge sürümü | 1.0 |
+| Belge sürümü | 1.1 |
 | Ana sözleşme | `URUN_VE_UYGULAMA_PLANI.md` |
 | Bağımlı sözleşmeler | `YETKI_MATRISI.md`, `VERI_MODELI.md` |
 | Son güncelleme | 14 Temmuz 2026 |
@@ -108,10 +108,15 @@ Tekil kaynak cevabı kaynak nesnesidir; koleksiyonlar ortak zarfla döner:
 | 401 | `UNAUTHENTICATED`, `SESSION_REVOKED` | Kimlik doğrulama/oturum geçersiz. |
 | 403 | `FORBIDDEN`, `ORGANIZATION_CONTEXT_REQUIRED` | Kimlik var, bağlam veya izin yetersiz. |
 | 404 | `RESOURCE_NOT_FOUND` | Kaynak yok veya erişim kapsamı dışında. |
-| 409 | `VERSION_CONFLICT`, `STATE_CONFLICT`, `IDEMPOTENCY_KEY_REUSED`, `GROUP_UNDO_CONFLICT` | Durum, sürüm, geri alma grubu ya da yazma anahtarı çelişkisi. |
-| 422 | `VALIDATION_FAILED`, `BUSINESS_RULE_VIOLATION` | Alan veya iş kuralı geçersiz. |
+| 409 | `VERSION_CONFLICT`, `STATE_CONFLICT`, `IDEMPOTENCY_KEY_REUSED`, `GROUP_UNDO_CONFLICT`, `UNDO_ALREADY_APPLIED`, `UNDO_PRECONDITION_FAILED` | Durum, sürüm, geri alma ya da yazma anahtarı çelişkisi. |
+| 410 | `EXPORT_EXPIRED` | Süreli dışa aktarma artefaktı artık indirilemez. |
+| 422 | `VALIDATION_FAILED`, `BUSINESS_RULE_VIOLATION`, `UNDO_NOT_SUPPORTED`, `UNDO_SCOPE_MISMATCH` | Alan, iş kuralı veya geri alma kapsamı geçersiz. |
 | 429 | `RATE_LIMITED` | İstek hızı sınırı aşıldı; uygun olduğunda `Retry-After` eklenir. |
 | 500 | `INTERNAL_ERROR` | Beklenmeyen hata; istemci ayrıntı görmez. |
+
+Tablo ortak kodları ve mevcut V1 sözleşmelerinde kullanılan modül kodlarını gösterir. Yeni bir
+modül hata kodu eklediğinde HTTP anlamını, güvenli mesajını ve kuyruk davranışını kendi API
+sözleşmesinde tanımlar; bu tabloyla çelişen ikinci bir anlam veremez.
 
 ## 6. Okuma, listeleme, filtreleme ve sıralama
 

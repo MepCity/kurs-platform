@@ -3,10 +3,10 @@
 | Alan | Değer |
 |---|---|
 | Görev | P-004 — Kişisel ve hassas veri envanterini çıkar |
-| Belge sürümü | 1.0 |
+| Belge sürümü | 1.1 |
 | Ana sözleşme | `URUN_VE_UYGULAMA_PLANI.md` |
 | Terim kaynağı | `TERIMLER_SOZLUGU.md` |
-| Son güncelleme | 13 Temmuz 2026 |
+| Son güncelleme | 14 Temmuz 2026 |
 
 ---
 
@@ -97,6 +97,7 @@ karara bağlanacak konudur.
 | 15 | Platform yöneticisinin kurum verisine erişim izi | Denetim kaydı (`audit_log`) | Teknik/işlem verisi | Platform yöneticisinin istisnai geniş erişiminin kötüye kullanılmadığını denetlemek için gereklidir. [Karar] | Bu erişimin denetim kaydı üretmesi ana planın açık hükmüdür (bölüm 5.1: "Platform yöneticisinin kurum verisine erişimi denetim kaydı üretir"; bölüm 8.10). [Karar] Bu akışın ayrıca test edilmesi gerektiği yönündeki öneri henüz ayrı bir test görevine bağlanmamıştır. [Öneri/bekleyen karar] | Normal uygulama akışında denetim kaydı olarak saklanır ve değiştirilemez. [Karar] Hukuki saklama süresinin sonsuz olduğu iddia edilmez; bu ayrı bir değerlendirme konusudur (bölüm 14). [Öneri/bekleyen karar] |
 | 16 | Excel/rapor dışa aktarımı (öğrenci listesi, veli iletişim bilgisi, yoklama, ilerleme, dönem özeti) | Rapor/dışa aktarma (EXPORT modülü) | Yüksek riskli kişisel veri (ürün içi sınıf; toplu dışa aktarım) | Birden fazla kişisel veri öğesini tek dosyada birleştirdiği için tekil kayda göre daha yüksek risk taşır. [Çıkarım] | "Rapor dışa aktarma" ayrı bir yetkidir (bölüm 5.5) ve işlem denetim kaydı üretir (bölüm 8.10); dosya sunucuda üretilip güvenli, süreli indirme bağlantısıyla sunulmalıdır (bölüm 8.9). [Karar] | Üretilen dosyanın saklanma/erişim süresi ana planda kesinleştirilmemiştir (bkz. bölüm 6 Bilinen sınırlamalar). [Öneri/bekleyen karar] |
 | 17 | Kurum adı, logo, renkler | Kurum (`organization`) | Temel kişisel olmayan (kurumsal) veri | Bireyi değil kurumu tanımlar; düşük mahremiyet riski taşır. [Çıkarım] | Yalnızca kurum yöneticisi/platform yöneticisi değiştirebilir (bölüm 5.1, 5.2, 9.1). [Karar] | Kurum, ana planın bölüm 14'ünde normal arayüzden fiziksel silinmeyeceği açıkça belirtilen beş varlıktan biridir. [Karar] |
+| 18 | Platform yöneticisi profil adı, telefonu ve notu | Platform yöneticisi global profili (`platform_administrator_profile`) | Telefon ve serbest not için yüksek riskli kişisel veri; ad/soyad için temel kişisel veri | Global yönetici profilini doğrudan tanımlar; not serbest metin olduğu için ek hassas içerik taşıyabilir. [Çıkarım] | Yalnız platform yöneticisinin kendi profil akışı ve açıkça yetkili platform yönetimi işlemleri erişebilir; kurum rolleri bu global profile erişemez. Kurum verisine destek erişimi ayrıca denetlenir. [Karar + Çıkarım] | Profil isteğe bağlıdır ve global kullanıcı hesabına bağlıdır. Profilin kesin saklama/silme politikası ana planda ayrıca yazılı değildir; hukukî saklama/imha süresiyle birlikte ayrı prosedürde kesinleşir. [Öneri/bekleyen karar] |
 
 ---
 
@@ -107,7 +108,7 @@ karara bağlanacak konudur.
   bölüm 3.5, 15) tabidir; bu envanterde ayrıca tekrarlanmamıştır, her satırda örtük kabul edilir.
 - Ana planın bölüm 14'ü (Silme, arşivleme ve veri yaşam döngüsü) yalnızca **öğrenci, sınıf,
   program, kurum ve kullanıcı** için normal arayüzden fiziksel silinmeyeceğini açıkça
-  kesinleştirir. Bu envanterde yalnızca bu beş varlığa doğrudan bağlı satırlar (9, 17 ve dolaylı
+  kesinleştirir. Bu envanterde yalnızca bu beş varlığa doğrudan bağlı satırlar (9, 17, 18 ve dolaylı
   olarak 8'in öğrenciye bağlı hâli) `[Karar]` olarak işaretlenmiştir. Kişi, anne/baba, yoklama
   kaydı ve ilerleme kaydı gibi ana planda ayrıca adı geçmeyen varlıklar için kesin saklama/silme
   garantisi verilmemiş, `[Öneri/bekleyen karar]` olarak bırakılmıştır.

@@ -4,14 +4,14 @@
 
 | Alan | Değer |
 |---|---|
-| Belge sürümü | 1.0 |
+| Belge sürümü | 1.1 |
 | Durum | Onaylanmış başlangıç sözleşmesi |
 | İlk yayın hedefi | Yaklaşık 2–3 ay; kalite zaman baskısından önceliklidir |
 | İlk sürüm kullanıcıları | Platform yöneticisi, kurum yöneticisi ve hocalar |
 | İlk istemciler | iOS ve Android mobil uygulama |
 | Sonraki istemciler | Web yönetim paneli, veli ve öğrenci uygulama deneyimi |
 | Veri başlangıcı | Temiz başlangıç; eski Excel ve Google Sheets verileri yalnızca referanstır |
-| Son güncelleme | 13 Temmuz 2026 |
+| Son güncelleme | 14 Temmuz 2026 |
 
 ---
 
@@ -935,6 +935,25 @@ Kabul ölçütleri:
 - Kurum izolasyonu ve yetki yaklaşımı yazılı olmalı.
 - Eşzamanlı değişiklik senaryosu teknik olarak doğrulanmalı.
 
+#### Faz 0 ile çalışma dalgalarının eşlemesi
+
+Ürün **fazları** kabul sonucunu, çalışma **dalgaları** ise agent görevlerinin yürütme paketlerini
+ifade eder; aynı kavram değildir. Faz 0 iki çalışma parçasından oluşur:
+
+| Faz 0 parçası | Görev karşılığı | Kapı durumu |
+|---|---|---|
+| Ürün, UX ve veri/API sözleşmeleri | Dalga 0, `P-001`–`P-014` | Tamamlandı; P-014 yalnız bu belge kapısını kapatır |
+| Teknik karar ve risk doğrulaması | Dalga 1'in `A-001`–`A-010` bölümü | Açık; ADR ve çalıştırılabilir deney kanıtlarıyla kapanır |
+
+`A-001` mobil framework dikey denemesini, `A-005` kalıcı yerel kuyruk/idempotent yeniden deneme
+denemesini, `A-006` ise iki istemcili yoklama olayı yayılımı/eşzamanlılık denemesini kanıtlarıyla üretir.
+`A-002`–`A-004` ve `A-007`–`A-010` kalan teknik karar kayıtlarını tamamlar. Faz 0 teknik kabul
+kapısı `A-001`–`A-010` onaylanmadan kapanmış sayılmaz.
+
+Dalga 1'in `A-011`–`A-015` bölümü Faz 1 platform temeline aittir. Bu nedenle Dalga 1 iki ürün
+fazına yayılan bir yürütme paketidir; `A-011` repo/uygulama iskeleti Faz 0 teknik kapısından önce
+başlatılamaz.
+
 ### Faz 1 — Platform temeli
 
 Amaç: Güvenli ve test edilebilir uygulama iskeletini kurmak.
@@ -1218,6 +1237,17 @@ Dalga 0 belgeleri tamamlanmadan ilgili alanda büyük ölçekli geliştirmeye ba
   bu yetki hiçbir izinle hocaya devredilemez.
 - Veli iletişim bilgisi görüntüleme, hoca için varsayılan kapalı ve ayrı izinle açılabilir bir
   yetkidir; öğrenci görüntüleme izninden bağımsızdır.
+
+### 14 Temmuz 2026 — PLAN-004 tutarlılık kararları
+
+- Ürün fazları kabul sonuçlarını, çalışma dalgaları agent yürütme paketlerini ifade eder. Dalga 0
+  belge kapısı tamamlanmıştır; Faz 0 teknik doğrulama kapısı `A-001`–`A-010` tamamlanana kadar
+  açıktır. Dalga 1'in `A-011`–`A-015` bölümü Faz 1 platform temeline aittir.
+- `A-001`, `A-005` ve `A-006` salt ADR metniyle tamamlanamaz; sırasıyla mobil dikey uygulama,
+  kalıcı kuyruk/idempotent yeniden deneme ve iki istemcili olay yayılımı deney kanıtı üretir.
+- Kuruma özel öğrenci alanı tanımlarını yönetme V1'de yalnız kurum yöneticisine ve açık destek
+  bağlamındaki platform yöneticisine aittir; hocaya devredilemez. Öğrencideki özel alan değerine
+  erişim, alan tanımı yönetiminden ayrı olarak hedef öğrenci erişim kapsamına tabidir.
 
 ---
 

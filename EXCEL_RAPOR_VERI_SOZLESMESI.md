@@ -3,7 +3,7 @@
 | Alan | Değer |
 |---|---|
 | Görev | P-012 — Excel rapor veri sözleşmesini tanımla |
-| Belge sürümü | 1.2 |
+| Belge sürümü | 1.3 |
 | Ana sözleşme | `URUN_VE_UYGULAMA_PLANI.md` |
 | Bağımlı sözleşmeler | `VERI_MODELI.md`, `YETKI_MATRISI.md`, `KISISEL_VERI_ENVANTERI.md`, `API_GENEL_KURALLARI.md` |
 | Modül | EXPORT |
@@ -315,6 +315,11 @@ aralık sonundaki durum değil, üyeliğin gerçek tarih aralığı gösterilir.
 `sourceCutoffAt` anındaki etkin üyelik satırı görünür; bütün üyelik geçmişi görünmez. Arşivli
 öğrenci/sınıf üyeliği de tarih veya dönem kesişimi varsa aynı kuralla görünür.
 
+`Üyelik Durumu` depolanan bir sütun değildir; `sourceCutoffAt` anına göre deterministik türetilir.
+`started_at <= sourceCutoffAt` ve (`ended_at IS NULL` veya `ended_at > sourceCutoffAt`) ise
+`Aktif`, aksi halde `Sona Erdi` yazılır. Bu görünür değer, rapor tarih aralığına geçmiş üyelik
+satırının dahil edilip edilmemesi kararını değiştirmez.
+
 `guardianContacts=true` ise buna `Anne Ad Soyad`, `Anne Telefon`, `Baba Ad Soyad`, `Baba Telefon`
 sütunları eklenir. Veli ilişkisi olmayan öğrenci için ilgili hücreler boş kalır; telefon
 uydurulmaz. Kalıcı kurum içi tanımlayıcı kullanılacak olursa bunun takma adlı kişisel veri olduğu
@@ -340,6 +345,11 @@ Satır birimi öğrenci-plan-ilerleme kaydıdır. Sütunlar: `Öğrenci Rapor No
 `Tekrar Gerekli`, `Kaydedilme Zamanı`. Puan ve tekrar gerekli yalnızca ilgili program sürümünde
 etkinse doldurulur. `Öğretmen Notu` standart Excel raporuna dahil edilmez;
 normal notu görme yetkisi, toplu dışa aktarma için ayrıca veri minimizasyonu istisnası yaratmaz.
+
+`İçerik/Başlık` şu sırayla türetilir: şablondan gelen plan kaleminde boş olmayan
+`program_template_days.title`; aksi halde bağlı `contents.body_text`. İkisi de yoksa hücre boş
+kalır. Metin bölüm 5.2'deki formül enjeksiyonu temizliğinden ve XLSX hücre uzunluğu sınırından
+geçer; PDF dosya adı veya indirme bağlantısı bu sütuna yazılmaz.
 
 Bu sayfa yalnızca seçili tarih aralığındaki `plan_items.planned_date` ve seçili kapsamda geçerli
 öğrencilerin `progress_records` satırlarını içerir. Sıra `Plan Tarihi`, `Sınıf`, `Program`,

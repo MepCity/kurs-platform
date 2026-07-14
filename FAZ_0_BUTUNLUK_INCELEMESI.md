@@ -1,9 +1,9 @@
-# Faz 0 Bütünlük İncelemesi
+# Faz 0 Bütünlük İncelemesi — Dalga 0 Belge Kapısı
 
 | Alan | Değer |
 |---|---|
 | Görev | P-014 — Faz 0 bütünlük incelemesi yap |
-| Sonuç | MERGE EDİLEBİLİR — Dalga 0 çıkış kapısı karşılandı |
+| Sonuç | MERGE EDİLEBİLİR — Dalga 0 belge kapısı karşılandı; Faz 0 teknik kapısı açık |
 | İncelenen bağımlılıklar | P-001–P-013 |
 | İnceleme tarihi | 14 Temmuz 2026 |
 
@@ -12,6 +12,10 @@
 Bu inceleme, Dalga 0 belgelerinin ana ürün sözleşmesine uyduğunu ve birbirleriyle
 uygulanabilir, çelişkisiz bir başlangıç sözleşmesi oluşturduğunu doğrular. Uygulama,
 migration veya teknoloji seçimi yapmaz; bunlar Dalga 1 ve sonraki görevlerin kapsamındadır.
+
+Görev adındaki “Faz 0”, ana ürün planındaki Faz 0'ın tamamının kapandığı anlamına gelmez.
+`URUN_VE_UYGULAMA_PLANI.md` §21'deki eşlemeye göre bu inceleme yalnız `P-001`–`P-014` Dalga 0
+belge kapısını kapatır. Faz 0'ın teknik doğrulama bölümü `A-001`–`A-010` ile devam eder.
 
 İncelenen çıktılar: terimler, aktörler, yetki ve kişisel veri belgeleri; iki mobil bilgi
 mimarisi ve ekran envanteri; veri modeli; API, senkronizasyon, denetim/geri alma, Excel
@@ -117,9 +121,21 @@ Bu sınırlar Dalga 0 çıkış ölçütlerine aykırı değildir ve A-001–A-0
    yoktur. P-013 KAP kartları otomasyon planıdır; uygulanmamış kartlar PASS olarak
    raporlanmamıştır.
 
+Dosya ve bölüm başvurusu taramaları yalnız **yapısal** bütünlüğü kanıtlar; iki mevcut cümlenin
+aynı anlamı taşıdığını veya güncel ürün kararını doğru aktardığını tek başına kanıtlamaz.
+Semantik bütünlük ayrıca insan/agent çapraz incelemesi gerektirir. `PLAN-004` harici inceleme
+sonrasında Faz/Dalga ayrımı, özel alan yetkisi, HOCA-07, KAP-32, rol/sınıf ataması ve diğer
+izlenebilirlik boşluklarını bu nedenle ayrıca düzeltmiştir.
+
 ## 9. Sonraki güvenli hareket
 
 P-014 merge ve görev panosu koordinatör tarafından güncellendikten sonra yalnız
 `A-001`–`A-008` paralel `READY` olabilir. `A-009`, `A-010` ve `A-011` kendi bağımlılıkları
 tamamlanana kadar; sonraki iskelet görevleri ise ilgili ADR kararları tamamlanana kadar
 başlatılmamalıdır.
+
+## 10. PLAN-004 sonrası not
+
+P-014'ün “Dalga 0 belge kapısı geçti” sonucu korunur; “Faz 0 tamamen bitti” sonucu çıkarılamaz.
+Güncel Faz/Dalga eşlemesi `URUN_VE_UYGULAMA_PLANI.md` §21 ve `AGENT_GOREV_PLANI.md` §9'da,
+operasyonel görev durumu ise yalnız `GOREV_DURUMU.md`de tutulur.
