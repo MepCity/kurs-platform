@@ -45,6 +45,12 @@ veya öğrenci verisi, kullanıcı sayısından bağımsız production pilotu ve
 
 ### A-004R1–A-004R3 — Cognito Essentials deney zinciri
 
+- **Zorunlu güvenlik kapısı:** A-004R1'in AWS işlemlerinin hesap `root` principal'ıyla
+  yürütülmüş olması yüksek önemde güvenlik bulgusudur. A-004R2 veya A-004R3 başlamadan önce
+  AWS IAM Identity Center üzerinden kısa ömürlü oturum ya da STS `AssumeRole` ile alınan,
+  yalnız deney kaynaklarına yetkili en az ayrıcalıklı bir rol kullanılmalıdır. Kimlik ön
+  kontrolü `root` veya uzun ömürlü IAM user/access key gösterirse görev fail-closed durur ve
+  `BLOCKED` raporlanır; izinler genişletilmez. Kalan deneyler root principal ile yürütülemez.
 - `A-004R1`; sentetik kullanıcılarla provisioning, username/geçici parola, ilk parola değişimi,
   kayıp create yanıtı ve gerçek mobil PKCE akışını kanıtlar. İlk AWS kaynağından önce `5 USD`
   alarm kurulur; yazılı ürün sahibi onayı olmadan `10 USD` üstüne çıkılmaz.
