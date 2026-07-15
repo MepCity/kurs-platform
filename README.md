@@ -36,6 +36,8 @@ import etmez. Ayrıntılı sınırlar için uygulama dizinlerindeki README dosya
 [`ADR-009`](ADR/ADR-009-monorepo-ve-repo-yapisi.md) belgesine bakın.
 
 Repo düzeyi fiziksel sınır kontrolü `./tooling/check_repo_boundaries.sh` ile çalıştırılır.
+Pull request kalite kapıları, cache/SBOM yaklaşımı ve zorunlu kontrol adları
+[`tooling/README.md`](tooling/README.md) belgesinde açıklanır.
 
 Dalga 0 belge kapısı tamamlanmıştır. Faz 0'ın sınırlı teknik doğrulama/ADR işleri
 (`A-001`–`A-010`) üretim geliştirmesi değildir ve bu kapıyı kanıtla kapatmak için yürütülür;

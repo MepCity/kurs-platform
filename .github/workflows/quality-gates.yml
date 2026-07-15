@@ -1,0 +1,342 @@
+name: A-012 kalite kapıları
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-gates-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_REVISION: ee80f08bbf97172ec030b8751ceab557177a34a6
+
+jobs:
+  changes:
+    name: Değişen alanları belirle
+    runs-on: ubuntu-24.04
+    outputs:
+      backend: ${{ steps.areas.outputs.backend }}
+      mobile: ${{ steps.areas.outputs.mobile }}
+    steps:
+      - name: Kodu al
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Karşılaştırma tabanını belirle
+        id: refs
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BASE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            echo "base=$PR_BASE_SHA" >> "$GITHUB_OUTPUT"
+          elif [[ "$PUSH_BASE_SHA" =~ ^0+$ ]]; then
+            if parent_sha=$(git rev-parse HEAD^ 2>/dev/null); then
+              echo "base=$parent_sha" >> "$GITHUB_OUTPUT"
+            else
+              echo "base=$(git hash-object -t tree /dev/null)" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "base=$PUSH_BASE_SHA" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Etkilenen uygulamaları seç
+        id: areas
+        run: ./tooling/ci/detect_changed_areas.sh "${{ steps.refs.outputs.base }}" "${{ github.sha }}"
+
+  repo:
+    name: Repo sınırlarını doğrula
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Kodu al
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Repo sınırlarını doğrula
+        run: ./tooling/check_repo_boundaries.sh
+
+      - name: Tooling regresyon testlerini çalıştır
+        run: |
+          ./tooling/test/check_repo_boundaries_test.sh
+          ./tooling/test/quality_workflow_test.sh
+
+  backend:
+    name: Backend test ve build
+    if: needs.changes.outputs.backend == 'true'
+    needs: changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Kodu al
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Java 21'i hazırla
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Gradle wrapper ve açık kaynak cache'i hazırla
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6
+        with:
+          cache-provider: basic
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Test ve build kapısını çalıştır
+        working-directory: apps/backend
+        run: ./gradlew test build --no-daemon
+
+      - name: Backend SBOM üret
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        with:
+          path: apps/backend/build/libs
+          format: cyclonedx-json
+          artifact-name: backend-sbom.cdx.json
+          output-file: backend-sbom.cdx.json
+          syft-version: v1.46.0
+          upload-artifact-retention: 14
+
+  mobile-android:
+    name: Mobil statik test ve Android build
+    if: needs.changes.outputs.mobile == 'true'
+    needs: changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Kodu al
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Flutter SDK cache'ini yükle
+        id: flutter-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ${{ runner.temp }}/flutter
+          key: flutter-${{ runner.os }}-${{ env.FLUTTER_REVISION }}-android
+
+      - name: Flutter SDK'yı sabitle
+        if: steps.flutter-cache.outputs.cache-hit != 'true'
+        env:
+          FLUTTER_REPOSITORY: https://github.com/flutter/flutter.git
+        run: |
+          git clone --filter=blob:none --no-checkout "$FLUTTER_REPOSITORY" "$RUNNER_TEMP/flutter"
+          git -C "$RUNNER_TEMP/flutter" fetch --depth=1 origin "$FLUTTER_REVISION"
+          git -C "$RUNNER_TEMP/flutter" checkout --detach "$FLUTTER_REVISION"
+
+      - name: Flutter ve pub cache yollarını hazırla
+        run: |
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+          echo "PUB_CACHE=$HOME/.pub-cache" >> "$GITHUB_ENV"
+
+      - name: Pub cache'ini yükle
+        id: pub-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ~/.pub-cache
+          key: pub-${{ runner.os }}-${{ hashFiles('apps/mobile/pubspec.lock') }}
+          restore-keys: pub-${{ runner.os }}-
+
+      - name: Mobil kalite ve Android binary kapısını çalıştır
+        working-directory: apps/mobile
+        run: |
+          flutter config --no-analytics
+          flutter --version
+          flutter precache --android
+          flutter pub get --enforce-lockfile
+          dart format --output=none --set-exit-if-changed lib test
+          flutter analyze
+          flutter test
+          flutter build apk --debug
+
+      - name: Flutter SDK cache'ini main dalında kaydet
+        if: github.ref == 'refs/heads/main' && steps.flutter-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ${{ runner.temp }}/flutter
+          key: flutter-${{ runner.os }}-${{ env.FLUTTER_REVISION }}-android
+
+      - name: Pub cache'ini main dalında kaydet
+        if: github.ref == 'refs/heads/main' && steps.pub-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ~/.pub-cache
+          key: pub-${{ runner.os }}-${{ hashFiles('apps/mobile/pubspec.lock') }}
+
+      - name: Mobil SBOM üret
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        with:
+          path: apps/mobile
+          format: cyclonedx-json
+          artifact-name: mobile-sbom.cdx.json
+          output-file: mobile-sbom.cdx.json
+          syft-version: v1.46.0
+          upload-artifact-retention: 14
+
+  mobile-ios:
+    name: iOS simulator binary build
+    if: needs.changes.outputs.mobile == 'true'
+    needs: changes
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Kodu al
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Flutter SDK cache'ini yükle
+        id: flutter-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ${{ runner.temp }}/flutter
+          key: flutter-${{ runner.os }}-${{ env.FLUTTER_REVISION }}-ios
+
+      - name: Flutter SDK'yı sabitle
+        if: steps.flutter-cache.outputs.cache-hit != 'true'
+        env:
+          FLUTTER_REPOSITORY: https://github.com/flutter/flutter.git
+        run: |
+          git clone --filter=blob:none --no-checkout "$FLUTTER_REPOSITORY" "$RUNNER_TEMP/flutter"
+          git -C "$RUNNER_TEMP/flutter" fetch --depth=1 origin "$FLUTTER_REVISION"
+          git -C "$RUNNER_TEMP/flutter" checkout --detach "$FLUTTER_REVISION"
+
+      - name: Flutter ve pub cache yollarını hazırla
+        run: |
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+          echo "PUB_CACHE=$HOME/.pub-cache" >> "$GITHUB_ENV"
+
+      - name: Pub cache'ini yükle
+        id: pub-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ~/.pub-cache
+          key: pub-${{ runner.os }}-${{ hashFiles('apps/mobile/pubspec.lock') }}
+          restore-keys: pub-${{ runner.os }}-
+
+      - name: Xcode ortamını ve iOS binary build'i doğrula
+        working-directory: apps/mobile
+        run: |
+          xcodebuild -version
+          flutter config --no-analytics
+          flutter --version
+          flutter precache --ios
+          flutter pub get --enforce-lockfile
+          flutter build ios --debug --simulator --no-codesign
+
+      - name: Flutter SDK cache'ini main dalında kaydet
+        if: github.ref == 'refs/heads/main' && steps.flutter-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ${{ runner.temp }}/flutter
+          key: flutter-${{ runner.os }}-${{ env.FLUTTER_REVISION }}-ios
+
+      - name: Pub cache'ini main dalında kaydet
+        if: github.ref == 'refs/heads/main' && steps.pub-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ~/.pub-cache
+          key: pub-${{ runner.os }}-${{ hashFiles('apps/mobile/pubspec.lock') }}
+
+  dependency-review:
+    name: Yeni bağımlılıkları denetle
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Bağımlılık güvenlik incelemesini çalıştır
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5
+        with:
+          fail-on-severity: high
+          vulnerability-check: true
+          license-check: true
+          deny-licenses: AGPL-1.0-only, AGPL-1.0-or-later, AGPL-3.0-only, AGPL-3.0-or-later
+          show-openssf-scorecard: true
+
+  dependency-graph:
+    name: Backend bağımlılık grafiğini gönder
+    if: github.event_name == 'push' && needs.changes.outputs.backend == 'true'
+    needs: changes
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Kodu al
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Java 21'i hazırla
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Gradle bağımlılık grafiğini gönder
+        uses: gradle/actions/dependency-submission@3f131e8634966bd73d06cc69884922b02e6faf92 # v6
+        with:
+          build-root-directory: apps/backend
+          cache-provider: basic
+
+  repo-gate:
+    name: Repo kalite kapısı
+    if: always()
+    needs: [changes, repo]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Sonucu doğrula
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          REPO_RESULT: ${{ needs.repo.result }}
+        run: test "$CHANGES_RESULT" = success && test "$REPO_RESULT" = success
+
+  backend-gate:
+    name: Backend kalite kapısı
+    if: always()
+    needs: [changes, backend]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Sonucu doğrula
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          BACKEND_RESULT: ${{ needs.backend.result }}
+        run: |
+          test "$CHANGES_RESULT" = success
+          test "$BACKEND_RESULT" = success || test "$BACKEND_RESULT" = skipped
+
+  mobile-gate:
+    name: Mobil kalite kapısı
+    if: always()
+    needs: [changes, mobile-android, mobile-ios]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Sonucu doğrula
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          ANDROID_RESULT: ${{ needs.mobile-android.result }}
+          IOS_RESULT: ${{ needs.mobile-ios.result }}
+        run: |
+          test "$CHANGES_RESULT" = success
+          test "$ANDROID_RESULT" = success || test "$ANDROID_RESULT" = skipped
+          test "$IOS_RESULT" = success || test "$IOS_RESULT" = skipped
+
+  dependency-gate:
+    name: Bağımlılık güvenliği
+    if: always()
+    needs: dependency-review
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Sonucu doğrula
+        env:
+          REVIEW_RESULT: ${{ needs.dependency-review.result }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            test "$REVIEW_RESULT" = success
+          else
+            test "$REVIEW_RESULT" = skipped
+          fi
