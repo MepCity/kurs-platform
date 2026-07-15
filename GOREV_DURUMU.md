@@ -2,10 +2,10 @@
 
 | Alan | Değer |
 |---|---|
-| Son güncelleme | 15 Temmuz 2026 |
+| Son güncelleme | 16 Temmuz 2026 |
 | Aktif dalga | Dalga 1 — Teknoloji kararları ve iskelet |
 | Aktif görev | Yok |
-| Sıradaki görev | A-004R3 — Cognito maliyet/operasyon kararını kapat ve geçici kaynakları kaldır |
+| Sıradaki görev | IAM-001 — Giriş/oturum API sözleşmesini kesinleştir |
 
 Bu dosya projenin kaldığı yeri gösteren kısa operasyon panosudur. Her çalışma oturumunun
 başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev tanımları
@@ -15,7 +15,8 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 
 | Kimlik | Görev | Boyut | Not |
 |---|---|---:|---|
-| A-004R3 | Cognito maliyet/operasyon kararını kapat ve geçici kaynakları kaldır | S | A-004R2 iptal/uzlaştırma deneyi tamamlandı; nihai sağlayıcı kararı, maliyet kanıtı ve eksiksiz AWS teardown envanteri bekleniyor |
+| IAM-001 | Giriş/oturum API sözleşmesini kesinleştir | S | P-003 ve A-004R3 tamamlandı; Cognito provider/platform sınırı sözleşmeye dönüştürülebilir |
+| A-013 | Ortam değişkeni ve secret yönetimi iskeleti | S | A-010, A-011, PLAN-005 ve A-004R3 tamamlandı; provider secret ve çalışma kimliği sınırı uygulanabilir |
 
 ## IN_PROGRESS
 
@@ -58,6 +59,7 @@ Engellenmiş görev yok.
 | A-004 | Kimlik doğrulama sağlayıcısı ADR'si | 14 Temmuz 2026 | `ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md` — PR #19 |
 | A-004R1 | Cognito provisioning, ilk parola ve gerçek mobil PKCE deneyini yap | 15 Temmuz 2026 | `A004R1_COGNITO_PROVISIONING_VE_PKCE_KANITI.md`, `experiments/a004r1_cognito_pkce` — Android PKCE ve provisioning kanıtı — PR #28 |
 | A-004R2 | Cognito iptal, platform oturumu ve olay kaybı uzlaştırma deneyini yap | 15 Temmuz 2026 | `A004R2_COGNITO_IPTAL_VE_UZLASTIRMA_KANITI.md`, `experiments/a004r2_cognito_revocation` — gerçek Cognito iptal/rotation kanıtı ve 14 test — PR #31 |
+| A-004R3 | Cognito maliyet/operasyon kararını kapat ve geçici kaynakları kaldır | 16 Temmuz 2026 | `A004R3_COGNITO_MALIYET_OPERASYON_VE_TEARDOWN_KANITI.md`, `ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md` — Cognito Essentials kararı, maliyet modeli ve eksiksiz AWS teardown kanıtı — PR #32 |
 | A-005 | Yerel mobil veritabanı/kuyruk ADR'si ve kalıcı yeniden deneme deneyi | 14 Temmuz 2026 | `ADR/ADR-005-yerel-mobil-veritabani-ve-kuyruk.md`, `experiments/a005_local_queue` — 17 test — PR #20 |
 | A-006 | Gerçek zamanlı kanal ADR'si ve iki istemcili yoklama olayı deneyi | 14 Temmuz 2026 | `ADR/ADR-006-gercek-zamanli-kanal.md`, `experiments/a006_realtime_sse` — 6 test — PR #21 |
 | A-007 | PDF/dosya depolama ADR'si | 15 Temmuz 2026 | `ADR/ADR-007-pdf-dosya-depolama.md` — PR #24 |
