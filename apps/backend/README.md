@@ -32,6 +32,17 @@ fail-closed reddedilir. `core` hiçbir iş modülüne, iş modülleri de composi
 A-011 endpoint, migration, persistence, auth/storage portu, sağlayıcı SDK'sı, secret, ortam
 değişkeni veya deployment kaynağı içermez.
 
+## Gözlemlenebilirlik sınırı
+
+`core.observability` yalnız tipli factory'lerle kurulabilen sağlayıcı bağımsız olay sözleşmesini,
+`configuration.observability` ise HTTP korelasyonu ve SLF4J adaptörünü taşır. İstek gövdesi,
+sorgu parametreleri, parola, token, telefon, adres, serbest not ve istisna mesajı loglanmaz.
+Geçerli `X-Request-Id` yanıta taşınır; eksikse sunucu üretir, geçersizse güvenli `400` zarfı
+döner. Logger `RuntimeException` hataları HTTP/asıl exception davranışını değiştirmeyen
+best-effort sınırında kalır; JVM `Error` türleri genel olarak yutulmaz. `FATAL`, SLF4J
+`atError()` üzerinden özgün severity alanıyla taşınır. Gerçek izleme sağlayıcısı, secret ve
+production alarm kurulumu bu iskeletin parçası değildir.
+
 ## Yerel doğrulama
 
 ```bash

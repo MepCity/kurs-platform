@@ -39,6 +39,10 @@ Repo düzeyi fiziksel sınır kontrolü `./tooling/check_repo_boundaries.sh` ile
 Pull request kalite kapıları, cache/SBOM yaklaşımı ve zorunlu kontrol adları
 [`tooling/README.md`](tooling/README.md) belgesinde açıklanır.
 
+Sağlayıcı bağımsız loglama, güvenli hata yakalama, hassas veri minimizasyonu ve başlangıç alarm
+eşikleri [`GOZLEMLENEBILIRLIK_VE_HATA_IZLEME_SOZLESMESI.md`](GOZLEMLENEBILIRLIK_VE_HATA_IZLEME_SOZLESMESI.md)
+belgesinde tanımlıdır.
+
 Dalga 0 belge kapısı tamamlanmıştır. Faz 0'ın sınırlı teknik doğrulama/ADR işleri
 (`A-001`–`A-010`) üretim geliştirmesi değildir ve bu kapıyı kanıtla kapatmak için yürütülür;
 uygulama iskeleti `A-011` ile, Faz 0 teknik kabul kapısı tamamlandıktan sonra başlar.
