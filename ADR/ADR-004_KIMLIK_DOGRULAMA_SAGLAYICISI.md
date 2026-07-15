@@ -2,7 +2,7 @@
 
 | Alan | Değer |
 |---|---|
-| Durum | Yeniden değerlendirmede — A-004R1–A-004R3 Cognito Essentials deney zincirini bekliyor |
+| Durum | Kabul edildi — V1 için Amazon Cognito Essentials |
 | Tarih | 15 Temmuz 2026 |
 | Görev | A-004 — Kimlik doğrulama sağlayıcısı ADR'si |
 | Karar sahipliği | Dalga 1 teknik kararları |
@@ -48,8 +48,8 @@ profilini seçer. Veritabanı/hosting (`A-003`), ortam sırları
 
 | Seçenek | Güçlü yönler | Sınırlamalar | Sonuç |
 |---|---|---|---|
-| **Keycloak (self-managed), tek global realm** | Açık standart OIDC/OAuth 2.0, kullanıcı adı/parola, PKCE zorunluluğu, dönen refresh token, oturum/administration API'leri; belirli bulut sağlayıcısına bağlamaz. | İşletme, yükseltme, yedekleme ve yüksek erişilebilirlik sorumluluğu platformdadır. | Fallback; uygulama kararı askıda |
-| Amazon Cognito Essentials User Pool | Yönetilen hizmet, native app için PKCE, username/parola, refresh-token rotasyonu ve iptal desteği; doğrudan kullanıcılar için ücretsiz MAU kotası. | AWS hesabı/bölgesi ve IAM yönetim yüzeyi getirir; provider iptali kurum-kapsamlı platform iptalinin yerine geçemez. | **A-004R1–A-004R3 deney adayı** |
+| **Keycloak (self-managed), tek global realm** | Açık standart OIDC/OAuth 2.0, kullanıcı adı/parola, PKCE zorunluluğu, dönen refresh token, oturum/administration API'leri; belirli bulut sağlayıcısına bağlamaz. | İşletme, yükseltme, yedekleme ve yüksek erişilebilirlik sorumluluğu platformdadır. | Fallback |
+| Amazon Cognito Essentials User Pool | Yönetilen hizmet, native app için PKCE, username/parola, refresh-token rotasyonu ve iptal desteği; doğrudan kullanıcılar için ücretsiz MAU kotası. | AWS hesabı/bölgesi ve IAM yönetim yüzeyi getirir; provider iptali kurum-kapsamlı platform iptalinin yerine geçemez. | **V1 için kabul edildi** |
 | Auth0 | Native uygulama ve refresh-token rotasyonu için olgun SaaS deneyimi sunar. | Ticari fiyatlandırma ve sağlayıcı bağımlılığı getirir; kurum-kapsamlı erişim/iptal değişmezleri yine uygulamada kalır. | Reddedildi |
 | Firebase Authentication | Mobil SDK'lar ve yönetilen kullanıcı oturumları sunar. | Token iptali sunucu tarafında ek doğrulama çağrısı gerektirir; IAM sınırlarına göre daha fazla platforma özgü SDK/operasyon bağımlılığı getirir. | Reddedildi |
 | Uygulama içinde parola/oturum implementasyonu | Tek deploy birimi olabilir. | Parola saklama, sıfırlama, saldırı koruması, OIDC uyumluluğu ve oturum güvenliği için gereksiz yüksek güvenlik sorumluluğu doğurur. | Reddedildi |
@@ -67,6 +67,26 @@ iş yükü ve seçilen hosting bölgesiyle hesaplanır.
 | Auth0 | Liste fiyatında ücretsiz katman 25.000 MAU; ücretli katman 500 MAU için aylık 35 USD'den başlar. | SaaS bağımlılığı ve plan/limit yükseltme riski; işletim yükü düşer. |
 | Firebase Authentication | Çoğu auth seçeneği ücretsiz; Identity Platform e-posta/sosyal için 50.000 MAU ücretsiz kota, telefon ayrı ücretlidir. | Google Cloud bağımlılığı ve telefon/SMS maliyeti; işletim yükü düşer. |
 
+### 16 Temmuz 2026 tarihli Cognito Essentials maliyet modeli
+
+Bu model AWS'nin 16 Temmuz 2026 tarihinde erişilen resmî
+[Amazon Cognito fiyatlandırma](https://aws.amazon.com/cognito/pricing/) sayfasının liste
+fiyatlarına dayanır; vergi, kur, destek ve kurum sözleşmesi indirimi içermez.
+
+| Maliyet kalemi | 16 Temmuz 2026 tabanı | V1 bütçe etkisi |
+|---|---|---|
+| Doğrudan username/parola veya sosyal IdP ile giriş yapan Essentials kullanıcıları | Hesap veya AWS Organization başına ayda ilk `10.000 MAU` ücretsiz; sınırın üzerindeki her MAU `0,015 USD/ay` | V1'in ana kullanıcı maliyeti; aylık aktif kullanıcı tahmini A-010 bütçesinde bu eşikle hesaplanır. |
+| SAML/OIDC federasyonlu kullanıcı | Ayda ilk `50 MAU` ücretsiz; sınırın üzerindeki her MAU `0,015 USD/ay` | V1 kapsamı değildir; kurumsal federasyon açılırsa ayrı bütçe ve ADR revizyonu gerekir. |
+| SMS ile MFA, kayıt, parola kurtarma veya telefon doğrulama | Cognito taban MAU ücretine dahil değildir; SNS/AWS End User Messaging SMS ülke, operatör, gönderici ve kayıt ücretleri ayrıca uygulanır. | SMS bu ADR'de etkinleştirilmez; etkinleştirilmeden ülke bazlı fiyat ve harcama kotası onaylanır. |
+| E-posta ile kayıt, parola kurtarma, doğrulama veya MFA | Cognito taban MAU ücretine dahil değildir; production gönderiminde Amazon SES fiyatı ve kota/sandbox koşulları ayrıca uygulanır. | A-010, beklenen ileti hacmini SES bütçesine ayrı satır olarak ekler. |
+| Multi-Region, artırılmış API kotası ve M2M token istekleri | Cognito fiyatlandırmasında ayrı add-on/istek ücretidir. | V1 temel kararına dahil değildir; etkinleştirme yeni maliyet ve operasyon onayı gerektirir. |
+
+Fiyat değişikliği yeniden değerlendirme kapısıdır. Ücretsiz MAU sınırının düşmesi, Essentials
+MAU birim fiyatının artması, mesajlaşma/add-on zorunluluğu veya A-010 onaylı aylık kimlik
+bütçesinin aşılması halinde production kaynağı büyütülmez; PLAN-005 maliyet karşılaştırması ile
+bu ADR yeniden açılır. Production user poolu oluşturulmadan hemen önce resmî fiyat sayfası ve
+AWS Pricing Calculator çıktısı tarihli olarak yeniden doğrulanır.
+
 ## Karar ve revizyon kapısı
 
 İlk incelemede kimlik doğrulama sağlayıcısı olarak **Keycloak self-managed**, tek bir global
@@ -75,15 +95,26 @@ compute, veritabanı, TLS, yedek, izleme, yükseltme/CVE ve kesinti operasyonunu
 dışında bıraktığını tespit etmiştir. Bu nedenle Keycloak uygulama kararı askıya alınmış ve
 **Cognito Essentials** yönetilen aday olarak A-004R1–A-004R3 deney zincirine alınmıştır.
 
-A-004R3 sonuçlanana kadar:
+A-004R1–A-004R3 deney zinciri sonucunda **Amazon Cognito Essentials**, V1'in global son kullanıcı
+kimlik doğrulama sağlayıcısı olarak kabul edilmiştir. Karar kanıtı ve kaynak kapatma ayrıntıları
+`A004R3_COGNITO_MALIYET_OPERASYON_VE_TEARDOWN_KANITI.md` içindedir. Deneyde son gerçekleşen
+maliyet `0.0 USD`, tahmin `None` idi; bu bir production fiyat garantisi değildir. Cognito,
+budget, bootstrap IAM ve deney rolü/policy kaynaklarının yokluğu doğrulanmıştır.
 
-- hiçbir Keycloak/Cognito SDK'sı, container'ı, cloud secret'ı veya production kaynağı eklenmez;
-- aşağıdaki Keycloak ayrıntıları seçilirse uygulanacak referans/fallback sözleşmesi olarak kalır;
-- IAM-001 ve sağlayıcıya bağlı IAM uygulama görevleri READY yapılamaz;
+Bağlayıcı sınırlar:
+
 - `issuer + subject` eşlemesi, platform `user_id`, kurum üyeliği, rol/izin/sınıf kontrolü,
   platform opaque token aileleri, `session_generation` ve kurum kapsamlı iptal değişmezdir;
 - sağlayıcı rolleri ürün yetkisi sayılmaz ve iptal edilmiş provider JWT'sinin yalnız yerel
-  imza/süre doğrulamasıyla reddedileceği varsayılmaz.
+  imza/süre doğrulamasıyla reddedileceği varsayılmaz;
+- mobil client secretsiz public clienttır; Authorization Code + PKCE `S256`, tam redirect URI
+  allow-listi, `state` ve `nonce` doğrulaması zorunludur;
+- kurum API'leri yalnız platform opaque access tokenını kabul eder; Cognito tokenları yalnız
+  doğrulanmış token değişimi sınırında kullanılır;
+- provider global güvenlik olayları platform ailelerine idempotent ve fail-closed yansıtılır;
+  kanonik durum en çok 5 dakikada uzlaştırılır, 2 dakikada alarm ve 5 dakikada escalation açılır;
+- production user poolundan önce yeni bütçe/bildirim kaynağı ve en az yetkili kısa ömürlü
+  çalışma kimliği oluşturulup doğrulanır; deney kaynakları yeniden kullanılmaz.
 
 Cognito Essentials doğrulaması tek iş gününe sığdırılmaz ve şu atomik sırayla yürütülür:
 
@@ -102,12 +133,29 @@ Cognito Essentials doğrulaması tek iş gününe sığdırılmaz ve şu atomik 
    app client, domain, test kullanıcıları, IAM politikaları ve diğer geçici kaynakların silindiği
    öncesi/sonrası envanterle kanıtlanır.
 
-Bu deneylerde gerçek kullanıcı/kurum/öğrenci verisi kullanılmaz. A-004R3 Cognito'yu kabul etmezse
-Keycloak fallback'i, gerçek barındırma ve operasyon maliyeti A-010'a eklenerek yeniden onaya sunulur.
+Bu deneylerde gerçek kullanıcı/kurum/öğrenci verisi kullanılmamıştır. Cognito kararının revizyon
+kapısı; fiyat/ücretsiz kota değişimi, gerekli bölgede servis engeli, kabul edilemeyen operasyonel
+SLO veya güvenlik yeteneği kaybıdır. Bu kapı açılırsa Keycloak fallback'i gerçek barındırma ve
+operasyon maliyeti A-010'a eklenerek yeniden onaya sunulur.
 
-Keycloak seçilirse aşağıdaki V1 yapılandırması bağlayıcıdır:
+## Cognito V1 bağlayıcı profili
 
-V1 yapılandırması aşağıdaki sınırları zorunlu kılar:
+- Pool tek global kimlik alanıdır; kendi kendine kayıt kapalı, admin provisioning açıktır.
+- Username + tek kullanımlı geçici parola ve ilk girişte zorunlu parola değişimi kullanılır.
+- Public mobile client secret taşımaz; yalnız Authorization Code + PKCE `S256` kullanır.
+- Refresh rotation açıktır; eski refresh reuse aynı provider oturumunu reddeder. Platform kendi
+  opaque refresh ailesi, `session_generation` ve kurum-kapsamlı iptalini ayrıca uygular.
+- Provider erişilemez veya kullanıcı durumu belirsizse yeni platform ailesi üretilmez. Mevcut
+  platform refresh yalnız canlı üyelik, cihaz ve iptal kontrolleriyle çalışabilir.
+- Disable, global sign-out ve parola güvenlik olayları kalıcı provider-command/event dedup ve
+  kanonik durum taramasıyla ilgili kullanıcının bütün platform ailelerine yansıtılır.
+- Pool, client, domain ve budget production altyapı koduyla yeniden oluşturulur; A-004R1 deney
+  kimlikleri veya A-004R2/A-004R3 geçici IAM kaynakları tekrar kullanılmaz.
+
+## Keycloak fallback referansı — bağlayıcı değildir
+
+Keycloak yeniden seçilirse aşağıdaki V1 referansı ADR revizyonunda güncellenip yeniden
+onaylanmalıdır. Bu bölüm mevcut Cognito kararı altında bağlayıcı değildir:
 
 - Mobil istemci, secret içermeyen public OIDC client'tır. Yalnız Authorization Code Flow +
   PKCE `S256` etkin olur; implicit flow ve Resource Owner Password Credentials/Direct Access
@@ -175,7 +223,7 @@ V1 yapılandırması aşağıdaki sınırları zorunlu kılar:
   başarısız olursa denetlenmiş, kalıcı tekrar işiyle tamamlanır. Mevcut platform access tokenları
   her istekte canlı üyelik ve `session_generation` kontrolüyle en geç sonraki istekte reddedilir.
 
-## Token yaşam döngüsü ve global uzlaştırma
+## Keycloak fallback — token yaşam döngüsü ve global uzlaştırma
 
 1. Mobil, sistem tarayıcısında Code + PKCE `S256` akışını yürütür; `state`/`nonce` callback
    eşleşmesini doğrular. İlk başarılı değişimden hemen sonra Keycloak access/refresh tokenlarını
@@ -221,7 +269,7 @@ V1'de 14/30 günlük zorunlu periyodik yeniden giriş yoktur. Güvenilir cihaz o
 çıkış yapana, yetkili yönetici iptal edene, global güvenlik olayı oluşana veya cihazın güvenli
 saklaması kaybolup/temizlenene kadar dönen platform refresh tokenıyla sürer.
 
-## IAM veritabanı erişim kapısı
+## Keycloak fallback — IAM veritabanı erişim referansı
 
 ADR-003 §5.3 uyarınca seçilen mekanizma **ayrı `iam_runtime` PostgreSQL rolüdür**; `app_runtime`
 bu yüzeyde doğrudan tablo/sequence hakkı taşımaz. `iam_runtime` owner, superuser veya
@@ -331,7 +379,7 @@ sahiplenilir. Terminal başarısızlıkta kullanıcı ve üyelik `SUSPENDED` kal
 çekilir, yeni aktif hesap oluşturmaz. Kesin API sözleşmesi STAFF-001, migration IAM-003,
 uygulama STAFF-002 ve IAM-004, izolasyon/yarım-hesap testleri IAM-009 sahibidir.
 
-## Keycloak → IAM güvenlik olayı uzlaştırması
+## Keycloak fallback — IAM güvenlik olayı uzlaştırması
 
 Normal kullanıcı devre dışı bırakma, parola sıfırlama, şüpheli hesap ve global logout işlemleri
 IAM-first'tür: IAM, platform token ailelerini ve erişimi yerel transaction'da önce keser, audit
@@ -409,19 +457,19 @@ refresh ailesi/yenileme/çıkış/tekrar kullanım tespitini; IAM-006 cihaz kayd
 iptal gecikmesi ile seçilecek Keycloak sürümünden alınmış kanonik/`/`-önekli logout
 ve credential-mutasyon Admin Event path örneklerinin parser testlerini uygular.
 
-## Uygulama sorumlulukları ve güvenlik sınırı
+## Cognito uygulama sorumlulukları ve güvenlik sınırı
 
 | Katman | Sorumluluk |
 |---|---|
-| Keycloak | Kimlik bilgisi doğrulama, parola politikası/özeti, reset akışı, kaba kuvvet koruması, global kullanıcı oturumu, OIDC discovery/JWKS ve kimlik olayları. |
-| IAM (modüler monolit) | `(issuer, subject)`–`users.id` eşlemesi, Keycloak access-token doğrulaması, kurum seçimi, opaque platform token üretimi/HMAC özet saklama/rotasyonu, `session_generation`, üyelik-rol-izin-sınıf doğrulaması, kurum-kapsamlı iptal ve audit. |
-| Mobil istemci | Sistem tarayıcısıyla `state`/`nonce`/PKCE akışı, callback eşleştirmesi, ilk değişimden sonra Keycloak tokenlarını silme, yalnız platform tokenlarını OS güvenli saklama alanında tutma, iptal sonrası `prompt=login`, tokenı loglamama ve kullanıcıya açık oturum/eşitleme durumu. |
+| Cognito Essentials | Kimlik bilgisi doğrulama, parola politikası/özeti, reset akışı, global kullanıcı durumu/oturumu, OIDC discovery/JWKS ve yönetim API'leri. |
+| IAM (modüler monolit) | `(issuer, subject)`–`users.id` eşlemesi, Cognito token doğrulaması, kurum seçimi, opaque platform token üretimi/HMAC özet saklama/rotasyonu, `session_generation`, üyelik-rol-izin-sınıf doğrulaması, kurum-kapsamlı iptal, provider-command uzlaştırması ve audit. |
+| Mobil istemci | Sistem tarayıcısıyla `state`/`nonce`/PKCE akışı, callback eşleştirmesi, ilk değişimden sonra Cognito tokenlarını silme, yalnız platform tokenlarını OS güvenli saklama alanında tutma, iptal sonrası zorunlu yeniden giriş, tokenı loglamama ve kullanıcıya açık oturum/eşitleme durumu. |
 
-Backend, Keycloak **access tokenını** kabul etmeden önce en az imza/JWKS, `iss`, `aud`, `azp`,
+Backend, Cognito **access tokenını** kabul etmeden önce en az imza/JWKS, `iss`, `client_id`,
 `exp`, `nbf` (varsa) ve gerekli scope doğrulamasını yapar. `state`, `nonce` ve PKCE callback
 doğrulaması mobile aittir. ID token API erişimi veya IAM token değişimi için kabul edilmez.
-Keycloak rolleri ve grupları, uygulama yetkisinin yerine geçmez. Sağlayıcı erişilemezse yeni giriş
-ve parola sıfırlama başarısız olur; platform refresh'i Keycloak'a çağrı yapmadan kendi canlı
+Cognito grupları ve custom claim'leri, uygulama yetkisinin yerine geçmez. Sağlayıcı erişilemezse yeni giriş
+ve parola sıfırlama başarısız olur; platform refresh'i Cognito'ya çağrı yapmadan kendi canlı
 üyelik/iptal denetimini yapar. Mevcut kısa ömürlü access token yalnız uygulamanın canlı
 üyelik/iptal denetiminden geçiyorsa kullanılabilir. İstemci bu durumu başarı
 saymaz ve bekleyen yazmayı silmez.
@@ -435,18 +483,20 @@ satır 10, 11 ve 14'teki veri minimizasyonu uygulanır.
 
 | Ölçüt | Sonuç |
 |---|---|
-| Keycloak fallback mobil giriş akışı; public client, Code + PKCE S256 ile nettir. | Karşılandı |
+| Cognito mobil giriş akışı; secretsiz public client, Code + PKCE S256 ile gerçek Android deneyinde doğrulandı. | Karşılandı |
 | Parola ve ham token saklama sınırı; token rotasyonu, ömür ve iptal davranışı tanımlıdır. | Karşılandı |
 | Kurum üyeliği, rol, izin ve sınıf yetkisi sağlayıcı claim'ine taşınmadan IAM'de kalır. | Karşılandı |
 | Kurum-kapsamlı iptal başka kurum oturumunu kapatmaz; `session_generation` kontrolü korunur. | Karşılandı |
 | Kaba kuvvet koruması, yönetim API sınırı, audit ve hassas veri minimizasyonu ele alınır. | Karşılandı |
 | Veritabanı/hosting, MFA/biometri, oran eşikleri ve uygulama iskeleti için kapsam dışı karar alınmamıştır. | Karşılandı |
 | Güvenilir cihaz oturumu, V1 çıkış/iptal/global olay/saklama kaybı sınırlarıyla tanımlıdır; periyodik giriş zorunlu değildir. | Karşılandı |
+| Deney maliyeti ve budget alarmı raporlandı; Cognito/budget/bootstrap IAM yokluğu kanıtlandı. | Karşılandı |
+| Experiment role ve beş inline policy'nin yokluğu kanıtlandı. | Karşılandı |
 
-Bu ADR'nin nihai sağlayıcı kararı A-004R3 tamamlanana kadar açık kalır. Henüz uygulama kodu,
-Keycloak/Cognito bağımlılığı, ortam değişkeni veya gerçek kullanıcı hesabı eklenmez. IAM-001,
-IAM-003–IAM-007, IAM-009 ve A-013 sağlayıcıya bağlı kısımları A-004R3 ve PLAN-005 tamamlanmadan
-başlatamaz.
+Nihai sağlayıcı kararı kapanmıştır. IAM-001 bu ADR'deki Cognito sınırı ile
+`A004R3_COGNITO_MALIYET_OPERASYON_VE_TEARDOWN_KANITI.md` girdilerini sözleşmeye dönüştürebilir.
+Production SDK, ortam değişkeni, gerçek kullanıcı veya cloud kaynağı; IAM-001 ve A-013'ün en az
+yetkili kimlik/secret sözleşmesi ile yeni bütçe/alarm kapısı tamamlanmadan eklenmez.
 
 ## Kaynaklar ve uyum
 
@@ -486,11 +536,11 @@ başlatamaz.
 - Self-managed Keycloak fallback'i seçilirse A-010; ayrı DB topolojisi, TLS/alan adı, şifreli
   yedekleme ve geri yükleme, sürüm/CVE sorumluluğu, health check, kapasite/HA, log erişimi,
   toplam maliyet ve kesinti kurtarma hedeflerini yeniden onaya bağlar.
-- İki katmanlı oturum yaşam döngüsü (Keycloak + platform tokenları) yanlış entegrasyonda
+- İki katmanlı oturum yaşam döngüsü (Cognito + platform tokenları) yanlış entegrasyonda
   ayrışabilir. IAM-004–IAM-006 yenileme/iptal akışlarını tek application service sınırında; A-013 ise
-  Keycloak yönetim kimlik bilgisini secret manager'da uygular. KAP-03, KAP-20 ve KAP-31
+  Cognito yönetim kimliğini secret manager/çalışma kimliği sınırında uygular. KAP-03, KAP-20 ve KAP-31
   otomasyona dönüştürülmeden IAM özelliği kabul edilmez.
-- Keycloak'un global logout'u kurum-kapsamlı iptal için kullanılmaz. Bu sınır ihlal edilirse
+- Cognito global sign-out'u kurum-kapsamlı iptal için kullanılmaz. Bu sınır ihlal edilirse
   kurumlar arası erişim kesintisi riski doğar; ilgili use-case'te explicit test zorunludur.
 
 ### Kapsam dışı
