@@ -15,6 +15,7 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 
 | Kimlik | Görev | Boyut | Not |
 |---|---|---:|---|
+| A-004R2 | Cognito iptal, platform oturumu ve olay kaybı uzlaştırma deneyini yap | M | MFA korumalı bootstrap kullanıcı üzerinden 1 saatlik en az yetkili STS rolü doğrulandı; Cognito/CloudTrail/bütçe okuma izinli, IAM yönetimi reddedildi |
 | A-012 | CI kalite kapılarını oluştur | M | A-011 tamamlandı; tam Xcode bulunan macOS ortamında iOS binary build kanıtı zorunlu |
 | A-014 | Loglama ve hata izleme temelini kur | S | A-011 tamamlandı; sağlayıcı bağımsız temel, A-012 ile dosya sahipliği koordine edilmeli |
 
@@ -28,9 +29,7 @@ Aktif görev yok.
 
 ## BLOCKED
 
-| Kimlik | Görev | Engel |
-|---|---|---|
-| A-004R2 | Cognito iptal, platform oturumu ve olay kaybı uzlaştırma deneyini yap | A-004R1 tamamlandı; başlamadan önce root olmayan, kısa ömürlü ve en az yetkili AWS rolü doğrulanmalı |
+Engellenmiş görev yok.
 
 ## DONE
 
