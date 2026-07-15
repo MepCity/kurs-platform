@@ -5,7 +5,7 @@
 | Son güncelleme | 15 Temmuz 2026 |
 | Aktif dalga | Dalga 1 — Teknoloji kararları ve iskelet |
 | Aktif görev | Yok |
-| Sıradaki görev | A-014 — Loglama ve hata izleme temelini kur |
+| Sıradaki görev | A-004R2 — Cognito iptal, platform oturumu ve olay kaybı uzlaştırma deneyini yap |
 
 Bu dosya projenin kaldığı yeri gösteren kısa operasyon panosudur. Her çalışma oturumunun
 başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev tanımları
@@ -16,7 +16,6 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 | Kimlik | Görev | Boyut | Not |
 |---|---|---:|---|
 | A-004R2 | Cognito iptal, platform oturumu ve olay kaybı uzlaştırma deneyini yap | M | MFA korumalı bootstrap kullanıcı üzerinden 1 saatlik en az yetkili STS rolü doğrulandı; Cognito/CloudTrail/bütçe okuma izinli, IAM yönetimi reddedildi |
-| A-014 | Loglama ve hata izleme temelini kur | S | A-011 tamamlandı; sağlayıcı bağımsız temel, A-012 ile dosya sahipliği koordine edilmeli |
 
 ## IN_PROGRESS
 
@@ -66,6 +65,7 @@ Engellenmiş görev yok.
 | A-010 | Geliştirme, staging ve üretim ortam sözleşmesi | 15 Temmuz 2026 | `ORTAM_SOZLESMESI.md` — PR #25 |
 | A-011 | Repo ve modül klasör iskeletini oluştur | 15 Temmuz 2026 | `apps/mobile`, `apps/backend`, `tooling` — backend build, 29 mimari + 1 context testi; Flutter analiz, 19 test ve Android APK PASS; iOS binary kanıtı A-012'ye devredildi — PR #27 |
 | A-012 | CI kalite kapılarını oluştur | 15 Temmuz 2026 | `.github/workflows/quality-gates.yml`, path/rename regresyonları, dört zorunlu gate; backend, Android, iOS simulator ve SBOM PASS — PR #29 |
+| A-014 | Loglama ve hata izleme temelini kur | 15 Temmuz 2026 | `GOZLEMLENEBILIRLIK_VE_HATA_IZLEME_SOZLESMESI.md`, backend ve mobil güvenli gözlemlenebilirlik temeli; backend 49 test, mobil 34 test, Android ve iOS binary kalite kapıları PASS — PR #30 |
 
 ## Sonraki görev nasıl READY yapılır?
 
