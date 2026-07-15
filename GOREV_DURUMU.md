@@ -5,7 +5,7 @@
 | Son güncelleme | 15 Temmuz 2026 |
 | Aktif dalga | Dalga 1 — Teknoloji kararları ve iskelet |
 | Aktif görev | Yok |
-| Sıradaki görev | A-011 — Repo ve modül klasör iskeletini oluştur |
+| Sıradaki görev | A-012 — CI kalite kapılarını oluştur |
 
 Bu dosya projenin kaldığı yeri gösteren kısa operasyon panosudur. Her çalışma oturumunun
 başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev tanımları
@@ -15,7 +15,8 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 
 | Kimlik | Görev | Boyut | Not |
 |---|---|---:|---|
-| A-011 | Repo ve modül klasör iskeletini oluştur | M | A-009 tamamlandı; yalnız sağlayıcı bağımsız fiziksel iskelet ve mimari testler |
+| A-012 | CI kalite kapılarını oluştur | M | A-011 tamamlandı; tam Xcode bulunan macOS ortamında iOS binary build kanıtı zorunlu |
+| A-014 | Loglama ve hata izleme temelini kur | S | A-011 tamamlandı; sağlayıcı bağımsız temel, A-012 ile dosya sahipliği koordine edilmeli |
 
 ## IN_PROGRESS
 
@@ -65,6 +66,7 @@ Aktif görev yok.
 | A-008 | Excel üretme yaklaşımı ADR'si | 15 Temmuz 2026 | `ADR/ADR-008-excel-uretim-yaklasimi.md` — PR #23 |
 | A-009 | Monorepo/repo yapısı ADR'si | 15 Temmuz 2026 | `ADR/ADR-009-monorepo-ve-repo-yapisi.md` — PR #22 |
 | A-010 | Geliştirme, staging ve üretim ortam sözleşmesi | 15 Temmuz 2026 | `ORTAM_SOZLESMESI.md` — PR #25 |
+| A-011 | Repo ve modül klasör iskeletini oluştur | 15 Temmuz 2026 | `apps/mobile`, `apps/backend`, `tooling` — backend build, 29 mimari + 1 context testi; Flutter analiz, 19 test ve Android APK PASS; iOS binary kanıtı A-012'ye devredildi — PR #27 |
 
 ## Sonraki görev nasıl READY yapılır?
 
