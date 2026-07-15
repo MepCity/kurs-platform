@@ -32,7 +32,10 @@ flutter build ios --debug --simulator --no-codesign
 
 iOS build komutu tam Xcode kurulumu ve çalışan `xcodebuild` gerektirir. Bu araçların bulunmadığı
 bir ortamda iOS kaynak iskeleti statik olarak doğrulanabilir ancak binary build kabul kanıtı
-oluşmaz; doğrulama Xcode bulunan macOS ortamında veya A-012 kalite kapısında tekrarlanmalıdır.
+oluşmaz. A-012 kalite kapısı bu komutu `macos-15` ve tam Xcode üzerinde zorunlu olarak çalıştırır;
+Android debug APK build'i ayrı Linux işinde doğrulanır. Flutter SDK cache anahtarı sabit SDK
+revision'ını, pub cache anahtarı `pubspec.lock` içeriğini kullanır. Mobil bağımlılık envanteri
+CycloneDX SBOM olarak CI artefaktında saklanır.
 
 İskelet yalnız Flutter SDK, Material ve resmî `flutter_lints`/`flutter_test` yüzeylerini
 kullanır. Durum yönetimi, ağ, kalıcılık, secure storage veya sağlayıcı paketi eklenmemiştir;

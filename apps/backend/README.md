@@ -42,6 +42,10 @@ değişkeni veya deployment kaynağı içermez.
 Gradle wrapper bu uygulamanın içindedir; kök repo veya mobil SDK backend testleri için gerekli
 değildir.
 
+CI aynı komutları Java 21 ile çalıştırır, Gradle wrapper doğrulaması ve açık kaynak Gradle
+cache'i kullanır. Üretilen çalıştırılabilir JAR için CycloneDX SBOM saklanır; `main` dalında
+çözümlenen bağımlılıklar GitHub bağımlılık grafiğine gönderilir.
+
 ## Başlangıç bağımlılıkları
 
 - `spring-boot-starter-webmvc`: ADR-002'de seçilen Spring MVC çalışma zamanını derlenebilir

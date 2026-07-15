@@ -191,7 +191,18 @@ Bu şartlardan biri eksikse agent başlatılmaz. Neden engelli olduğu açıklan
 
 - Alt agentlar kendi PR'larını merge etmez.
 - Merkez yönetici agent PR'ı inceleyip sonuç ve risk raporu üretir.
-- Kullanıcı açıkça merge talimatı vermediyse yalnızca “merge edilebilir” önerisi sunulur.
+- Merge için kullanıcının merkez agent konuşmasında açıkça `merge et` talimatı vermesi
+  zorunludur; bu talimat yoksa yalnızca “merge edilebilir” önerisi sunulur.
+- Projede yalnız `MepCity` GitHub hesabı kullanıldığı sürece zorunlu GitHub approval sayısı
+  `0`dır. İkinci gerçek insan reviewer hesabı veya ekibi eklendiğinde sayı yeniden `1` yapılır.
+- Admin bypass, zorunlu `Repo kalite kapısı`, `Backend kalite kapısı`, `Mobil kalite kapısı` ve
+  `Bağımlılık güvenliği` kontrollerinin dördü de başarılı olmadan kullanılamaz.
+- Açık review tartışmaları çözülmeden ve PR dalı güncel `main` üzerine rebase edilmeden merge
+  yapılamaz.
+- Doğrusal geçmiş nedeniyle görev PR'ları yalnız rebase merge yöntemiyle birleştirilir; merge
+  commit yöntemi kullanılmaz.
+- Adminin doğrudan `main` push istisnası yalnız `GOREV_DURUMU.md` koordinatör güncellemesi gibi
+  açıkça tanımlanmış idari commitlerle sınırlıdır; görev çıktısı bu istisnayı kullanamaz.
 - Merge sonrasında görev panosu ve gerekiyorsa karar günlüğü güncellenir.
 
 ---

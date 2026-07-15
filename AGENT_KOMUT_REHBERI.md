@@ -296,29 +296,40 @@ PR başlığı görev kimliğiyle başlamalıdır:
 2. Otomatik kontroller çalışır.
 3. Kod/belge ve kapsam incelemesi yapılır.
 4. Gerekirse agent aynı branch üzerinde düzeltme yapar.
-5. Kabul ölçütleri doğrulanır.
-6. PR `main` dalına merge edilir.
-7. Koordinatör `GOREV_DURUMU.md` dosyasını günceller.
-8. Bağımlılığı tamamlanan görevler `READY` yapılır.
-9. Kullanılmış branch silinir.
+5. PR dalı güncel `main` üzerine rebase edilir; açık review tartışmaları çözülür.
+6. Kabul ölçütleri ve dört zorunlu kalite kontrolünün başarısı doğrulanır.
+7. Kullanıcı merkez agent konuşmasında açıkça `merge et` talimatı verir.
+8. PR doğrusal geçmişi koruyan rebase merge yöntemiyle `main` dalına birleştirilir; merge commit
+   yöntemi kullanılmaz.
+9. Koordinatör `GOREV_DURUMU.md` dosyasını günceller.
+10. Bağımlılığı tamamlanan görevler `READY` yapılır.
+11. Kullanılmış branch silinir.
 
 Bağımlı ikinci görev, ilk PR yalnızca “hazır görünüyor” diye başlatılmaz; önce `main` dalına
 merge edilmelidir.
 
 ## 11. GitHub repo ayarları
 
-`main` dalı için önerilen korumalar:
+`main` dalı için bağlayıcı koruma ve merkez merge politikası:
 
 - Pull request olmadan merge edilmesin.
-- En az bir inceleme/onay gereksin.
-- Durum kontrolleri başarılı olmadan merge edilmesin.
+- Projede yalnız `MepCity` GitHub hesabı kullanıldığı sürece zorunlu GitHub approval sayısı
+  `0` olsun. İkinci gerçek insan reviewer hesabı veya ekibi eklendiğinde yeniden `1` yapılsın.
+- Merge, kullanıcının merkez agent konuşmasındaki açık `merge et` talimatı olmadan yapılmasın.
+- `Repo kalite kapısı`, `Backend kalite kapısı`, `Mobil kalite kapısı` ve
+  `Bağımlılık güvenliği` başarılı olmadan admin bypass kullanılmasın.
 - Force push kapalı olsun.
 - Branch silme koruması açık olsun.
 - Konuşmalar çözülmeden merge edilmesin.
-- Mümkünse doğrusal geçmiş veya squash merge kullanılsın.
+- PR dalı güncel `main` üzerine rebase edilmiş olsun.
+- Doğrusal geçmiş zorunlu olsun; görev PR'ları rebase merge ile birleştirilsin ve merge commit
+  yöntemi kullanılmasın.
+- Admin doğrudan `main` push istisnası yalnız `GOREV_DURUMU.md` koordinatör güncellemesi gibi
+  açıkça tanımlanmış idari commitlerle sınırlı olsun.
 
-Planlama aşamasında otomatik testler henüz yoksa PR zorunluluğu ve inceleme koruması yine
-etkinleştirilebilir. CI kurulduğunda zorunlu durum kontrolleri eklenir.
+GitHub approval sayısının `0` olması incelemesiz merge yetkisi vermez. Merkez agentın inceleme
+raporu, açık kullanıcı talimatı, güncel `main`, çözülmüş tartışmalar ve dört kalite kapısı birlikte
+zorunludur.
 
 ## 12. Tarihsel ilk görev sırası
 
