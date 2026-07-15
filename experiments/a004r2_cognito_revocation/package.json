@@ -1,0 +1,10 @@
+{
+  "name": "a004r2-cognito-revocation-experiment",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "experiment": "node run-experiment.js"
+  }
+}
