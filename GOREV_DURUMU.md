@@ -16,7 +16,6 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 | Kimlik | Görev | Boyut | Not |
 |---|---|---:|---|
 | A-011 | Repo ve modül klasör iskeletini oluştur | M | A-009 tamamlandı; yalnız sağlayıcı bağımsız fiziksel iskelet ve mimari testler |
-| A-004R1 | Cognito provisioning, ilk parola ve gerçek mobil PKCE deneyini yap | M | PLAN-005, A-004 ve A-010 tamamlandı; sentetik ve geçici AWS deneyi |
 
 ## IN_PROGRESS
 
@@ -28,7 +27,9 @@ Aktif görev yok.
 
 ## BLOCKED
 
-Engellenmiş görev yok.
+| Kimlik | Görev | Engel |
+|---|---|---|
+| A-004R2 | Cognito iptal, platform oturumu ve olay kaybı uzlaştırma deneyini yap | A-004R1 tamamlandı; başlamadan önce root olmayan, kısa ömürlü ve en az yetkili AWS rolü doğrulanmalı |
 
 ## DONE
 
@@ -57,6 +58,7 @@ Engellenmiş görev yok.
 | A-002 | Backend dili ve framework ADR'si | 14 Temmuz 2026 | `ADR/ADR-002_BACKEND_DILI_VE_FRAMEWORK.md` — PR #16 |
 | A-003 | PostgreSQL/hosting sağlayıcısı ADR'si | 14 Temmuz 2026 | `ADR/ADR-003-postgresql-ve-hosting.md` — PR #18 |
 | A-004 | Kimlik doğrulama sağlayıcısı ADR'si | 14 Temmuz 2026 | `ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md` — PR #19 |
+| A-004R1 | Cognito provisioning, ilk parola ve gerçek mobil PKCE deneyini yap | 15 Temmuz 2026 | `A004R1_COGNITO_PROVISIONING_VE_PKCE_KANITI.md`, `experiments/a004r1_cognito_pkce` — Android PKCE ve provisioning kanıtı — PR #28 |
 | A-005 | Yerel mobil veritabanı/kuyruk ADR'si ve kalıcı yeniden deneme deneyi | 14 Temmuz 2026 | `ADR/ADR-005-yerel-mobil-veritabani-ve-kuyruk.md`, `experiments/a005_local_queue` — 17 test — PR #20 |
 | A-006 | Gerçek zamanlı kanal ADR'si ve iki istemcili yoklama olayı deneyi | 14 Temmuz 2026 | `ADR/ADR-006-gercek-zamanli-kanal.md`, `experiments/a006_realtime_sse` — 6 test — PR #21 |
 | A-007 | PDF/dosya depolama ADR'si | 15 Temmuz 2026 | `ADR/ADR-007-pdf-dosya-depolama.md` — PR #24 |
