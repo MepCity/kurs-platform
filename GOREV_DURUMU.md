@@ -5,7 +5,7 @@
 | Son güncelleme | 16 Temmuz 2026 |
 | Aktif dalga | Dalga 1 — Teknoloji kararları ve iskelet |
 | Aktif görev | Yok |
-| Sıradaki görev | IAM-001 — Giriş/oturum API sözleşmesini kesinleştir |
+| Sıradaki görev | A-015 — Dalga 1 iskelet bütünlük incelemesi |
 
 Bu dosya projenin kaldığı yeri gösteren kısa operasyon panosudur. Her çalışma oturumunun
 başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev tanımları
@@ -15,8 +15,7 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 
 | Kimlik | Görev | Boyut | Not |
 |---|---|---:|---|
-| IAM-001 | Giriş/oturum API sözleşmesini kesinleştir | S | P-003 ve A-004R3 tamamlandı; Cognito provider/platform sınırı sözleşmeye dönüştürülebilir |
-| A-013 | Ortam değişkeni ve secret yönetimi iskeleti | S | A-010, A-011, PLAN-005 ve A-004R3 tamamlandı; provider secret ve çalışma kimliği sınırı uygulanabilir |
+| A-015 | Dalga 1 iskelet bütünlük incelemesi | S | A-001–A-014, PLAN-005 ve A-004R3 tamamlandı; Dalga 2 öncesi entegrasyon kapısı uygulanabilir |
 
 ## IN_PROGRESS
 
@@ -28,7 +27,9 @@ Aktif görev yok.
 
 ## BLOCKED
 
-Engellenmiş görev yok.
+| Kimlik | Görev | Engel |
+|---|---|---|
+| IAM-001 | Giriş/oturum API sözleşmesini kesinleştir | Teknik bağımlılıkları tamamlandı; Dalga 1 entegrasyon kapısı A-015 bekleniyor |
 
 ## DONE
 
@@ -68,6 +69,7 @@ Engellenmiş görev yok.
 | A-010 | Geliştirme, staging ve üretim ortam sözleşmesi | 15 Temmuz 2026 | `ORTAM_SOZLESMESI.md` — PR #25 |
 | A-011 | Repo ve modül klasör iskeletini oluştur | 15 Temmuz 2026 | `apps/mobile`, `apps/backend`, `tooling` — backend build, 29 mimari + 1 context testi; Flutter analiz, 19 test ve Android APK PASS; iOS binary kanıtı A-012'ye devredildi — PR #27 |
 | A-012 | CI kalite kapılarını oluştur | 15 Temmuz 2026 | `.github/workflows/quality-gates.yml`, path/rename regresyonları, dört zorunlu gate; backend, Android, iOS simulator ve SBOM PASS — PR #29 |
+| A-013 | Ortam değişkeni ve secret yönetimi iskeleti | 16 Temmuz 2026 | `A013_ORTAM_DEGISKENI_VE_SECRET_ISKELETI.md`, backend/mobil fail-fast yapılandırma ve repo secret tarama kapısı — PR #33 |
 | A-014 | Loglama ve hata izleme temelini kur | 15 Temmuz 2026 | `GOZLEMLENEBILIRLIK_VE_HATA_IZLEME_SOZLESMESI.md`, backend ve mobil güvenli gözlemlenebilirlik temeli; backend 49 test, mobil 34 test, Android ve iOS binary kalite kapıları PASS — PR #30 |
 
 ## Sonraki görev nasıl READY yapılır?
