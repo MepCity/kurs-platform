@@ -582,6 +582,12 @@ başarısız olur. Aile üretimi ayrıca `authenticated_at > users.reauthenticat
 hedef üyeliğin `reauthentication_required_after` eşiği, `ACTIVE` üyelik/rol ve güncel
 `session_generation` koşullarını doğrular; böylece `DEVICE_SESSION_REVOKE`, global iptal veya
 eski `auth_time` bu tokenla yeni aile üretimini engeller. Token refresh edilemez.
+`iam_runtime` `IAM_AUTH` RLS politikası, bu satırı yalnız
+`user_id = app.iam_actor_user_id AND EXISTS (SELECT 1 FROM trusted_devices td WHERE td.id =
+trusted_device_id AND td.user_id = app.iam_actor_user_id AND td.revoked_at IS NULL)` predicate'i
+ile açar. `CONTEXT_ACTIVATE` sırasında ayrıca yalnız server-set `app.iam_target_membership_id`
+ve `app.iam_target_organization_id` eşleşmesiyle tüketilebilir; sahte üyelik/kurum zinciri
+fail-closed reddedilir.
 
 ### 4.11. `refresh_token_families` ve `refresh_tokens` — kurum kapsamlı oturum iptali
 
@@ -1461,9 +1467,11 @@ kendi girişi/çıkışı, sistem genelinde bir bakım işi. `PLATFORM_ADMIN_ORG
 `event_scope=ORGANIZATION` ile katalogda tanımlıdır ve hedef `organization_id` ile doldurulur.
 `iam_runtime` için `audit_logs` da `FORCE RLS` altındadır: `app.iam_operation_scope='ORGANIZATION'`
 yalnız `organization_id=app.organization_id` satırını; `GLOBAL` yalnız `event_scope='GLOBAL'`,
-`target_entity_type='USER'` ve `target_entity_id=app.iam_target_user_id` olan güvenlik satırını
-okur/yazar. Scope dışı, eksik veya iki bağlamı birlikte taşıyan transaction varsayılan olarak
-reddedilir.
+`target_entity_type='USER'` ve `target_entity_id=app.iam_target_user_id` olan güvenlik satırını;
+`IAM_AUTH` ise yalnız allow-listli auth güvenlik olaylarını (`PROVIDER_TOKEN_EXCHANGE`,
+`PLATFORM_ADMIN_ACTIVATE`, `CONTEXT_ACTIVATE`, `SESSION_REFRESH`, `SESSION_LOGOUT`) ve aynı
+aktör/cihaz/üyelik/kurum/family zinciriyle uyumlu satırları okur/yazar. Scope dışı, eksik veya
+iki bağlamı birlikte taşıyan transaction varsayılan olarak reddedilir.
 
 **Payload ve API gösterimi:** `old_value`/`new_value`, `action_type +
 payload_schema_version` tarafından belirlenen şemalı veridir. API görünümü alan bazlı sunucuda
@@ -1484,18 +1492,18 @@ occurred_at DESC)`, `(organization_id, target_entity_type, target_entity_id)`,
 | Alan | Tip | Null | Açıklama |
 |---|---|---|---|
 | `id` | UUID | Hayır | PK |
-| `scope_type` | ENUM(`GLOBAL`,`ORGANIZATION`) | Hayır | İdempotency anahtarının kapsamı. |
-| `organization_id` | UUID (FK → `organizations.id`) | Koşullu | `ORGANIZATION` kapsamda zorunlu, `GLOBAL` kapsamda `NULL`. |
+| `scope_type` | ENUM(`GLOBAL`,`ORGANIZATION`,`IAM_AUTH`) | Hayır | İdempotency anahtarının kapsamı. |
+| `organization_id` | UUID (FK → `organizations.id`) | Koşullu | `ORGANIZATION` kapsamda zorunlu; `GLOBAL` ve `IAM_AUTH` kapsamlarında `NULL`. |
 | `user_id` | UUID (FK → `users.id`) | Hayır | İsteği yapan `actorUserId`; düz FK (bileşik değil) — bkz. bölüm 15.3. Hedef kullanıcı değildir. |
 | `client_mutation_id` | TEXT | Hayır | |
 | `operation_type` | TEXT | Hayır | |
-| `request_fingerprint` | TEXT | Hayır | Kanonik yöntem/yol/hedef/gövde/sürüm özetinin güvenli parmak izi. |
+| `request_fingerprint` | TEXT | Hayır | Kanonik yöntem/yol/hedef/gövde/sürüm özetinin güvenli parmak izi. `IAM_AUTH` için en az `actorUserId`, `operationType`, `deviceIdentifier` ve işlem tipine göre `requestTokenFingerprint` girdisini kapsar: `PROVIDER_TOKEN_EXCHANGE` için Cognito access token, `PLATFORM_ADMIN_ACTIVATE`/`CONTEXT_ACTIVATE` için `contextSelectionToken`, `SESSION_REFRESH`/`SESSION_LOGOUT` için platform refresh token. |
 | `status` | ENUM(`PENDING`,`COMPLETED`,`FAILED`) | Hayır | |
 | `result_entity_id` | UUID | Evet | |
 | `terminal_http_status` | SMALLINT | Koşullu | Terminal sonuçta HTTP durumu. |
 | `terminal_error_code` | TEXT | Koşullu | `FAILED` durumunda güvenli makine kodu. |
-| `result_payload` | JSONB | Evet | Minimize edilmiş, yeniden oynatılabilir güvenli sonuç. |
-| `result_reference` | TEXT | Evet | Sonuç gövdesi yerine güvenli kanonik sonuç başvurusu. |
+| `result_payload` | JSONB | Evet | Minimize edilmiş, yeniden oynatılabilir güvenli sonuç. Ham access/refresh/context token bu alana yazılamaz. |
+| `result_reference` | TEXT | Evet | Sonuç gövdesi yerine güvenli kanonik sonuç başvurusu. Ham sır içeren auth cevapları için zorunlu yüzey budur. |
 | `lease_owner` | TEXT | Evet | `PENDING` işlemi güvenle yürüten sahiplik belirteci. |
 | `lease_generation` | BIGINT | Evet | Her yeniden sahiplenmede artan fencing sayacı. |
 | `lease_expires_at` | TIMESTAMPTZ | Evet | Süresi geçen `PENDING` işlemin yeniden sahiplenilmesi için üst sınır. |
@@ -1506,18 +1514,26 @@ occurred_at DESC)`, `(organization_id, target_entity_type, target_entity_id)`,
 
 Kısıtlar:
 
-- `CHECK ((scope_type = 'GLOBAL' AND organization_id IS NULL) OR (scope_type = 'ORGANIZATION' AND organization_id IS NOT NULL))`.
+- `CHECK (((scope_type = 'GLOBAL' OR scope_type = 'IAM_AUTH') AND organization_id IS NULL) OR (scope_type = 'ORGANIZATION' AND organization_id IS NOT NULL))`.
 - `CHECK ((result_payload IS NULL) OR (result_reference IS NULL))` — güvenli gövde ve referans birlikte yazılamaz.
 - `CHECK ((status = 'PENDING' AND completed_at IS NULL AND lease_owner IS NOT NULL AND lease_generation IS NOT NULL AND lease_expires_at IS NOT NULL AND terminal_http_status IS NULL AND terminal_error_code IS NULL AND result_entity_id IS NULL AND result_payload IS NULL AND result_reference IS NULL AND result_expires_at IS NULL AND key_retention_expires_at >= lease_expires_at) OR (status = 'COMPLETED' AND completed_at IS NOT NULL AND completed_at >= created_at AND lease_owner IS NULL AND lease_generation IS NULL AND lease_expires_at IS NULL AND terminal_http_status BETWEEN 200 AND 299 AND terminal_error_code IS NULL AND key_retention_expires_at > completed_at) OR (status = 'FAILED' AND completed_at IS NOT NULL AND completed_at >= created_at AND lease_owner IS NULL AND lease_generation IS NULL AND lease_expires_at IS NULL AND terminal_http_status IN (400, 403, 404, 409, 422) AND terminal_error_code IS NOT NULL AND result_entity_id IS NULL AND result_payload IS NULL AND result_reference IS NULL AND result_expires_at IS NULL AND key_retention_expires_at > completed_at))`.
 - `CHECK ((result_payload IS NULL AND result_reference IS NULL AND result_expires_at IS NULL) OR (completed_at IS NOT NULL AND result_expires_at >= completed_at AND result_expires_at <= key_retention_expires_at))`.
 - `CHECK (key_retention_expires_at >= created_at)`.
 - `CREATE UNIQUE INDEX idempotency_keys_global_scope_uq ON idempotency_keys (user_id, client_mutation_id) WHERE scope_type = 'GLOBAL';`
 - `CREATE UNIQUE INDEX idempotency_keys_organization_scope_uq ON idempotency_keys (organization_id, user_id, client_mutation_id) WHERE scope_type = 'ORGANIZATION';`
+- `CREATE UNIQUE INDEX idempotency_keys_iam_auth_scope_uq ON idempotency_keys (user_id, client_mutation_id) WHERE scope_type = 'IAM_AUTH';`
 
 Bu partial unique index'ler, SQL'deki `NULL` değerlerin birbirine eşit sayılmaması nedeniyle
 tek başına bir bileşik `UNIQUE` kısıtının sağlayamayacağı NULL-güvenli tekilliği zorunlu kılar.
 `GLOBAL` kapsam yalnızca platform yöneticisinin, örneğin henüz `organization_id` oluşmamış
-kurum oluşturma işlemleri için kullanılabilir; sunucu bu rolü her istekte doğrular.
+kurum oluşturma işlemleri için kullanılabilir; sunucu bu rolü her istekte doğrular. `IAM_AUTH`
+kapsamı ise yalnız kurum öncesi kimlik doğrulama/token değişimi akışları içindir; `GLOBAL`
+yerine kullanılır çünkü normal kullanıcı da bu yüzeye erişir. `IAM_AUTH` replay'i başka
+kullanıcının veya başka token değişiminin sonucunu okuyamaz: tek başına
+`user_id + client_mutation_id` yeterli değildir; `request_fingerprint` içinde `operation_type`,
+`deviceIdentifier` ve işlem tipine göre güvenli token fingerprint'i de doğrulanır. Aynı kullanıcı
+için aynı `client_mutation_id` farklı `operation_type` ile yeniden kullanılırsa fingerprint
+çatışması oluşur ve `409 IDEMPOTENCY_KEY_REUSED` döner.
 `PENDING` durumda yalnızca lease alanları dolu; tüm terminal alanlar ile sonuç kimliği,
 gövdesi/referansı ve sonuç saklama anı boştur; anahtar tombstone'u lease'den önce bitemez.
 `COMPLETED` veya `FAILED` durumunda lease alanları boştur; `created_at ≤ completed_at <
@@ -1531,10 +1547,75 @@ kurum-kapsamlı davranışı korur. Kesin durum makinesi, lease ve sonuç saklam
 `iam_runtime` erişiminde `idempotency_keys` `FORCE RLS` altındadır: `ORGANIZATION` bağlamında
 `scope_type='ORGANIZATION'`, `organization_id=app.organization_id` ve
 `user_id=app.iam_actor_user_id`; `GLOBAL` güvenlik bağlamında `scope_type='GLOBAL'`,
-`organization_id IS NULL` ve `user_id=app.iam_actor_user_id` zorunludur. `user_id`, P-010'daki
+`organization_id IS NULL` ve `user_id=app.iam_actor_user_id`; `IAM_AUTH` bağlamında ise
+`scope_type='IAM_AUTH'`, `organization_id IS NULL`, `user_id=app.iam_actor_user_id`,
+`operation_type=app.iam_operation_code` ve auth replay escrow erişiminde ayrıca
+`request_fingerprint` içindeki cihaz/token bağlamı zorunludur. `user_id`, P-010'daki
 `actorUserId`dir; `app.iam_target_user_id` yalnız güvenlik olayının hedefidir. Böylece başka
-kurumun veya aktörün önceki sonucu okunamaz ya da güncellenemez; `app.iam_operation_scope` iki
-bağlamın birlikte kurulmasını reddeder.
+kurumun, aktörün veya başka Cognito access token değişiminin önceki sonucu okunamaz ya da
+güncellenemez; `app.iam_operation_scope` iki bağlamın birlikte kurulmasını reddeder.
+`PROVIDER_TOKEN_EXCHANGE`, önce salt okunur `AUTHENTICATION` transaction'ında yalnız
+`issuer + subject` ile identity çözer, ardından ayrı `IAM_AUTH` transaction'ında bu çözülmüş
+`actorUserId` ile mutation yapar; scope'lar aynı DB transaction'ında birikemez.
+
+### 14.0a. `iam_auth_response_escrows`
+
+Ham token dönen auth cevapları (`provider-token-exchange`, `platform-admin/activate`,
+kurum `activate`, `sessions/refresh`) güvenli replay için `idempotency_keys.result_payload`
+yerine ayrı escrow yüzeyi kullanır.
+
+| Alan | Tip | Null | Açıklama |
+|---|---|---|---|
+| `id` | UUID | Hayır | PK |
+| `idempotency_key_id` | UUID (FK → `idempotency_keys.id`) | Hayır | **UNIQUE** — her auth replay sonucu tek idempotency kaydına bağlıdır. |
+| `actor_user_id` | UUID (FK → `users.id`) | Hayır | Replay yalnız aynı aktöre açılır. |
+| `operation_type` | TEXT | Hayır | `PROVIDER_TOKEN_EXCHANGE`, `PLATFORM_ADMIN_ACTIVATE`, `CONTEXT_ACTIVATE`, `SESSION_REFRESH` allow-list değerlerinden biri. |
+| `device_identifier` | UUID | Hayır | Aynı auth replay yüzeyini farklı cihaz okuyamaz. |
+| `token_fingerprint` | TEXT | Hayır | İşlem bazlı güvenli `requestTokenFingerprint`; `PROVIDER_TOKEN_EXCHANGE` için Cognito access token, `PLATFORM_ADMIN_ACTIVATE`/`CONTEXT_ACTIVATE` için `contextSelectionToken`, `SESSION_REFRESH` için platform refresh token. Ham token değildir. |
+| `result_context_token_id` | UUID (FK → `context_selection_tokens.id`) | Evet | `PROVIDER_TOKEN_EXCHANGE` sonucunda üretilen context token bağı. |
+| `result_refresh_token_family_id` | UUID (FK → `refresh_token_families.id`) | Evet | Aktivasyon veya refresh sonucunda etkilenen aile. |
+| `result_refresh_token_id` | UUID (FK → `refresh_tokens.id`) | Evet | Aktivasyon veya refresh sonucunda üretilen token. |
+| `ciphertext` | BYTEA | Evet | `status='READY'` iken AEAD ile şifrelenmiş tam yanıt gövdesi; `EXPIRED`/`REVOKED` durumunda zorunlu olarak `NULL`'lanır. |
+| `aead_key_reference` | TEXT | Evet | `status='READY'` iken kullanılan A-013 secret yöneticisi anahtar/versiyon kimliği; purge sonrası `NULL` olur. |
+| `aead_nonce` | BYTEA | Evet | `status='READY'` iken aynı anahtar altında benzersiz AEAD nonce; purge sonrası `NULL` olur. |
+| `aad_context` | TEXT | Evet | Actor/operation/device/idempotency bağlamının kanonik özeti; decrypt sırasında zorunlu ek doğrulama verisi. `EXPIRED`/`REVOKED` purge sonrası `NULL` olur. |
+| `status` | ENUM(`READY`,`EXPIRED`,`REVOKED`) | Hayır | Replay cevabının erişim durumu. Aynı key için çoklu güvenli replay desteklendiğinden `CONSUMED` kullanılmaz. |
+| `expires_at` | TIMESTAMPTZ | Hayır | Operation bazlı kesin TTL. |
+| `created_at` | TIMESTAMPTZ | Hayır | |
+| `deleted_at` | TIMESTAMPTZ | Evet | Süre dolumu veya güvenli temizlik anı. |
+
+Kısıtlar:
+
+- `CHECK (created_at < expires_at)`.
+- `CHECK ((status = 'READY' AND deleted_at IS NULL AND ciphertext IS NOT NULL AND aead_key_reference IS NOT NULL AND aead_nonce IS NOT NULL AND aad_context IS NOT NULL) OR (status IN ('EXPIRED','REVOKED') AND deleted_at IS NOT NULL AND deleted_at >= created_at AND ciphertext IS NULL AND aead_key_reference IS NULL AND aead_nonce IS NULL AND aad_context IS NULL))`.
+- `CHECK (num_nonnulls(result_context_token_id, result_refresh_token_family_id, result_refresh_token_id) >= 1)`.
+- `CHECK ((operation_type = 'PROVIDER_TOKEN_EXCHANGE' AND result_context_token_id IS NOT NULL AND result_refresh_token_family_id IS NULL AND result_refresh_token_id IS NULL) OR (operation_type IN ('PLATFORM_ADMIN_ACTIVATE','CONTEXT_ACTIVATE') AND result_context_token_id IS NULL AND result_refresh_token_family_id IS NOT NULL AND result_refresh_token_id IS NOT NULL) OR (operation_type = 'SESSION_REFRESH' AND result_context_token_id IS NULL AND result_refresh_token_family_id IS NOT NULL AND result_refresh_token_id IS NOT NULL))`.
+- Escrow, `actor_user_id`, `operation_type`, `device_identifier` ve `token_fingerprint` eşleşmeden okunamaz.
+- `PROVIDER_TOKEN_EXCHANGE`, `PLATFORM_ADMIN_ACTIVATE` ve `CONTEXT_ACTIVATE` için `expires_at = created_at + INTERVAL '5 minutes'`; `SESSION_REFRESH` için `expires_at = created_at + INTERVAL '10 minutes'`.
+- Ham token audit, log, `idempotency_keys.result_payload` veya başka açık JSON yüzeyine yazılamaz.
+- `expires_at` sonrası replay isteği fail-closed davranır: işlem ikinci kez yürütülmez; bağlı
+  context token `revoked_at` ile, bağlı family/token sonucu ise `revoked_at` ile idempotent
+  kapatılır; güvenlik audit'i yazılır, `deleted_at` doldurulur ve `ciphertext`,
+  `aead_key_reference`, `aead_nonce`, `aad_context` aynı state geçişinde `NULL`'lanır.
+  İstemci güvenli yeniden auth/yeniden deneme akışına yönlendirilir.
+- Cleanup geçişi RLS açısından old-row/new-row olarak bağlayıcıdır: `USING` yalnız
+  `status='READY' AND (expires_at <= transaction_time OR current_setting('app.iam_security_revoke_required', true) = 'true')`
+  satırlarını açar; `WITH CHECK` yalnız `status IN ('EXPIRED','REVOKED')`, `deleted_at IS NOT NULL`
+  ve `ciphertext`/`aead_key_reference`/`aead_nonce`/`aad_context` alanlarının `NULL` olduğu
+  new-row'u kabul eder. Aynı `UPDATE` içinde terminal durum + purge zorunludur; zaten terminal
+  satırdaki idempotent tekrar güvenli no-op olabilir.
+
+`iam_runtime` bu tabloda yalnız `IAM_AUTH` bağlamında `SELECT`/`INSERT`/`UPDATE` hakkı taşır;
+RLS, `actor_user_id=app.iam_actor_user_id`, `operation_type=app.iam_operation_code` ve
+escrow'un bağlı olduğu `idempotency_key_id`nin aynı aktör/IAM_AUTH kapsamında olmasını zorunlu
+kılar. `CONTEXT_ACTIVATE`te ayrıca bağlanan üyelik/kurumun, `SESSION_REFRESH`te bağlanan
+family/tokenın aynı aktör ve cihaz zincirinde olması zorunludur. Başka aktör, başka operation
+code, farklı cihaz/token bağlamı veya çapraz kurum/family erişimi varsayılan reddir.
+
+Cleanup/reconciliation sahipliği `IAM-005` ve `IAM-006`dadır; dar yetkili cleanup akışı old-row'da
+yalnız `READY` ve süresi dolmuş veya server-set güvenlik revoke'u gereken escrow satırlarını açar,
+new-row'da ise yalnız `EXPIRED`/`REVOKED`, `deleted_at` dolu ve dört gizli alanı `NULL` satırı
+yazabilir. `IAM-009` escrow expiry, replay reconciliation ve RLS izolasyon otomasyonunu kanıtlar.
 
 ---
 
