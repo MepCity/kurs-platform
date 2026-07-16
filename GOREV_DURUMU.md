@@ -3,9 +3,9 @@
 | Alan | Değer |
 |---|---|
 | Son güncelleme | 16 Temmuz 2026 |
-| Aktif dalga | Dalga 1 — Teknoloji kararları ve iskelet |
+| Aktif dalga | Dalga 2 — Kimlik, kurum ve mobil kabuk |
 | Aktif görev | Yok |
-| Sıradaki görev | A-015 — Dalga 1 iskelet bütünlük incelemesi |
+| Sıradaki görev | IAM-001 — Giriş/oturum API sözleşmesini kesinleştir |
 
 Bu dosya projenin kaldığı yeri gösteren kısa operasyon panosudur. Her çalışma oturumunun
 başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev tanımları
@@ -15,7 +15,10 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 
 | Kimlik | Görev | Boyut | Not |
 |---|---|---:|---|
-| A-015 | Dalga 1 iskelet bütünlük incelemesi | S | A-001–A-014, PLAN-005 ve A-004R3 tamamlandı; Dalga 2 öncesi entegrasyon kapısı uygulanabilir |
+| IAM-001 | Giriş/oturum API sözleşmesini kesinleştir | S | P-003, A-004R3 ve Dalga 1 entegrasyon kapısı tamamlandı |
+| ORG-001 | Kurum yaşam döngüsü API sözleşmesini yaz | S | P-008, P-009 ve Dalga 1 entegrasyon kapısı tamamlandı; IAM-001 ile dosya sahipliği çakışmıyor |
+| UI-001 | Mobil tasarım tokenlarını tanımla | S | P-005, P-006 ve Dalga 1 entegrasyon kapısı tamamlandı; sözleşme görevleriyle paralel ilerleyebilir |
+| UI-002 | Navigasyon ve rol bazlı menü sözleşmesini yaz | S | P-003, P-007 ve Dalga 1 entegrasyon kapısı tamamlandı; UI-001 çıktısına bağımlı değildir |
 
 ## IN_PROGRESS
 
@@ -27,9 +30,7 @@ Aktif görev yok.
 
 ## BLOCKED
 
-| Kimlik | Görev | Engel |
-|---|---|---|
-| IAM-001 | Giriş/oturum API sözleşmesini kesinleştir | Teknik bağımlılıkları tamamlandı; Dalga 1 entegrasyon kapısı A-015 bekleniyor |
+Bloklanmış görev yok.
 
 ## DONE
 
@@ -71,6 +72,7 @@ Aktif görev yok.
 | A-012 | CI kalite kapılarını oluştur | 15 Temmuz 2026 | `.github/workflows/quality-gates.yml`, path/rename regresyonları, dört zorunlu gate; backend, Android, iOS simulator ve SBOM PASS — PR #29 |
 | A-013 | Ortam değişkeni ve secret yönetimi iskeleti | 16 Temmuz 2026 | `A013_ORTAM_DEGISKENI_VE_SECRET_ISKELETI.md`, backend/mobil fail-fast yapılandırma ve repo secret tarama kapısı — PR #33 |
 | A-014 | Loglama ve hata izleme temelini kur | 15 Temmuz 2026 | `GOZLEMLENEBILIRLIK_VE_HATA_IZLEME_SOZLESMESI.md`, backend ve mobil güvenli gözlemlenebilirlik temeli; backend 49 test, mobil 34 test, Android ve iOS binary kalite kapıları PASS — PR #30 |
+| A-015 | Dalga 1 iskelet bütünlük incelemesi | 16 Temmuz 2026 | `A015_DALGA_1_ISKELET_BUTUNLUK_INCELEMESI.md` — Dalga 1 çıkış kapısı, Android/iOS CI ve açık build-time bağımlılık riski sınıflaması — PR #34 |
 
 ## Sonraki görev nasıl READY yapılır?
 
