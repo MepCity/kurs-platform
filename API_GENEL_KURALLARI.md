@@ -154,16 +154,29 @@ sözleşmesinde tanımlar; bu tabloyla çelişen ikinci bir anlam veremez.
 ### 7.2. İdempotent yazma
 
 - Her mobil oluşturma, güncelleme, arşivleme, geri alma ve durum değiştiren komut benzersiz `Idempotency-Key` başlığı taşır. Bu anahtar istemcinin `clientMutationId` değeridir; yeniden denemede aynen korunur.
-- Sunucu idempotency kapsamını doğrulanmış `actorUserId` ile kurar: kurum işleminde
-  `organizationId + actorUserId + clientMutationId`, global işlemde `actorUserId +
-  clientMutationId`. Bir güvenlik komutunun `targetUserId`si bu tekillik anahtarı değildir;
-  farklı hedefle aynı anahtar yeniden kullanılırsa istek parmak izi çelişki olarak reddedilir.
+- Sunucu idempotency kapsamını doğrulanmış işlem bağlamıyla kurar: kurum işleminde
+  `organizationId + actorUserId + clientMutationId`, global güvenlik işleminde `actorUserId +
+  clientMutationId`, kurum öncesi IAM kimlik doğrulama işleminde ise `actorUserId +
+  operationType + deviceIdentifier + requestTokenFingerprint + clientMutationId`.
 - Kurum kapsamlı yazmada kapsam kurum, kullanıcı ve anahtardır. Yalnızca platform yöneticisinin
-  henüz kurum oluşmadan yaptığı açık global işlemlerde kapsam global, kullanıcı ve anahtardır;
-  sunucu bu istisnayı rol ve işlem türüyle doğrular. Aynı anahtar farklı işlem türü, hedef yol
+  henüz kurum oluşmadan yaptığı açık global işlemlerde kapsam global, kullanıcı ve anahtardır.
+  `provider-token-exchange` gibi kurum öncesi auth akışları bu `GLOBAL` kapsamı kullanmaz;
+  bunlar ayrı `IAM_AUTH` kapsamında değerlendirilir. Aynı anahtar farklı işlem türü, hedef yol
   veya istek özetiyle kullanılırsa sunucu işlemi uygulamaz ve `409 IDEMPOTENCY_KEY_REUSED`
   döndürür.
-- Aynı anahtarla eşdeğer istek tekrarında ikinci yan etki veya denetim kaydı oluşmaz; ilk tamamlanmış sonucun eşdeğeri döner.
+- `IAM_AUTH` kapsamı, başka aktörün veya başka token tabanlı auth işleminin sonucunun
+  okunmasını engellemek zorundadır; en az `actorUserId`, `operationType`, `deviceIdentifier` ve
+  işlem tipine göre güvenli token fingerprint'i birlikte doğrulanmadan replay sonucu döndürülemez.
+- İşlem bazlı `requestTokenFingerprint` kaynağı bağlayıcıdır:
+  `PROVIDER_TOKEN_EXCHANGE` için Cognito access tokenı,
+  `PLATFORM_ADMIN_ACTIVATE` ve `CONTEXT_ACTIVATE` için `contextSelectionToken`,
+  `SESSION_REFRESH` ve `SESSION_LOGOUT` için platform refresh tokenı kullanılır.
+- `IAM_AUTH` kapsamında aynı kullanıcı için aynı `clientMutationId` farklı `operationType` ile
+  yeniden kullanılırsa parmak izi çakışması oluşur ve `409 IDEMPOTENCY_KEY_REUSED` döner.
+- Aynı anahtarla eşdeğer istek tekrarında ikinci yan etki veya denetim kaydı oluşmaz; ilk
+  tamamlanmış sonucun eşdeğeri döner. Ham sır içeren cevaplarda bu eşdeğer sonuç, güvenli replay
+  escrow/reference yüzeyi üzerinden döner; ham token normal `result_payload`, log veya audit
+  içine yazılmaz.
 - İşlem sonuçlanmamışsa `SENKRONIZASYON_VE_CAKISMA.md` §3–§4'teki durum makinesi uygulanır. Ağ hatası, `429` ve `5xx`
   idempotency sonucunu terminal yapmaz; istemci kuyruğu silmeden aynı anahtarla güvenli yeniden
   dener. Kalıcı terminal sonuçlar yalnız ilgili sözleşmenin güvenli olarak tanımladığı hata
