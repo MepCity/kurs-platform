@@ -36,7 +36,8 @@ import etmez. Ayrıntılı sınırlar için uygulama dizinlerindeki README dosya
 [`ADR-009`](ADR/ADR-009-monorepo-ve-repo-yapisi.md) belgesine bakın.
 
 Repo düzeyi fiziksel sınır kontrolü `./tooling/check_repo_boundaries.sh` ile çalıştırılır.
-Pull request kalite kapıları, cache/SBOM yaklaşımı ve zorunlu kontrol adları
+Secret sızıntısı başlangıç kontrolü `./tooling/check_no_secrets.sh` ile çalıştırılır. Pull
+request kalite kapıları, cache/SBOM yaklaşımı ve zorunlu kontrol adları
 [`tooling/README.md`](tooling/README.md) belgesinde açıklanır.
 
 Sağlayıcı bağımsız loglama, güvenli hata yakalama, hassas veri minimizasyonu ve başlangıç alarm
