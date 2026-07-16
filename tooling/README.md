@@ -11,10 +11,21 @@ da aynı kurala tabidir; build/cache dizinleri ve binary dosyalar taranmaz.
 
 ```bash
 ./tooling/check_repo_boundaries.sh
+./tooling/check_no_secrets.sh
 ./tooling/test/check_repo_boundaries_test.sh
+./tooling/test/check_no_secrets_test.sh
 ./tooling/test/detect_changed_areas_test.sh
 ./tooling/test/quality_workflow_test.sh
 ```
+
+`check_no_secrets.sh`, A-013 kapsamında yerel `.env`, private key dosyası, AWS access key,
+JWT benzeri bearer değeri ve yaygın ham `password`/`token`/`secret` atamalarını reddeder.
+Ham `DATABASE_URL`, `JDBC_URL`, `SPRING_DATASOURCE_URL` ve kullanıcı bilgisi taşıyan PostgreSQL/
+JDBC bağlantı atamaları da reddedilir.
+Secret referansları yalnız `KURS_PLATFORM_*_REF=<environment>/<path>` biçiminde kabul edilir;
+test dosyaları taramadan dışlanmaz. Dosya listesi NUL-delimited işlendiği için boşluk, tab ve
+shell özel karakterleri içeren dosya adları güvenli taranır. Gerçek secret manager entegrasyonu
+sonraki operasyon görevlerinin konusudur.
 
 `detect_changed_areas.sh`, rename tespitini kapatarak eski ve yeni yolu ayrı ayrı değerlendirir.
 Yalnız backend değişikliğinde backend; yalnız mobil değişikliğinde mobil kapısını seçer.

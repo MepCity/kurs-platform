@@ -82,6 +82,8 @@ required_texts=(
   'test "$ANDROID_RESULT" = success || test "$ANDROID_RESULT" = skipped'
   'test "$IOS_RESULT" = success || test "$IOS_RESULT" = skipped'
   'test "$REVIEW_RESULT" = success'
+  './tooling/check_no_secrets.sh'
+  './tooling/test/check_no_secrets_test.sh'
 )
 
 for required_text in "${required_texts[@]}"; do

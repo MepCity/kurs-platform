@@ -32,6 +32,18 @@ fail-closed reddedilir. `core` hiçbir iş modülüne, iş modülleri de composi
 A-011 endpoint, migration, persistence, auth/storage portu, sağlayıcı SDK'sı, secret, ortam
 değişkeni veya deployment kaynağı içermez.
 
+## Ortam yapılandırması
+
+Runtime dış yapılandırması `KURS_PLATFORM_*` environment değişkenleriyle yapılır. Repo içindeki
+`application.properties` zorunlu değerler için fallback içermez; eksik yapılandırma uygulama
+açılışında fail-fast durur. Testler sentetik development değerlerini açık test girdisi olarak
+verir.
+`KURS_PLATFORM_DATABASE_URL_SECRET_REF`, `KURS_PLATFORM_IAM_TOKEN_PEPPER_SECRET_REF`,
+`KURS_PLATFORM_IAM_SECRET_DELIVERY_KEY_REF` ve `KURS_PLATFORM_COGNITO_ADMIN_ROLE_REF` yalnız
+secret referansı taşır. Production/staging API ve Cognito issuer URL'leri HTTPS olmak zorundadır;
+development'ta yalnız local HTTP istisnası kabul edilir. Gerçek provider SDK'sı, secret manager
+ürünü ve cloud kaynağı bu iskelete eklenmemiştir.
+
 ## Gözlemlenebilirlik sınırı
 
 `core.observability` yalnız tipli factory'lerle kurulabilen sağlayıcı bağımsız olay sözleşmesini,

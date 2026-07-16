@@ -19,6 +19,16 @@ istemcisi, Drift/SQLite, secure storage, `dart:io`, `dart:ffi` ve Flutter platfo
 importlarını reddeder. Bu adaptörler gerektiğinde data/core sınırında ve ilgili görev
 sözleşmesine göre eklenir. A-011 gerçek kimlik, veri, eşitleme veya ürün ekranı eklemez.
 
+## Ortam yapılandırması
+
+Mobil uygulama public yapılandırmayı `--dart-define` değerlerinden okur:
+`KURS_PLATFORM_ENVIRONMENT`, `KURS_PLATFORM_PUBLIC_API_BASE_URL`,
+`KURS_PLATFORM_COGNITO_ISSUER_URI` ve secretsiz `KURS_PLATFORM_COGNITO_CLIENT_ID`.
+Development/staging/production adları açık yazılır; `prod` veya `test` gibi kısa adlar kabul
+edilmez. Mobil pakete veritabanı bağlantısı, token pepper, Cognito admin role veya başka backend
+secret referansı konmaz. Runtime kodu sessiz development fallback içermez; eksik `--dart-define`
+değeri konfigürasyon hatası üretir.
+
 ## Yerel doğrulama
 
 ```bash
