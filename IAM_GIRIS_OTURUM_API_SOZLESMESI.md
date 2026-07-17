@@ -342,7 +342,17 @@ Davranış:
   mutasyonu yapmaz.
 - Ardından ayrı `IAM_AUTH` mutation transaction'ı, çözülmüş `actorUserId` üzerinde `users`
   durumunu doğrular ve cihaz/context/idempotency/escrow/audit yazılarını atomik yürütür.
-- IAM, `trusted_devices` kaydını oluşturur veya mevcut aktif kaydı bulur.
+- IAM, `trusted_devices` kaydını oluşturur veya mevcut aktif kaydı bulur. Bu adımdan önce sunucu,
+  aynı `(user_id, device_identifier)` mantıksal anahtarında bir transaction-scoped advisory lock
+  alır (satır hiç yokken de serileştirir; `DEVICE_SELF_REVOKE`/`PLATFORM_DEVICE_REVOKE` ile aynı
+  kilit mekanizması). Kilit altında, yalnız aynı `user_id` + aynı `device_identifier`e dar
+  `FORCE RLS` `SELECT` policy'siyle görünen geçmiş yeniden okunur: aynı çift için önceden
+  **iptal edilmiş** bir satır varsa, yeni satır yalnız doğrulanmış Cognito `auth_time`, o çiftin
+  kilit-sonrası yeniden okunan en son `revoked_at` değerinden büyükse açılır (cihaz-bazlı reauth
+  bariyeri, bkz. `IAM_CIHAZ_VE_OTURUM_IPTALI_SOZLESMESI.md` §2/§12 ve `VERI_MODELI.md` §4.10);
+  aksi hâlde bu uç aşağıdaki `403 REAUTHENTICATION_REQUIRED` ile reddeder (mevcut eşik
+  kontrolüyle aynı hata kodu, farklı ve ek bir kaynak). Başka kullanıcının veya başka
+  `device_identifier`in geçmişi bu policy ile hiçbir koşulda görünmez.
 - IAM, kısa ömürlü tek kullanımlı `context_selection_tokens` satırı yazar.
 - IAM, doğrulanmış `auth_time` değerini bu context tokenına `authenticatedAt` olarak bağlar;
   aktivasyon uçları bu doğrulanmış zamanı kullanır, istemciden yeniden almaz.
@@ -358,7 +368,9 @@ Davranış:
 - `401 UNAUTHENTICATED`: Cognito access tokenı geçersiz, süresi dolmuş veya beklenen client'a ait
   değil; `AUTHENTICATION` aşamasında identity çözülememesi de buna dahildir.
 - `403 REAUTHENTICATION_REQUIRED`: doğrulanmış `auth_time`,
-  `users.reauthentication_required_after` eşiğinin gerisinde.
+  `users.reauthentication_required_after` eşiğinin gerisinde **veya** aynı `(user_id,
+  device_identifier)` çiftinin en son `revoked_at`ından eski/eşit (cihaz-bazlı reauth bariyeri,
+  `IAM-002`).
 - `403 ACCOUNT_NOT_READY`: kullanıcı veya identity eşleşmesi var ama `PROVISIONING`/`SUSPENDED`
   durumda.
 - `404 RESOURCE_NOT_FOUND`: doğrulanmış token için platform identity eşleşmesi yok; istemci bunu

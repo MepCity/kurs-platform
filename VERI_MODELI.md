@@ -540,7 +540,7 @@ sütunlara işaret eder (bkz. 15.6).
 |---|---|---|---|
 | `id` | UUID | Hayır | PK |
 | `user_id` | UUID (FK → `users.id`) | Hayır | |
-| `device_identifier` | UUID | Hayır | **[Hassas]** — uygulamanın ilk güvenilir cihaz kaydında kriptografik rastgele ürettiği kimliktir; IMEI, reklam kimliği, OS vendor ID veya donanım parmak izi değildir. |
+| `device_identifier` | UUID | Hayır | **[Hassas]** — uygulamanın ilk güvenilir cihaz kaydında kriptografik rastgele ürettiği kimliktir; IMEI, reklam kimliği, OS vendor ID veya donanım parmak izi değildir. **Satır oluşturulduktan sonra immutable'dır** (bağlayıcı, IAM-002): bu, RLS `WITH CHECK`i değil — RLS ifadelerinde trigger `NEW`/`OLD` kaydı yoktur, bu yüzden "eski değerinden değişemez" RLS ile ifade edilemez — `iam_runtime`e yalnız `GRANT UPDATE (revoked_at) ON trusted_devices` verilmiş, bu kolona (ve `user_id`/`platform`/`device_name`/`trusted_at`a) hiç `GRANT UPDATE` verilmemiş olmasıyla (**column-level privilege**) sağlanır (bkz. `ADR-004` `trusted_devices` `UPDATE` satırı ve "değişmez kolonların korunması" bölümü). Bu, cihaz-bazlı reauth bariyerinin mantıksal kilit anahtarının (`user_id`, `device_identifier`) bir satırın ömrü boyunca sabit kalmasını garanti eder. |
 | `device_name` | TEXT | Evet | |
 | `platform` | ENUM(`IOS`,`ANDROID`) | Hayır | |
 | `trusted_at` | TIMESTAMPTZ | Hayır | |
@@ -554,6 +554,35 @@ Kısıtlar:
   kurulum kimliği için **birden fazla aktif** güvenilir cihaz kaydı oluşamaz; bu
   önlenmezse aynı fiziksel cihaz için yinelenen, birbirinden habersiz kayıtlar (ve dolayısıyla
   tutarsız iptal davranışı) oluşabilirdi.
+
+**Cihaz-bazlı yeniden kimlik doğrulama bariyeri (bağlayıcı, IAM-002):** Yukarıdaki partial
+`UNIQUE` kısıtı yalnız "aynı anda birden fazla aktif satır" durumunu engeller; `revoked_at` dolu
+bir satırla **aynı** `(user_id, device_identifier)` çifti için **yeni** bir aktif satır açılmasını
+tek başına engellemez. Bu nedenle `PROVIDER_TOKEN_EXCHANGE` transaction'ı, yeni satırı yazmadan
+önce **önce** aynı `(user_id, device_identifier)` mantıksal anahtarında bir transaction-scoped
+advisory lock alır (satır hiç yokken bile serileştirir), sonra kilit altında aynı çift için
+önceden var olan satırların **en son** (`MAX`) `revoked_at` değerini — yalnız kendi `user_id`si ve
+tam eşleşen `device_identifier`i kapsayan **dar** bir `FORCE RLS` `SELECT` policy'siyle (başka
+kullanıcı veya başka cihazın geçmişi hiçbir koşulda görünmez) — okur ve yeni satırı yalnız
+doğrulanmış Cognito `auth_time` bu değerden **büyükse** açar; önceki satır yoksa bariyer devreye
+girmez. Bu kontrol, `users.reauthentication_required_after` (§4.1) ve
+`organization_memberships.reauthentication_required_after` (§4.5) eşiklerinden **bağımsız ve ek**
+bir cihaz-düzeyi bariyerdir — `DEVICE_SELF_REVOKE` ve `PLATFORM_DEVICE_REVOKE`
+(`IAM_CIHAZ_VE_OTURUM_IPTALI_SOZLESMESI.md`) bu iki eşiği bilinçli olarak değiştirmediğinden, bu
+bariyer olmadan iptal edilmiş bir cihaz hâlâ geçerli/eski bir sağlayıcı oturumuyla anında yeniden
+güven kazanabilirdi. Aynı mantıksal kilit `DEVICE_SELF_REVOKE`/`PLATFORM_DEVICE_REVOKE`
+transaction'larında da alınır; böylece `PROVIDER_TOKEN_EXCHANGE` ile eşzamanlı bir iptal, hangisi
+önce commit olursa olsun tutarlı ve seri bir sonuç üretir. Bu iki işlem yalnız `deviceId` (`id`)
+alır, `device_identifier`i **bilmez**; bu yüzden kilitten önce dar, kararsız ve salt okunur bir
+keşif sorgusuyla (yalnız `id`/`user_id`/`device_identifier` okur, hiçbir güvenlik kararı vermez)
+`device_identifier`i öğrenir, kilidi alır, sonra aynı satırı `SELECT ... FOR UPDATE` ile yeniden
+okuyup `user_id`/`device_identifier` eşleşmesini doğrular (uyuşmazsa fail-closed `404`) ve ancak
+bundan sonra karar/mutasyon yapar. Tam faz sırası `ADR-004` "IAM-002 — ... RLS eklentisi"
+bölümündedir. Bu mekanizma ayrı `iam_runtime` rolü
+kararını (bkz. §14, `ADR-003` §5.3) veya dar `FORCE RLS` modelini gevşetmez; genel `SELECT` yetkisi,
+`BYPASSRLS` veya RLS'i atlayan bir `SECURITY DEFINER` fonksiyonu kullanılmaz. Tam `WITH CHECK`/RLS/
+advisory lock ifadesi `ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md` "IAM-002 — Cihaz ve oturum
+iptali `iam_runtime`/RLS eklentisi" bölümündedir.
 
 ### 4.10a. `context_selection_tokens` — tek kullanımlı kurum seçimi
 
@@ -1469,9 +1498,12 @@ kendi girişi/çıkışı, sistem genelinde bir bakım işi. `PLATFORM_ADMIN_ORG
 yalnız `organization_id=app.organization_id` satırını; `GLOBAL` yalnız `event_scope='GLOBAL'`,
 `target_entity_type='USER'` ve `target_entity_id=app.iam_target_user_id` olan güvenlik satırını;
 `IAM_AUTH` ise yalnız allow-listli auth güvenlik olaylarını (`PROVIDER_TOKEN_EXCHANGE`,
-`PLATFORM_ADMIN_ACTIVATE`, `CONTEXT_ACTIVATE`, `SESSION_REFRESH`, `SESSION_LOGOUT`) ve aynı
-aktör/cihaz/üyelik/kurum/family zinciriyle uyumlu satırları okur/yazar. Scope dışı, eksik veya
-iki bağlamı birlikte taşıyan transaction varsayılan olarak reddedilir.
+`PLATFORM_ADMIN_ACTIVATE`, `CONTEXT_ACTIVATE`, `SESSION_REFRESH`, `SESSION_LOGOUT`,
+`DEVICE_SELF_REVOKE`) ve aynı aktör/cihaz/üyelik/kurum/family zinciriyle uyumlu satırları
+okur/yazar. `DEVICE_SELF_REVOKE`, kullanıcının kendi güvenilir cihazını iptal ettiği kurum
+bağlamsız işlemdir (bkz. `IAM_CIHAZ_VE_OTURUM_IPTALI_SOZLESMESI.md`); satırı `event_scope=GLOBAL`,
+`organization_id=NULL` ile yazar. Scope dışı, eksik veya iki bağlamı birlikte taşıyan transaction
+varsayılan olarak reddedilir.
 
 **Payload ve API gösterimi:** `old_value`/`new_value`, `action_type +
 payload_schema_version` tarafından belirlenen şemalı veridir. API görünümü alan bazlı sunucuda
@@ -1497,7 +1529,7 @@ occurred_at DESC)`, `(organization_id, target_entity_type, target_entity_id)`,
 | `user_id` | UUID (FK → `users.id`) | Hayır | İsteği yapan `actorUserId`; düz FK (bileşik değil) — bkz. bölüm 15.3. Hedef kullanıcı değildir. |
 | `client_mutation_id` | TEXT | Hayır | |
 | `operation_type` | TEXT | Hayır | |
-| `request_fingerprint` | TEXT | Hayır | Kanonik yöntem/yol/hedef/gövde/sürüm özetinin güvenli parmak izi. `IAM_AUTH` için en az `actorUserId`, `operationType`, `deviceIdentifier` ve işlem tipine göre `requestTokenFingerprint` girdisini kapsar: `PROVIDER_TOKEN_EXCHANGE` için Cognito access token, `PLATFORM_ADMIN_ACTIVATE`/`CONTEXT_ACTIVATE` için `contextSelectionToken`, `SESSION_REFRESH`/`SESSION_LOGOUT` için platform refresh token. |
+| `request_fingerprint` | TEXT | Hayır | Kanonik yöntem/yol/hedef/gövde/sürüm özetinin güvenli parmak izi. `IAM_AUTH` için en az `actorUserId`, `operationType`, `deviceIdentifier` ve işlem tipine göre `requestTokenFingerprint` girdisini kapsar: `PROVIDER_TOKEN_EXCHANGE` için Cognito access token, `PLATFORM_ADMIN_ACTIVATE`/`CONTEXT_ACTIVATE` için `contextSelectionToken`, `SESSION_REFRESH`/`SESSION_LOGOUT` için platform refresh token, `DEVICE_SELF_REVOKE` için çağıranın platform access tokenı + çağıranın isteği doğrulayan kendi `trusted_devices.id`si (çağıran cihaz) + hedef `trusted_devices.id` (`deviceId`, iptal edilecek cihaz — çağıran cihazla aynı olabilir) (bkz. `IAM_CIHAZ_VE_OTURUM_IPTALI_SOZLESMESI.md` §5/§5.1). |
 | `status` | ENUM(`PENDING`,`COMPLETED`,`FAILED`) | Hayır | |
 | `result_entity_id` | UUID | Evet | |
 | `terminal_http_status` | SMALLINT | Koşullu | Terminal sonuçta HTTP durumu. |
