@@ -5,7 +5,7 @@
 | Son güncelleme | 17 Temmuz 2026 |
 | Aktif dalga | Dalga 2 — Kimlik, kurum ve mobil kabuk |
 | Aktif görev | Yok |
-| Sıradaki görev | IAM-003 — IAM tabloları, roller ve migration'ı uygula |
+| Sıradaki görev | IAM-008 — Mobil güvenli oturum saklamayı uygula |
 
 Bu dosya projenin kaldığı yeri gösteren kısa operasyon panosudur. Her çalışma oturumunun
 başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev tanımları
@@ -15,11 +15,10 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 
 | Kimlik | Görev | Boyut | Not |
 |---|---|---:|---|
-| IAM-003 | IAM tabloları, roller ve migration'ı uygula | M | IAM-001 tamamlandı; backend hattında sıradaki uygulama görevi |
 | IAM-008 | Mobil güvenli oturum saklamayı uygula | M | IAM-002 ve A-005 tamamlandı; mobil alanda IAM-003 backend migration çalışmasıyla paralel ilerleyebilir |
-| ORG-001 | Kurum yaşam döngüsü API sözleşmesini yaz | S | P-008, P-009 ve Dalga 1 entegrasyon kapısı tamamlandı; IAM-001 ile dosya sahipliği çakışmıyor |
-| UI-001 | Mobil tasarım tokenlarını tanımla | S | P-005, P-006 ve Dalga 1 entegrasyon kapısı tamamlandı; sözleşme görevleriyle paralel ilerleyebilir |
 | UI-002 | Navigasyon ve rol bazlı menü sözleşmesini yaz | S | P-003, P-007 ve Dalga 1 entegrasyon kapısı tamamlandı; UI-001 çıktısına bağımlı değildir |
+| IAM-007 | Mobil giriş ekranını uygula | M | IAM-001 ve UI-001 tamamlandı; IAM-008 ile aynı mobil kimlik alanına dokunduğundan paralel başlatılmaz |
+| UI-003 | Ortak düğme, alan, liste ve durum bileşenleri | M | UI-001 tamamlandı; backend sözleşme ve migration işleriyle paralel ilerleyebilir |
 
 ## IN_PROGRESS
 
@@ -27,7 +26,10 @@ Aktif görev yok.
 
 ## REVIEW
 
-İncelemede görev yok.
+| Kimlik | Görev | PR | Not |
+|---|---|---|---|
+| IAM-003 | IAM tabloları, roller ve migration'ı uygula | #37 | Agent teslimi incelemede; merge edilmedi |
+| ORG-001 | Kurum yaşam döngüsü API sözleşmesini yaz | #38 | Düzeltme turu bekleniyor; merge edilmedi |
 
 ## BLOCKED
 
@@ -76,6 +78,7 @@ Bloklanmış görev yok.
 | A-015 | Dalga 1 iskelet bütünlük incelemesi | 16 Temmuz 2026 | `A015_DALGA_1_ISKELET_BUTUNLUK_INCELEMESI.md` — Dalga 1 çıkış kapısı, Android/iOS CI ve açık build-time bağımlılık riski sınıflaması — PR #34 |
 | IAM-001 | Giriş/oturum API sözleşmesini kesinleştir | 17 Temmuz 2026 | `IAM_GIRIS_OTURUM_API_SOZLESMESI.md`, `API_GENEL_KURALLARI.md`, `VERI_MODELI.md`, `ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md` — giriş, aktivasyon, refresh, logout, IAM_AUTH RLS ve idempotent replay sözleşmesi — PR #35 |
 | IAM-002 | Cihaz ve oturum iptali sözleşmesini yaz | 17 Temmuz 2026 | `IAM_CIHAZ_VE_OTURUM_IPTALI_SOZLESMESI.md`, `ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md`, `API_GENEL_KURALLARI.md`, `IAM_GIRIS_OTURUM_API_SOZLESMESI.md`, `VERI_MODELI.md` — cihaz/kurum/platform iptali, dar FORCE RLS, idempotency ve eşzamanlılık sözleşmesi — PR #36 |
+| UI-001 | Mobil tasarım tokenlarını tanımla | 17 Temmuz 2026 | `MOBIL_TASARIM_TOKENLARI.md` — deterministik tema üretimi, WCAG kontrast kapıları, erişilebilir metin ölçekleme ve etkileşim alanı kuralları — PR #39 |
 
 ## Sonraki görev nasıl READY yapılır?
 
