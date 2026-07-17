@@ -19,6 +19,9 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 | UI-002 | Navigasyon ve rol bazlı menü sözleşmesini yaz | S | P-003, P-007 ve Dalga 1 entegrasyon kapısı tamamlandı; UI-001 çıktısına bağımlı değildir |
 | IAM-007 | Mobil giriş ekranını uygula | M | IAM-001 ve UI-001 tamamlandı; IAM-008 ile aynı mobil kimlik alanına dokunduğundan paralel başlatılmaz |
 | UI-003 | Ortak düğme, alan, liste ve durum bileşenleri | M | UI-001 tamamlandı; backend sözleşme ve migration işleriyle paralel ilerleyebilir |
+| ORG-002 | Marka ayarları sözleşmesini yaz | S | ORG-001 ve A-007 tamamlandı; IAM-003 migration çalışmasıyla dosya sahipliği çakışmıyor |
+| ORG-006 | Platform yöneticisi kurum listeleme ekranı | M | ORG-001 ve UI-001 tamamlandı; onaylı sözleşmeye bağlı mock API ile geliştirilebilir |
+| ORG-007 | Mobil kurum oluşturma akışı | M | ORG-001 ve UI-001 tamamlandı; ORG-006 ile ortak mobil dosya sahipliği koordine edilmelidir |
 
 ## IN_PROGRESS
 
@@ -29,11 +32,12 @@ Aktif görev yok.
 | Kimlik | Görev | PR | Not |
 |---|---|---|---|
 | IAM-003 | IAM tabloları, roller ve migration'ı uygula | #37 | Agent teslimi incelemede; merge edilmedi |
-| ORG-001 | Kurum yaşam döngüsü API sözleşmesini yaz | #38 | Düzeltme turu bekleniyor; merge edilmedi |
 
 ## BLOCKED
 
-Bloklanmış görev yok.
+| Kimlik | Görev | Engel | Açılma koşulu |
+|---|---|---|---|
+| ORG-003 | Kurum migration ve repository'sini oluştur | PR #37 ile `platform_administrators`, runtime rolü ve RLS/migration yüzeyi çakışıyor | IAM-003 merge edilip main güncellendikten sonra rebase edilerek READY yapılır |
 
 ## DONE
 
@@ -79,6 +83,7 @@ Bloklanmış görev yok.
 | IAM-001 | Giriş/oturum API sözleşmesini kesinleştir | 17 Temmuz 2026 | `IAM_GIRIS_OTURUM_API_SOZLESMESI.md`, `API_GENEL_KURALLARI.md`, `VERI_MODELI.md`, `ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md` — giriş, aktivasyon, refresh, logout, IAM_AUTH RLS ve idempotent replay sözleşmesi — PR #35 |
 | IAM-002 | Cihaz ve oturum iptali sözleşmesini yaz | 17 Temmuz 2026 | `IAM_CIHAZ_VE_OTURUM_IPTALI_SOZLESMESI.md`, `ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md`, `API_GENEL_KURALLARI.md`, `IAM_GIRIS_OTURUM_API_SOZLESMESI.md`, `VERI_MODELI.md` — cihaz/kurum/platform iptali, dar FORCE RLS, idempotency ve eşzamanlılık sözleşmesi — PR #36 |
 | UI-001 | Mobil tasarım tokenlarını tanımla | 17 Temmuz 2026 | `MOBIL_TASARIM_TOKENLARI.md` — deterministik tema üretimi, WCAG kontrast kapıları, erişilebilir metin ölçekleme ve etkileşim alanı kuralları — PR #39 |
+| ORG-001 | Kurum yaşam döngüsü API sözleşmesini yaz | 17 Temmuz 2026 | `ORG_KURUM_YASAM_DONGUSU_API_SOZLESMESI.md`, `ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md` — kurum yaşam döngüsü, GLOBAL/ORGANIZATION yetki bağlamı, audit fail-closed, idempotency ve eşzamanlılık sözleşmesi — PR #38 |
 
 ## Sonraki görev nasıl READY yapılır?
 
