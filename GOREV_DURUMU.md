@@ -5,7 +5,7 @@
 | Son güncelleme | 17 Temmuz 2026 |
 | Aktif dalga | Dalga 2 — Kimlik, kurum ve mobil kabuk |
 | Aktif görev | Yok |
-| Sıradaki görev | IAM-002 — Cihaz ve oturum iptali sözleşmesini yaz |
+| Sıradaki görev | IAM-003 — IAM tabloları, roller ve migration'ı uygula |
 
 Bu dosya projenin kaldığı yeri gösteren kısa operasyon panosudur. Her çalışma oturumunun
 başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev tanımları
@@ -15,8 +15,8 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 
 | Kimlik | Görev | Boyut | Not |
 |---|---|---:|---|
-| IAM-002 | Cihaz ve oturum iptali sözleşmesini yaz | S | IAM-001 tamamlandı |
-| IAM-003 | IAM tabloları, roller ve migration'ı uygula | M | IAM-001 tamamlandı; backend alanı IAM-002 sözleşme çalışmasıyla çakışmadan yürütülebilir |
+| IAM-003 | IAM tabloları, roller ve migration'ı uygula | M | IAM-001 tamamlandı; backend hattında sıradaki uygulama görevi |
+| IAM-008 | Mobil güvenli oturum saklamayı uygula | M | IAM-002 ve A-005 tamamlandı; mobil alanda IAM-003 backend migration çalışmasıyla paralel ilerleyebilir |
 | ORG-001 | Kurum yaşam döngüsü API sözleşmesini yaz | S | P-008, P-009 ve Dalga 1 entegrasyon kapısı tamamlandı; IAM-001 ile dosya sahipliği çakışmıyor |
 | UI-001 | Mobil tasarım tokenlarını tanımla | S | P-005, P-006 ve Dalga 1 entegrasyon kapısı tamamlandı; sözleşme görevleriyle paralel ilerleyebilir |
 | UI-002 | Navigasyon ve rol bazlı menü sözleşmesini yaz | S | P-003, P-007 ve Dalga 1 entegrasyon kapısı tamamlandı; UI-001 çıktısına bağımlı değildir |
@@ -75,6 +75,7 @@ Bloklanmış görev yok.
 | A-014 | Loglama ve hata izleme temelini kur | 15 Temmuz 2026 | `GOZLEMLENEBILIRLIK_VE_HATA_IZLEME_SOZLESMESI.md`, backend ve mobil güvenli gözlemlenebilirlik temeli; backend 49 test, mobil 34 test, Android ve iOS binary kalite kapıları PASS — PR #30 |
 | A-015 | Dalga 1 iskelet bütünlük incelemesi | 16 Temmuz 2026 | `A015_DALGA_1_ISKELET_BUTUNLUK_INCELEMESI.md` — Dalga 1 çıkış kapısı, Android/iOS CI ve açık build-time bağımlılık riski sınıflaması — PR #34 |
 | IAM-001 | Giriş/oturum API sözleşmesini kesinleştir | 17 Temmuz 2026 | `IAM_GIRIS_OTURUM_API_SOZLESMESI.md`, `API_GENEL_KURALLARI.md`, `VERI_MODELI.md`, `ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md` — giriş, aktivasyon, refresh, logout, IAM_AUTH RLS ve idempotent replay sözleşmesi — PR #35 |
+| IAM-002 | Cihaz ve oturum iptali sözleşmesini yaz | 17 Temmuz 2026 | `IAM_CIHAZ_VE_OTURUM_IPTALI_SOZLESMESI.md`, `ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md`, `API_GENEL_KURALLARI.md`, `IAM_GIRIS_OTURUM_API_SOZLESMESI.md`, `VERI_MODELI.md` — cihaz/kurum/platform iptali, dar FORCE RLS, idempotency ve eşzamanlılık sözleşmesi — PR #36 |
 
 ## Sonraki görev nasıl READY yapılır?
 
