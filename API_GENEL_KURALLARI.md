@@ -170,7 +170,11 @@ sözleşmesinde tanımlar; bu tabloyla çelişen ikinci bir anlam veremez.
 - İşlem bazlı `requestTokenFingerprint` kaynağı bağlayıcıdır:
   `PROVIDER_TOKEN_EXCHANGE` için Cognito access tokenı,
   `PLATFORM_ADMIN_ACTIVATE` ve `CONTEXT_ACTIVATE` için `contextSelectionToken`,
-  `SESSION_REFRESH` ve `SESSION_LOGOUT` için platform refresh tokenı kullanılır.
+  `SESSION_REFRESH` ve `SESSION_LOGOUT` için platform refresh tokenı,
+  `DEVICE_SELF_REVOKE` için çağıranın platform access tokenı + çağıranın isteği doğrulayan
+  kendi `trusted_devices.id`si (çağıran cihaz) + hedef `trusted_devices.id` (`deviceId`, iptal
+  edilecek cihaz — çağıran cihazla aynı olabilir) kullanılır
+  (`IAM_CIHAZ_VE_OTURUM_IPTALI_SOZLESMESI.md` §5/§5.1).
 - `IAM_AUTH` kapsamında aynı kullanıcı için aynı `clientMutationId` farklı `operationType` ile
   yeniden kullanılırsa parmak izi çakışması oluşur ve `409 IDEMPOTENCY_KEY_REUSED` döner.
 - Aynı anahtarla eşdeğer istek tekrarında ikinci yan etki veya denetim kaydı oluşmaz; ilk
