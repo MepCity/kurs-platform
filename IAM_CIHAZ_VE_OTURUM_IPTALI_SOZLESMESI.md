@@ -172,6 +172,11 @@ olursa ADR-004 bağlayıcıdır.
   değer değildir), bu yüzden sunucu Faz A keşif sorgusundan önce `SET LOCAL` yapabilir — ama bu
   değişkeni kullanan `UPDATE`in kendisi yalnız Faz D'de (mantıksal kilit + Faz C yeniden okuma
   sonrası) çalışır (bkz. §12.0a). Diğer işlemlerde zorunlu olarak boştur.
+- `platform_administrators` doğrulaması — IAM-002 için ayrı `FORCE RLS` `SELECT` policy'si yalnız
+  `app.iam_operation_scope='GLOBAL'`, `app.iam_operation_code='PLATFORM_DEVICE_REVOKE'`,
+  `user_id=app.iam_actor_user_id` ve `revoked_at IS NULL` birleşiminde çağıranın kendi aktif
+  satırını açar. Başka yönetici, geri alınmış yönetici ve başka operation code görünmez.
+  `ORG_CREATE`/`ORG_LIST` bu `iam_runtime` policy yüzeyinde değildir; ORG-003 sahipliğinde kalır.
 - `app.iam_provider_device_identifier` — yalnız `PROVIDER_TOKEN_EXCHANGE`te sunucunun doğrulanmış
   istek gövdesindeki `deviceIdentifier` alanından kurduğu server-set değer; `trusted_devices`
   `SELECT`/`INSERT` policy'lerinin **dar** eşleşme anahtarıdır (yalnız aynı `user_id` + aynı bu

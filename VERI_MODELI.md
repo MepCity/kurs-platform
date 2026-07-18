@@ -730,6 +730,11 @@ araması içindir. `payload_fingerprint` tek başına iş yürütmek için yeter
 olmalıdır; diğer command type'larda `target_identity_id` zorunlu, `target_user_id NULL`
 olmalıdır. Bu command-type XOR, create işleminde henüz provider identity bulunmadığını, mevcut
 provider kimliğiyle çalışan komutların ise yalnız identity hedeflediğini zorunlu kılar.
+`GLOBAL` provider komutunda `app.iam_target_identity_id`, istemcinin ayarlayabildiği bir alan
+değildir: sunucu bunu doğrulanmış route hedefinden `SET LOCAL` ile kurar ve aynı transaction'da
+`id = app.iam_target_identity_id` ile `user_id = app.iam_target_user_id` koşullarını birlikte
+RLS'e uygular. Eksik, geçersiz, başka kullanıcıya ait veya farklı identity fail-closed reddedilir;
+transaction sonlandığında bağlam temizlenir ve identity listeleme varsayılan olarak kapalıdır.
 `UNIQUE (provider, command_type, organization_id, username_lookup_hash) WHERE
 command_type='TEACHER_ACCOUNT_CREATE'` aynı kullanıcı/kurum provisioning'ini tek komuta bağlar.
 Ham token/parola log, audit, normal uygulama tablosu veya `idempotency_keys.result_payload`da
@@ -758,6 +763,12 @@ Durum/zaman kısıtları DB seviyesinde en az şunları zorunlu kılar:
 - `EXPIRED`: `consumed_at IS NULL`; uygulama koşullu güncellemeyi `expires_at <= transaction_time`
   ön koşuluyla yapar, çünkü hareketli saat karşılaştırması değişmez bir PostgreSQL `CHECK`
   ifadesiyle güvenli biçimde modellenmez.
+
+`ESCROWED` ve `READY` satırlarında `encrypted_secret` ile `payload_key_id` zorunludur.
+`CONSUMED` ve `EXPIRED` satırlarında ikisi de zorunlu olarak `NULL`dur: state trigger'ı terminal
+geçişte bu temizliği aynı atomik update'te yapar ve `CHECK` terminal satırda gizli materyali
+reddeder. Böylece durum görünürlüğü RLS new-row kontrolü için gerekse bile, ilk tüketimden sonra
+kayıp yanıt veya terminal satırın sonraki okunması parolayı ya da anahtar referansını geri vermez.
 
 Secret okuması satırı kilitleyen tek transaction'da `READY` → `CONSUMED` koşullu geçişiyle
 birlikte yapılır. Yanıt istemciye ulaşmadan kaybolsa dahi ikinci gösterim yapılmaz; yeni parola
