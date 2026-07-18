@@ -2,7 +2,7 @@
 
 | Alan | Değer |
 |---|---|
-| Son güncelleme | 18 Temmuz 2026 |
+| Son güncelleme | 19 Temmuz 2026 |
 | Aktif dalga | Dalga 2 — Kimlik, kurum ve mobil kabuk |
 | Aktif görev | Yok |
 | Sıradaki görev | IAM-008 — Mobil güvenli oturum saklamayı uygula |
@@ -17,8 +17,10 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 |---|---|---:|---|
 | IAM-008 | Mobil güvenli oturum saklamayı uygula | M | IAM-002 ve A-005 tamamlandı; mobil alanda IAM-003 backend migration çalışmasıyla paralel ilerleyebilir |
 | IAM-007 | Mobil giriş ekranını uygula | M | IAM-001 ve UI-001 tamamlandı; IAM-008 ile aynı mobil kimlik alanına dokunduğundan paralel başlatılmaz |
+| IAM-004 | Giriş/token değişimi ve provider command akışını uygula | M | IAM-003 tamamlandı; ORG-003 ile ortak backend migration/runtime yüzeyine dokunabileceğinden paralel başlatılmaz |
 | UI-003 | Ortak düğme, alan, liste ve durum bileşenleri | M | UI-001 tamamlandı; backend sözleşme ve migration işleriyle paralel ilerleyebilir |
 | ORG-002 | Marka ayarları sözleşmesini yaz | S | ORG-001 ve A-007 tamamlandı; IAM-003 migration çalışmasıyla dosya sahipliği çakışmıyor |
+| ORG-003 | Kurum migration ve repository'sini oluştur | M | ORG-001 tamamlandı ve PR #37 kaynaklı migration/runtime çakışması merge ile kapandı; IAM-004 ile paralel başlatılmaz |
 | ORG-006 | Platform yöneticisi kurum listeleme ekranı | M | ORG-001 ve UI-001 tamamlandı; onaylı sözleşmeye bağlı mock API ile geliştirilebilir |
 | ORG-007 | Mobil kurum oluşturma akışı | M | ORG-001 ve UI-001 tamamlandı; ORG-006 ile ortak mobil dosya sahipliği koordine edilmelidir |
 
@@ -28,15 +30,11 @@ Aktif görev yok.
 
 ## REVIEW
 
-| Kimlik | Görev | PR | Not |
-|---|---|---|---|
-| IAM-003 | IAM tabloları, roller ve migration'ı uygula | #37 | Agent teslimi incelemede; merge edilmedi |
+İncelemede görev yok.
 
 ## BLOCKED
 
-| Kimlik | Görev | Engel | Açılma koşulu |
-|---|---|---|---|
-| ORG-003 | Kurum migration ve repository'sini oluştur | PR #37 ile `platform_administrators`, runtime rolü ve RLS/migration yüzeyi çakışıyor | IAM-003 merge edilip main güncellendikten sonra rebase edilerek READY yapılır |
+Bloke görev yok.
 
 ## DONE
 
@@ -81,6 +79,7 @@ Aktif görev yok.
 | A-015 | Dalga 1 iskelet bütünlük incelemesi | 16 Temmuz 2026 | `A015_DALGA_1_ISKELET_BUTUNLUK_INCELEMESI.md` — Dalga 1 çıkış kapısı, Android/iOS CI ve açık build-time bağımlılık riski sınıflaması — PR #34 |
 | IAM-001 | Giriş/oturum API sözleşmesini kesinleştir | 17 Temmuz 2026 | `IAM_GIRIS_OTURUM_API_SOZLESMESI.md`, `API_GENEL_KURALLARI.md`, `VERI_MODELI.md`, `ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md` — giriş, aktivasyon, refresh, logout, IAM_AUTH RLS ve idempotent replay sözleşmesi — PR #35 |
 | IAM-002 | Cihaz ve oturum iptali sözleşmesini yaz | 17 Temmuz 2026 | `IAM_CIHAZ_VE_OTURUM_IPTALI_SOZLESMESI.md`, `ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md`, `API_GENEL_KURALLARI.md`, `IAM_GIRIS_OTURUM_API_SOZLESMESI.md`, `VERI_MODELI.md` — cihaz/kurum/platform iptali, dar FORCE RLS, idempotency ve eşzamanlılık sözleşmesi — PR #36 |
+| IAM-003 | IAM tabloları, roller ve migration'ı uygula | 19 Temmuz 2026 | `apps/backend/src/main/resources/db/migration/V1__iam_tables.sql`, IAM domain kayıtları ve PostgreSQL migration testleri — IAM tabloları, runtime rol sınırları, FORCE RLS, provider-command lease/fencing ve secret-delivery durum makinesi — PR #37 |
 | UI-001 | Mobil tasarım tokenlarını tanımla | 17 Temmuz 2026 | `MOBIL_TASARIM_TOKENLARI.md` — deterministik tema üretimi, WCAG kontrast kapıları, erişilebilir metin ölçekleme ve etkileşim alanı kuralları — PR #39 |
 | ORG-001 | Kurum yaşam döngüsü API sözleşmesini yaz | 17 Temmuz 2026 | `ORG_KURUM_YASAM_DONGUSU_API_SOZLESMESI.md`, `ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md` — kurum yaşam döngüsü, GLOBAL/ORGANIZATION yetki bağlamı, audit fail-closed, idempotency ve eşzamanlılık sözleşmesi — PR #38 |
 | UI-002 | Navigasyon ve rol bazlı menü sözleşmesini yaz | 18 Temmuz 2026 | `UI_002_NAVIGASYON_VE_ROL_BAZLI_MENU_SOZLESMESI.md` — rol bazlı NavigationBar, güvenli kurum/rol bağlamı, bağımsız izin görünürlüğü ve sınıf seçimi sözleşmesi — PR #40 |
