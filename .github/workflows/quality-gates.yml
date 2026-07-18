@@ -96,7 +96,16 @@ jobs:
 
       - name: Test ve build kapısını çalıştır
         working-directory: apps/backend
-        run: ./gradlew test build --no-daemon
+        run: ./gradlew test build --no-daemon --stacktrace
+
+      - name: Başarısız backend test raporunu yükle
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: backend-test-reports
+          path: apps/backend/build/reports/tests/test
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Backend SBOM üret
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0

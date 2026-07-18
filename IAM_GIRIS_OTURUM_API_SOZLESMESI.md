@@ -131,6 +131,36 @@ yapamaz; `IAM_AUTH` aşaması da `issuer + subject` ile identity taraması yapam
 `CONTEXT_ACTIVATE` ve `SESSION_REFRESH`; context/token ailesi, refresh token, idempotency,
 response escrow ve audit değişikliklerini gerçekten aynı DB transaction'ında tamamlamak zorundadır.
 
+#### 4.1.1. `app.iam_current_family_id` değişkeni
+
+`SESSION_REFRESH` ve `SESSION_LOGOUT` işlemlerinde sunucu, PostgreSQL transaction değişkeni
+`app.iam_current_family_id` değerini `SET LOCAL` ile açıkça ayarlar. Bu değer, istemciden gelen
+refresh token fingerprint'inden çözülen `refresh_token_families.id` değeridir ve RLS policy'leri
+tarafından aynı transaction içindeki tüm `refresh_token_families` ve `refresh_tokens` erişimlerini
+bu tek aileyle sınırlamak için kullanılır.
+
+- Değer **yalnız sunucu tarafından** ayarlanır; istemci bu değeri doğrudan gönderemez veya değiştiremez.
+- `SET LOCAL` ile transaction scope'uyla sınırlıdır; transaction dışında etkisi yoktur.
+- Policy'ler bu değişkeni `::uuid` cast ile karşılaştırır; geçersiz UUID veya boş değer policy
+  koşulunu sağlamaz ve erişim reddedilir.
+- Bu mekanizma, aynı kullanıcı ve cihaz üzerinde birden fazla oturum ailesi bulunduğunda bir
+  işlemin yalnız ilgili aileyi görmesini ve değiştirmesini garanti eder.
+
+#### 4.1.2. `app.iam_target_identity_id` değişkeni
+
+`USER_DISABLE`, `USER_LOGOUT` ve `PASSWORD_RESET` için sunucu, doğrulanmış route hedefinden
+çözülen provider identity UUID'sini `SET LOCAL app.iam_target_identity_id` ile kurar. Değer
+istemci gövdesinden alınmaz; sunucu aynı transaction içinde `app.iam_target_user_id` ile birlikte
+kurar ve `user_identities.id = app.iam_target_identity_id AND user_id = app.iam_target_user_id`
+eşleşmesini RLS altında doğrular.
+
+- Değer yalnız server-settir ve `SET LOCAL` nedeniyle transaction dışına taşmaz.
+- Eksik, boş, geçersiz UUID, başka kullanıcıya ait veya istek hedefinden farklı identity değeri
+  RLS eşleşmesini açmaz; işlem fail-closed reddedilir.
+- Aynı transaction'da identity hedefi, kullanıcı hedefi veya `GLOBAL` operation code'u
+  değiştirilecekse önceki bağlam temizlenir; genişletilmiş listeleme ya da varsayılan identity
+  seçimi yoktur.
+
 ## 5. Ortak istek/cevap kuralları
 
 - `API_GENEL_KURALLARI.md` bölüm 3, 4, 5 ve 7 bu belge için aynen geçerlidir.
