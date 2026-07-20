@@ -5,7 +5,7 @@
 | Son güncelleme | 20 Temmuz 2026 |
 | Aktif dalga | Dalga 2 — Kimlik, kurum ve mobil kabuk |
 | Aktif görev | Yok |
-| Sıradaki görev | AUDIT-001A — Erken ortak audit çekirdeğini ve temel RLS kapısını oluştur |
+| Sıradaki görev | ORG-003 — PR #43'ü güncel main üzerine rebase et, audit entegrasyonunu tamamla ve yeniden incelemeye sun |
 
 Bu dosya projenin kaldığı yeri gösteren kısa operasyon panosudur. Her çalışma oturumunun
 başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev tanımları
@@ -15,7 +15,6 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 
 | Kimlik | Görev | Boyut | Not |
 |---|---|---:|---|
-| AUDIT-001A | Erken ortak audit çekirdeğini ve temel RLS kapısını oluştur | M | P-011, A-002, IAM-003 ve ORG-001 tamamlandı; aynı Flyway zincirine dokunan ORG-003 PR #43 bu görev merge edilene kadar ilerletilmez |
 | IAM-008 | Mobil güvenli oturum saklamayı uygula | M | IAM-002 ve A-005 tamamlandı; mobil alanda IAM-003 backend migration çalışmasıyla paralel ilerleyebilir |
 | IAM-007 | Mobil giriş ekranını uygula | M | IAM-001 ve UI-001 tamamlandı; IAM-008 ile aynı mobil kimlik alanına dokunduğundan paralel başlatılmaz |
 | IAM-004 | Giriş/token değişimi ve provider command akışını uygula | M | IAM-003 tamamlandı; AUDIT-001A ve ORG-003 ile ortak backend migration/runtime yüzeyine dokunabileceğinden bu migration zinciri kapanmadan paralel başlatılmaz |
@@ -31,7 +30,7 @@ Aktif görev yok.
 | Kimlik | Görev | PR | Durum notu |
 |---|---|---|---|
 | ORG-002 | Marka ayarları sözleşmesini yaz | [#41](https://github.com/MepCity/kurs-platform/pull/41) | Açık; güncel main'in gerisinde ve merkez incelemesi bekliyor |
-| ORG-003 | Kurum migration ve repository'sini oluştur | [#43](https://github.com/MepCity/kurs-platform/pull/43) | Açık; audit fail-closed bağımlılığı nedeniyle `AUDIT-001A` merge edilmeden merge edilmemeli |
+| ORG-003 | Kurum migration ve repository'sini oluştur | [#43](https://github.com/MepCity/kurs-platform/pull/43) | Açık; AUDIT-001A tamamlandı. Güncel main üzerine rebase, Flyway sürümünün sıradaki değere taşınması, dar `org_runtime` audit INSERT policy/grant'i ve audit başarısızlığında lifecycle transaction rollback kanıtı bekleniyor |
 | UI-004 | Rol bazlı mobil kabuk ve navigasyon | [#44](https://github.com/MepCity/kurs-platform/pull/44) | Açık; merkez incelemesi bekliyor |
 
 ## BLOCKED
@@ -86,6 +85,7 @@ Bloke görev yok.
 | ORG-001 | Kurum yaşam döngüsü API sözleşmesini yaz | 17 Temmuz 2026 | `ORG_KURUM_YASAM_DONGUSU_API_SOZLESMESI.md`, `ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md` — kurum yaşam döngüsü, GLOBAL/ORGANIZATION yetki bağlamı, audit fail-closed, idempotency ve eşzamanlılık sözleşmesi — PR #38 |
 | UI-002 | Navigasyon ve rol bazlı menü sözleşmesini yaz | 18 Temmuz 2026 | `UI_002_NAVIGASYON_VE_ROL_BAZLI_MENU_SOZLESMESI.md` — rol bazlı NavigationBar, güvenli kurum/rol bağlamı, bağımsız izin görünürlüğü ve sınıf seçimi sözleşmesi — PR #40 |
 | UI-003 | Ortak düğme, alan, liste ve durum bileşenleri | 20 Temmuz 2026 | `apps/mobile/lib/core/theme`, `apps/mobile/lib/core/presentation/widgets` — kurum teması, erişilebilir ortak bileşenler, güvenli alt eylem alanı ve 158 mobil test; Android/iOS kalite kapıları PASS — PR #42 |
+| AUDIT-001A | Erken ortak audit çekirdeğini ve temel RLS kapısını oluştur | 20 Temmuz 2026 | `apps/backend/src/main/resources/db/migration/V2__audit_core.sql`, `AuditCoreMigrationTests.java` — dört kapalı katalog seed'i, append-only audit çekirdeği, FORCE RLS varsayılan-red kapısı ve gerçek PostgreSQL kapsam/undo/indeks testleri — PR #45 |
 
 ## Sonraki görev nasıl READY yapılır?
 
