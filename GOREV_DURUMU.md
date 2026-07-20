@@ -29,7 +29,6 @@ Aktif görev yok.
 |---|---|---|---|
 | ORG-002 | Marka ayarları sözleşmesini yaz | [#41](https://github.com/MepCity/kurs-platform/pull/41) | Açık; güncel main'in gerisinde ve merkez incelemesi bekliyor |
 | ORG-003 | Kurum migration ve repository'sini oluştur | [#43](https://github.com/MepCity/kurs-platform/pull/43) | Açık; AUDIT-001A tamamlandı. Güncel main üzerine rebase, Flyway sürümünün sıradaki değere taşınması, dar `org_runtime` audit INSERT policy/grant'i ve audit başarısızlığında lifecycle transaction rollback kanıtı bekleniyor |
-| UI-004 | Rol bazlı mobil kabuk ve navigasyon | [#44](https://github.com/MepCity/kurs-platform/pull/44) | Açık; merkez incelemesi bekliyor |
 
 ## BLOCKED
 
@@ -86,6 +85,7 @@ Bloke görev yok.
 | AUDIT-001A | Erken ortak audit çekirdeğini ve temel RLS kapısını oluştur | 20 Temmuz 2026 | `apps/backend/src/main/resources/db/migration/V2__audit_core.sql`, `AuditCoreMigrationTests.java` — dört kapalı katalog seed'i, append-only audit çekirdeği, FORCE RLS varsayılan-red kapısı ve gerçek PostgreSQL kapsam/undo/indeks testleri — PR #45 |
 | ORG-006 | Platform yöneticisi kurum listeleme ekranı | 20 Temmuz 2026 | `apps/mobile/lib/features/organizations` — PLAT-01 arama/durum filtresi, aktör ve kapsama bağlı opak keyset cursor, Y/B/H/Z durumları ve 273 mobil test; Android/iOS kalite kapıları PASS — PR #47 |
 | ORG-007 | Mobil kurum oluşturma akışı | 20 Temmuz 2026 | `apps/mobile/lib/features/organizations` — PLAT-02 alan doğrulama, güvenli idempotency yaşam döngüsü, yapılandırılmış 422 hataları, gerçek ekran ölçülü erişilebilirlik testleri ve 368 mobil test; Android/iOS kalite kapıları PASS — PR #48 |
+| UI-004 | Rol bazlı mobil kabuk ve navigasyon | 20 Temmuz 2026 | `apps/mobile/lib/features/bootstrap/presentation` — rol ve bağlam bazlı mobil kabuk, tek kaynak rota politikası, sınıf seçimi, güvenli istek kuyruğu, identity/generation uzlaştırması ve markersız rota fail-closed temizliği; 458 mobil test, Android/iOS kalite kapıları PASS — PR #44 |
 
 ## Sonraki görev nasıl READY yapılır?
 
