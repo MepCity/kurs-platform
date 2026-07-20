@@ -18,8 +18,7 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 | IAM-008 | Mobil güvenli oturum saklamayı uygula | M | IAM-002 ve A-005 tamamlandı; mobil alanda IAM-003 backend migration çalışmasıyla paralel ilerleyebilir |
 | IAM-007 | Mobil giriş ekranını uygula | M | IAM-001 ve UI-001 tamamlandı; IAM-008 ile aynı mobil kimlik alanına dokunduğundan paralel başlatılmaz |
 | IAM-004 | Giriş/token değişimi ve provider command akışını uygula | M | IAM-003 tamamlandı; AUDIT-001A ve ORG-003 ile ortak backend migration/runtime yüzeyine dokunabileceğinden bu migration zinciri kapanmadan paralel başlatılmaz |
-| ORG-006 | Platform yöneticisi kurum listeleme ekranı | M | ORG-001 ve UI-001 tamamlandı; onaylı sözleşmeye bağlı mock API ile geliştirilebilir |
-| ORG-007 | Mobil kurum oluşturma akışı | M | ORG-001 ve UI-001 tamamlandı; ORG-006 ile ortak mobil dosya sahipliği koordine edilmelidir |
+| ORG-007 | Mobil kurum oluşturma akışı | M | ORG-001, UI-001 ve ORG-006 tamamlandı; UI-004 ile navigasyon/composition dosya sahipliği koordine edilmelidir |
 
 ## IN_PROGRESS
 
@@ -86,6 +85,7 @@ Bloke görev yok.
 | UI-002 | Navigasyon ve rol bazlı menü sözleşmesini yaz | 18 Temmuz 2026 | `UI_002_NAVIGASYON_VE_ROL_BAZLI_MENU_SOZLESMESI.md` — rol bazlı NavigationBar, güvenli kurum/rol bağlamı, bağımsız izin görünürlüğü ve sınıf seçimi sözleşmesi — PR #40 |
 | UI-003 | Ortak düğme, alan, liste ve durum bileşenleri | 20 Temmuz 2026 | `apps/mobile/lib/core/theme`, `apps/mobile/lib/core/presentation/widgets` — kurum teması, erişilebilir ortak bileşenler, güvenli alt eylem alanı ve 158 mobil test; Android/iOS kalite kapıları PASS — PR #42 |
 | AUDIT-001A | Erken ortak audit çekirdeğini ve temel RLS kapısını oluştur | 20 Temmuz 2026 | `apps/backend/src/main/resources/db/migration/V2__audit_core.sql`, `AuditCoreMigrationTests.java` — dört kapalı katalog seed'i, append-only audit çekirdeği, FORCE RLS varsayılan-red kapısı ve gerçek PostgreSQL kapsam/undo/indeks testleri — PR #45 |
+| ORG-006 | Platform yöneticisi kurum listeleme ekranı | 20 Temmuz 2026 | `apps/mobile/lib/features/organizations` — PLAT-01 arama/durum filtresi, aktör ve kapsama bağlı opak keyset cursor, Y/B/H/Z durumları ve 273 mobil test; Android/iOS kalite kapıları PASS — PR #47 |
 
 ## Sonraki görev nasıl READY yapılır?
 
