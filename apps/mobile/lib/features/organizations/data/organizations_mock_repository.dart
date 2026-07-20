@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import '../domain/organization.dart';
+import '../domain/organization_create_request.dart';
 import '../domain/organization_list_query.dart';
 import '../domain/organization_list_result.dart';
 import '../domain/organization_search_normalization.dart';
@@ -46,10 +47,17 @@ class OrganizationsMockRepository implements OrganizationsRepository {
     this.session = const OrganizationsMockSession.authenticatedPlatformAdmin(
       actorUserId: 'mock-platform-admin-1',
     ),
-  }) : _organizations = List<Organization>.of(seed ?? defaultSeed());
+    DateTime Function()? now,
+  }) : _organizations = List<Organization>.of(seed ?? defaultSeed()),
+       _now = now ?? DateTime.now;
 
   /// Simulated network latency for every call.
   final Duration latency;
+
+  /// Injectable clock so `createOrganization` tests can assert on
+  /// `createdAt`/`updatedAt` deterministically instead of racing the wall
+  /// clock.
+  final DateTime Function() _now;
 
   /// The simulated caller identity/authorization. Until IAM-007/008 wire a
   /// real session, tests and callers can construct an unauthenticated or
@@ -62,6 +70,21 @@ class OrganizationsMockRepository implements OrganizationsRepository {
   /// Server-side cursor registry: opaque token → the position and context it
   /// was minted for. Never serialized into the token itself.
   final Map<String, _CursorEntry> _cursorRegistry = <String, _CursorEntry>{};
+
+  /// Server-side idempotency registry for `createOrganization`, keyed by
+  /// `actorUserId:clientMutationId` (§5.2 `GLOBAL` scope key). Mirrors the
+  /// same "replay same content, reject different content" contract the real
+  /// `idempotency_keys` table enforces.
+  ///
+  /// Deliberately unbounded — unlike [_cursorRegistry] (a resumption cache
+  /// where evicting an old entry only makes that one cursor go stale), an
+  /// evicted idempotency key here would let a replay of an already-completed
+  /// key fall through to `_organizations.add(...)` again and mint a second
+  /// organization for the same logical create. This mock's process lifetime
+  /// (tests, a dev session) never holds enough entries for that trade-off to
+  /// matter.
+  final Map<String, _CreateIdempotencyEntry> _createIdempotencyRegistry =
+      <String, _CreateIdempotencyEntry>{};
 
   static const int _maxCursorRegistrySize = 500;
   static const int _maxLimit = 100;
@@ -172,6 +195,95 @@ class OrganizationsMockRepository implements OrganizationsRepository {
       nextCursor: nextCursor,
       hasNextPage: hasNextPage,
     );
+  }
+
+  @override
+  Future<Organization> createOrganization(
+    OrganizationCreateRequest request,
+  ) async {
+    await Future<void>.delayed(latency);
+
+    if (!session.isAuthenticated) {
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.unauthenticated,
+        'Oturum geçersiz veya süresi dolmuş.',
+      );
+    }
+    if (session.hasOrganizationContextToken) {
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.organizationContextRequired,
+        'Kurum oluşturma yalnızca platform genel bağlamında yapılabilir.',
+      );
+    }
+    if (!session.hasGlobalPlatformAdminScope) {
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.forbidden,
+        'Bu işlem için platform yöneticisi yetkisi gerekir.',
+      );
+    }
+
+    final fieldErrors = request.validate();
+    if (fieldErrors.hasErrors) {
+      throw OrganizationsFailure(
+        OrganizationsFailureCode.validationFailed,
+        fieldErrors.firstMessage!,
+        fieldErrors: fieldErrors,
+      );
+    }
+
+    final String normalizedName = request.normalizedName;
+    final String? normalizedShortName = request.normalizedShortName;
+    final String normalizedTimezone = request.normalizedDefaultTimezone;
+
+    final String idempotencyKey =
+        '${session.actorUserId}:${request.clientMutationId}';
+    final _CreateIdempotencyEntry? existing =
+        _createIdempotencyRegistry[idempotencyKey];
+    if (existing != null) {
+      if (existing.matches(
+        name: normalizedName,
+        shortName: normalizedShortName,
+        defaultTimezone: normalizedTimezone,
+      )) {
+        return existing.organization;
+      }
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.idempotencyKeyReused,
+        'Bu istek anahtarı farklı bir içerikle daha önce kullanılmış.',
+      );
+    }
+
+    final DateTime createdAt = _now();
+    final Organization created = Organization(
+      id: _generateOrganizationId(),
+      name: normalizedName,
+      shortName: normalizedShortName,
+      defaultTimezone: normalizedTimezone,
+      status: OrganizationStatus.active,
+      createdAt: createdAt,
+      updatedAt: createdAt,
+      rowVersion: 1,
+    );
+
+    _organizations.add(created);
+    _createIdempotencyRegistry[idempotencyKey] = _CreateIdempotencyEntry(
+      name: normalizedName,
+      shortName: normalizedShortName,
+      defaultTimezone: normalizedTimezone,
+      organization: created,
+    );
+    return created;
+  }
+
+  static String _generateOrganizationId() {
+    final List<int> bytes = List<int>.generate(
+      8,
+      (_) => _secureRandom.nextInt(256),
+    );
+    final String hex = bytes
+        .map((int b) => b.toRadixString(16).padLeft(2, '0'))
+        .join();
+    return 'org-$hex';
   }
 
   List<Organization> _filterAndSort(OrganizationListQuery normalizedQuery) {
@@ -356,6 +468,32 @@ class OrganizationsMockRepository implements OrganizationsRepository {
         rowVersion: 1,
       );
     });
+  }
+}
+
+/// Server-side idempotency record for one `createOrganization` attempt. See
+/// `_createIdempotencyRegistry` on [OrganizationsMockRepository].
+class _CreateIdempotencyEntry {
+  const _CreateIdempotencyEntry({
+    required this.name,
+    required this.shortName,
+    required this.defaultTimezone,
+    required this.organization,
+  });
+
+  final String name;
+  final String? shortName;
+  final String defaultTimezone;
+  final Organization organization;
+
+  bool matches({
+    required String name,
+    required String? shortName,
+    required String defaultTimezone,
+  }) {
+    return this.name == name &&
+        this.shortName == shortName &&
+        this.defaultTimezone == defaultTimezone;
   }
 }
 

@@ -6,6 +6,7 @@ import 'package:kurs_platform_mobile/core/theme/app_theme.dart';
 import 'package:kurs_platform_mobile/features/organizations/data/organizations_mock_repository.dart';
 import 'package:kurs_platform_mobile/features/organizations/data/organizations_mock_session.dart';
 import 'package:kurs_platform_mobile/features/organizations/domain/organization.dart';
+import 'package:kurs_platform_mobile/features/organizations/domain/organization_create_request.dart';
 import 'package:kurs_platform_mobile/features/organizations/domain/organization_list_query.dart';
 import 'package:kurs_platform_mobile/features/organizations/domain/organization_list_result.dart';
 import 'package:kurs_platform_mobile/features/organizations/domain/organization_status.dart';
@@ -65,6 +66,10 @@ class _FailOnceRepository implements OrganizationsRepository {
       hasNextPage: false,
     );
   }
+
+  @override
+  Future<Organization> createOrganization(OrganizationCreateRequest request) =>
+      throw UnimplementedError('Not exercised by PLAT-01 tests.');
 }
 
 /// Never resolves [listOrganizations] until [resolve] is called — used to
@@ -88,6 +93,10 @@ class _ControlledRepository implements OrganizationsRepository {
       _completer.complete(result);
     }
   }
+
+  @override
+  Future<Organization> createOrganization(OrganizationCreateRequest request) =>
+      throw UnimplementedError('Not exercised by PLAT-01 tests.');
 }
 
 void main() {

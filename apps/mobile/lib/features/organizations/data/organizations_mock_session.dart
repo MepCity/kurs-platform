@@ -37,14 +37,33 @@ class OrganizationsMockSession {
   const OrganizationsMockSession.unauthenticated()
     : this._(actorUserId: null, authState: _MockAuthState.unauthenticated);
 
+  /// A platform admin who is authenticated but has selected an organization
+  /// context — i.e. presented a `contextSelectionToken` instead of a plain
+  /// `GLOBAL_PLATFORM_ADMIN` token. `createOrganization` (`GLOBAL`-scope
+  /// only) rejects this with `403 ORGANIZATION_CONTEXT_REQUIRED` (§7.4)
+  /// rather than the generic `403 FORBIDDEN` a non-admin actor gets.
+  const OrganizationsMockSession.platformAdminWithOrganizationContext({
+    required String actorUserId,
+  }) : this._(
+         actorUserId: actorUserId,
+         authState: _MockAuthState.platformAdmin,
+         hasOrganizationContextToken: true,
+       );
+
   const OrganizationsMockSession._({
     required this.actorUserId,
     required this._authState,
+    this.hasOrganizationContextToken = false,
   });
 
   /// `null` only when [isAuthenticated] is `false`.
   final String? actorUserId;
   final _MockAuthState _authState;
+
+  /// Whether this session carries a `contextSelectionToken` rather than a
+  /// plain `GLOBAL_PLATFORM_ADMIN` token. See
+  /// [OrganizationsMockSession.platformAdminWithOrganizationContext].
+  final bool hasOrganizationContextToken;
 
   bool get isAuthenticated => _authState != _MockAuthState.unauthenticated;
 

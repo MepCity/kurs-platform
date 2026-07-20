@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kurs_platform_mobile/features/organizations/application/organization_list_controller.dart';
 import 'package:kurs_platform_mobile/features/organizations/domain/organization.dart';
+import 'package:kurs_platform_mobile/features/organizations/domain/organization_create_request.dart';
 import 'package:kurs_platform_mobile/features/organizations/domain/organization_list_query.dart';
 import 'package:kurs_platform_mobile/features/organizations/domain/organization_list_result.dart';
 import 'package:kurs_platform_mobile/features/organizations/domain/organization_status.dart';
@@ -53,6 +54,10 @@ class _FakeOrganizationsRepository implements OrganizationsRepository {
     }
     return entry.result!;
   }
+
+  @override
+  Future<Organization> createOrganization(OrganizationCreateRequest request) =>
+      throw UnimplementedError('Not exercised by PLAT-01 tests.');
 }
 
 Organization _org(
