@@ -5,7 +5,7 @@
 | Son güncelleme | 20 Temmuz 2026 |
 | Aktif dalga | Dalga 2 — Kimlik, kurum ve mobil kabuk |
 | Aktif görev | Yok |
-| Sıradaki görev | ORG-003 — PR #43'ü güncel main üzerine rebase et, audit entegrasyonunu tamamla ve yeniden incelemeye sun |
+| Sıradaki görev | ORG-004 — Platform yöneticisi kurum oluşturma API'si |
 
 Bu dosya projenin kaldığı yeri gösteren kısa operasyon panosudur. Her çalışma oturumunun
 başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev tanımları
@@ -17,7 +17,9 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 |---|---|---:|---|
 | IAM-008 | Mobil güvenli oturum saklamayı uygula | M | IAM-002 ve A-005 tamamlandı; mobil alanda IAM-003 backend migration çalışmasıyla paralel ilerleyebilir |
 | IAM-007 | Mobil giriş ekranını uygula | M | IAM-001 ve UI-001 tamamlandı; IAM-008 ile aynı mobil kimlik alanına dokunduğundan paralel başlatılmaz |
-| IAM-004 | Giriş/token değişimi ve provider command akışını uygula | M | IAM-003 tamamlandı; AUDIT-001A ve ORG-003 ile ortak backend migration/runtime yüzeyine dokunabileceğinden bu migration zinciri kapanmadan paralel başlatılmaz |
+| IAM-004 | Giriş/token değişimi ve provider command akışını uygula | M | IAM-003 tamamlandı; backend migration/runtime alanında ORG-004 ve ORG-005 ile dosya sahipliği kontrol edilmeden paralel başlatılmaz |
+| ORG-004 | Platform yöneticisi kurum oluşturma API'si | M | ORG-003 tamamlandı; sıradaki ORG backend görevi |
+| ORG-005 | Kurum adı ve renk ayarları API'si (dosyasız) | M | ORG-002 ve ORG-003 tamamlandı; ORG-004 ile aynı backend/ORG alanına dokunduğundan paralel başlatılmaz |
 
 ## IN_PROGRESS
 
@@ -25,9 +27,7 @@ Aktif görev yok.
 
 ## REVIEW
 
-| Kimlik | Görev | PR | Durum notu |
-|---|---|---|---|
-| ORG-003 | Kurum migration ve repository'sini oluştur | [#43](https://github.com/MepCity/kurs-platform/pull/43) | Açık; AUDIT-001A ve ORG-002 tamamlandı. Güncel main üzerine rebase, Flyway sürümünün sıradaki değere taşınması, marka/audit v2 sözleşmesinin uygulanması, dar `org_runtime` audit INSERT policy/grant'i ve audit başarısızlığında lifecycle transaction rollback kanıtı bekleniyor |
+İncelemede görev yok.
 
 ## BLOCKED
 
@@ -80,6 +80,7 @@ Bloke görev yok.
 | UI-001 | Mobil tasarım tokenlarını tanımla | 17 Temmuz 2026 | `MOBIL_TASARIM_TOKENLARI.md` — deterministik tema üretimi, WCAG kontrast kapıları, erişilebilir metin ölçekleme ve etkileşim alanı kuralları — PR #39 |
 | ORG-001 | Kurum yaşam döngüsü API sözleşmesini yaz | 17 Temmuz 2026 | `ORG_KURUM_YASAM_DONGUSU_API_SOZLESMESI.md`, `ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md` — kurum yaşam döngüsü, GLOBAL/ORGANIZATION yetki bağlamı, audit fail-closed, idempotency ve eşzamanlılık sözleşmesi — PR #38 |
 | ORG-002 | Marka ayarları sözleşmesini yaz | 20 Temmuz 2026 | `ORG_MARKA_AYARLARI_API_SOZLESMESI.md`, `ORG_KURUM_YASAM_DONGUSU_API_SOZLESMESI.md`, `ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md`, `VERI_MODELI.md` — dokuz marka/modül/logo ucu, aktör bazlı yetki sınırları, WCAG kontrast kapıları ve audit v2 payload sözleşmesi — PR #41 |
+| ORG-003 | Kurum migration ve repository'sini oluştur | 20 Temmuz 2026 | `V3__org_organizations_and_runtime.sql`, ORG domain/repository/lifecycle ve gerçek PostgreSQL testleri — dar `org_runtime`, FORCE RLS, idempotency, atomik audit/yaşam döngüsü, oturum iptali ve marka audit v2 kapıları; 80 ORG migration testi — PR #43 |
 | UI-002 | Navigasyon ve rol bazlı menü sözleşmesini yaz | 18 Temmuz 2026 | `UI_002_NAVIGASYON_VE_ROL_BAZLI_MENU_SOZLESMESI.md` — rol bazlı NavigationBar, güvenli kurum/rol bağlamı, bağımsız izin görünürlüğü ve sınıf seçimi sözleşmesi — PR #40 |
 | UI-003 | Ortak düğme, alan, liste ve durum bileşenleri | 20 Temmuz 2026 | `apps/mobile/lib/core/theme`, `apps/mobile/lib/core/presentation/widgets` — kurum teması, erişilebilir ortak bileşenler, güvenli alt eylem alanı ve 158 mobil test; Android/iOS kalite kapıları PASS — PR #42 |
 | AUDIT-001A | Erken ortak audit çekirdeğini ve temel RLS kapısını oluştur | 20 Temmuz 2026 | `apps/backend/src/main/resources/db/migration/V2__audit_core.sql`, `AuditCoreMigrationTests.java` — dört kapalı katalog seed'i, append-only audit çekirdeği, FORCE RLS varsayılan-red kapısı ve gerçek PostgreSQL kapsam/undo/indeks testleri — PR #45 |
