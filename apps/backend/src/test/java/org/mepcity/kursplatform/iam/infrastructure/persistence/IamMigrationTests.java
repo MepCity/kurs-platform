@@ -1228,18 +1228,11 @@ class IamMigrationTests {
             try (var conn = newConnection()) {
                 execWithDetail(conn, "INSERT INTO organizations (id, name) VALUES ('" + orgId + "', 'Test')");
                 execWithDetail(conn, "INSERT INTO users (id, status) VALUES ('" + targetId + "', 'PROVISIONING')");
-                execWithDetail(conn, "INSERT INTO iam_provider_commands (id, idempotency_key, provider, command_type, target_user_id, organization_id, payload_fingerprint, username_lookup_hash, encrypted_command_payload, payload_key_id) VALUES ('" + cmdId + "', 'w0', 'cognito', 'TEACHER_ACCOUNT_CREATE', '" + targetId + "', '" + orgId + "', 'fp', 'hash', '\\x01'::bytea, 'key1')");
-                conn.commit();
-            }
-            try (var conn = newConnection()) {
-                execWithDetail(conn, "SET ROLE iam_runtime");
-                execWithDetail(conn, "SET LOCAL app.iam_operation_scope = 'GLOBAL'");
-                execWithDetail(conn, "SET LOCAL app.iam_operation_code = 'PROVIDER_COMMAND_CLAIM'");
-                execWithDetail(conn, "SET LOCAL app.iam_worker_id = 'worker-A'");
-                execWithDetail(conn, "SET LOCAL app.iam_fencing_token = '1'");
-                int claimed = execUpdateWithDetail(conn,
-                        "UPDATE iam_provider_commands SET status = 'CLAIMED', attempt_count = 1, fencing_token = 1, lease_owner = 'worker-A', lease_expires_at = now() + INTERVAL '5 minutes' WHERE id = '" + cmdId + "' AND status = 'PENDING'");
-                assertThat(claimed).as("claim must succeed").isEqualTo(1);
+                // Seeded already CLAIMED: TEACHER_ACCOUNT_CREATE is outside the V9 worker allow-list
+                // (USER_DISABLE/USER_LOGOUT only), so it can never reach CLAIMED through the generic
+                // GLOBAL/PROVIDER_COMMAND_CLAIM claim path any more — this test's subject is the
+                // IAM_PROVISIONING completion step (ipc_complete + trg_ipc_state), not the claim.
+                execWithDetail(conn, "INSERT INTO iam_provider_commands (id, idempotency_key, provider, command_type, target_user_id, organization_id, payload_fingerprint, username_lookup_hash, encrypted_command_payload, payload_key_id, status, attempt_count, fencing_token, lease_owner, lease_expires_at) VALUES ('" + cmdId + "', 'w0', 'cognito', 'TEACHER_ACCOUNT_CREATE', '" + targetId + "', '" + orgId + "', 'fp', 'hash', '\\x01'::bytea, 'key1', 'CLAIMED', 1, 1, 'worker-A', now() + INTERVAL '5 minutes')");
                 conn.commit();
             }
             try (var conn = newConnection()) {
@@ -1274,18 +1267,9 @@ class IamMigrationTests {
             try (var conn = newConnection()) {
                 execWithDetail(conn, "INSERT INTO organizations (id, name) VALUES ('" + orgId + "', 'Test')");
                 execWithDetail(conn, "INSERT INTO users (id, status) VALUES ('" + targetId + "', 'PROVISIONING')");
-                execWithDetail(conn, "INSERT INTO iam_provider_commands (id, idempotency_key, provider, command_type, target_user_id, organization_id, payload_fingerprint, username_lookup_hash, encrypted_command_payload, payload_key_id) VALUES ('" + cmdId + "', 'w1', 'cognito', 'TEACHER_ACCOUNT_CREATE', '" + targetId + "', '" + orgId + "', 'fp', 'hash', '\\x01'::bytea, 'key1')");
-                conn.commit();
-            }
-            try (var conn = newConnection()) {
-                execWithDetail(conn, "SET ROLE iam_runtime");
-                execWithDetail(conn, "SET LOCAL app.iam_operation_scope = 'GLOBAL'");
-                execWithDetail(conn, "SET LOCAL app.iam_operation_code = 'PROVIDER_COMMAND_CLAIM'");
-                execWithDetail(conn, "SET LOCAL app.iam_worker_id = 'worker-A'");
-                execWithDetail(conn, "SET LOCAL app.iam_fencing_token = '1'");
-                int claimed = execUpdateWithDetail(conn,
-                        "UPDATE iam_provider_commands SET status = 'CLAIMED', attempt_count = 1, fencing_token = 1, lease_owner = 'worker-A', lease_expires_at = now() + INTERVAL '5 minutes' WHERE id = '" + cmdId + "' AND status = 'PENDING'");
-                assertThat(claimed).isEqualTo(1);
+                // Seeded already CLAIMED by worker-A: TEACHER_ACCOUNT_CREATE is outside the V9 worker
+                // allow-list, so it can no longer reach CLAIMED through the generic claim path.
+                execWithDetail(conn, "INSERT INTO iam_provider_commands (id, idempotency_key, provider, command_type, target_user_id, organization_id, payload_fingerprint, username_lookup_hash, encrypted_command_payload, payload_key_id, status, attempt_count, fencing_token, lease_owner, lease_expires_at) VALUES ('" + cmdId + "', 'w1', 'cognito', 'TEACHER_ACCOUNT_CREATE', '" + targetId + "', '" + orgId + "', 'fp', 'hash', '\\x01'::bytea, 'key1', 'CLAIMED', 1, 1, 'worker-A', now() + INTERVAL '5 minutes')");
                 conn.commit();
             }
             try (var conn = newConnection()) {
@@ -1318,17 +1302,9 @@ class IamMigrationTests {
             try (var conn = newConnection()) {
                 execWithDetail(conn, "INSERT INTO organizations (id, name) VALUES ('" + orgId + "', 'Test')");
                 execWithDetail(conn, "INSERT INTO users (id, status) VALUES ('" + targetId + "', 'PROVISIONING')");
-                execWithDetail(conn, "INSERT INTO iam_provider_commands (id, idempotency_key, provider, command_type, target_user_id, organization_id, payload_fingerprint, username_lookup_hash, encrypted_command_payload, payload_key_id) VALUES ('" + cmdId + "', 'w2', 'cognito', 'TEACHER_ACCOUNT_CREATE', '" + targetId + "', '" + orgId + "', 'fp', 'hash', '\\x01'::bytea, 'key1')");
-                conn.commit();
-            }
-            try (var conn = newConnection()) {
-                execWithDetail(conn, "SET ROLE iam_runtime");
-                execWithDetail(conn, "SET LOCAL app.iam_operation_scope = 'GLOBAL'");
-                execWithDetail(conn, "SET LOCAL app.iam_operation_code = 'PROVIDER_COMMAND_CLAIM'");
-                execWithDetail(conn, "SET LOCAL app.iam_worker_id = 'worker-A'");
-                execWithDetail(conn, "SET LOCAL app.iam_fencing_token = '1'");
-                execUpdateWithDetail(conn,
-                        "UPDATE iam_provider_commands SET status = 'CLAIMED', attempt_count = 1, fencing_token = 1, lease_owner = 'worker-A', lease_expires_at = now() + INTERVAL '5 minutes' WHERE id = '" + cmdId + "' AND status = 'PENDING'");
+                // Seeded already CLAIMED by worker-A: TEACHER_ACCOUNT_CREATE is outside the V9 worker
+                // allow-list, so it can no longer reach CLAIMED through the generic claim path.
+                execWithDetail(conn, "INSERT INTO iam_provider_commands (id, idempotency_key, provider, command_type, target_user_id, organization_id, payload_fingerprint, username_lookup_hash, encrypted_command_payload, payload_key_id, status, attempt_count, fencing_token, lease_owner, lease_expires_at) VALUES ('" + cmdId + "', 'w2', 'cognito', 'TEACHER_ACCOUNT_CREATE', '" + targetId + "', '" + orgId + "', 'fp', 'hash', '\\x01'::bytea, 'key1', 'CLAIMED', 1, 1, 'worker-A', now() + INTERVAL '5 minutes')");
                 conn.commit();
             }
             try (var conn = newConnection()) {
@@ -1356,14 +1332,20 @@ class IamMigrationTests {
         @Test
         void expiredLeaseAllowsRenewButNotComplete() throws Exception {
             UUID targetId = UUID.randomUUID();
-            UUID orgId = UUID.randomUUID();
+            UUID identityId = UUID.randomUUID();
+            UUID identityId2 = UUID.randomUUID();
             UUID cmdId = UUID.randomUUID();
             UUID cmdId2 = UUID.randomUUID();
             try (var conn = newConnection()) {
-                execWithDetail(conn, "INSERT INTO organizations (id, name) VALUES ('" + orgId + "', 'Test')");
-                execWithDetail(conn, "INSERT INTO users (id, status) VALUES ('" + targetId + "', 'PROVISIONING')");
-                execWithDetail(conn, "INSERT INTO iam_provider_commands (id, idempotency_key, provider, command_type, target_user_id, organization_id, payload_fingerprint, username_lookup_hash, encrypted_command_payload, payload_key_id, status, attempt_count, fencing_token, lease_owner, lease_expires_at) VALUES ('" + cmdId + "', 'w3', 'cognito', 'TEACHER_ACCOUNT_CREATE', '" + targetId + "', '" + orgId + "', 'fp', 'hash', '\\x01'::bytea, 'key1', 'CLAIMED', 1, 1, 'worker-A', now() - INTERVAL '1 minute')");
-                execWithDetail(conn, "INSERT INTO iam_provider_commands (id, idempotency_key, provider, command_type, target_user_id, organization_id, payload_fingerprint, username_lookup_hash, encrypted_command_payload, payload_key_id, status, attempt_count, fencing_token, lease_owner, lease_expires_at) VALUES ('" + cmdId2 + "', 'w3b', 'cognito', 'TEACHER_ACCOUNT_CREATE', '" + targetId + "', '" + orgId + "', 'fp2', 'hash2', '\\x01'::bytea, 'key1', 'CLAIMED', 1, 1, 'worker-A', now() - INTERVAL '1 minute')");
+                execWithDetail(conn, "INSERT INTO users (id, status) VALUES ('" + targetId + "', 'ACTIVE')");
+                execWithDetail(conn, "INSERT INTO user_identities (id, user_id, issuer, subject) VALUES ('" + identityId + "', '" + targetId + "', 'cognito-renew-1', 'subject-renew-1')");
+                execWithDetail(conn, "INSERT INTO user_identities (id, user_id, issuer, subject) VALUES ('" + identityId2 + "', '" + targetId + "', 'cognito-renew-2', 'subject-renew-2')");
+                // USER_DISABLE (unlike TEACHER_ACCOUNT_CREATE) is inside the V9 worker allow-list, so
+                // ipc_claim_renew's command_type filter still admits it — this test's actual subject
+                // (wrong-worker rejection, expired-lease renew, a renewed lease still not a complete)
+                // needs a type the renew policy will even consider.
+                execWithDetail(conn, "INSERT INTO iam_provider_commands (id, idempotency_key, provider, command_type, target_identity_id, payload_fingerprint, status, attempt_count, fencing_token, lease_owner, lease_expires_at) VALUES ('" + cmdId + "', 'w3', 'cognito', 'USER_DISABLE', '" + identityId + "', 'fp', 'CLAIMED', 1, 1, 'worker-A', now() - INTERVAL '1 minute')");
+                execWithDetail(conn, "INSERT INTO iam_provider_commands (id, idempotency_key, provider, command_type, target_identity_id, payload_fingerprint, status, attempt_count, fencing_token, lease_owner, lease_expires_at) VALUES ('" + cmdId2 + "', 'w3b', 'cognito', 'USER_DISABLE', '" + identityId2 + "', 'fp2', 'CLAIMED', 1, 1, 'worker-A', now() - INTERVAL '1 minute')");
                 conn.commit();
             }
             try (var conn = newConnection()) {
@@ -1391,35 +1373,39 @@ class IamMigrationTests {
             }
             try (var conn = newConnection()) {
                 execWithDetail(conn, "SET ROLE iam_runtime");
-                execWithDetail(conn, "SET LOCAL app.iam_operation_scope = 'IAM_PROVISIONING'");
-                execWithDetail(conn, "SET LOCAL app.iam_operation_code = 'TEACHER_ACCOUNT_CREATE'");
-                execWithDetail(conn, "SET LOCAL app.iam_target_user_id = '" + targetId + "'");
-                execWithDetail(conn, "SET LOCAL app.organization_id = '" + orgId + "'");
+                execWithDetail(conn, "SET LOCAL app.iam_operation_scope = 'GLOBAL'");
+                execWithDetail(conn, "SET LOCAL app.iam_operation_code = 'USER_DISABLE'");
+                execWithDetail(conn, "SET LOCAL app.iam_target_provider_command_id = '" + cmdId2 + "'");
                 execWithDetail(conn, "SET LOCAL app.iam_worker_id = 'worker-A'");
                 execWithDetail(conn, "SET LOCAL app.iam_fencing_token = '1'");
-                int updated = execUpdateWithDetail(conn,
-                        "UPDATE iam_provider_commands SET status = 'COMPLETED', completed_at = now(), lease_owner = NULL, lease_expires_at = NULL WHERE id = '" + cmdId2 + "' AND status = 'CLAIMED'");
-                assertThat(updated).as("expired lease must block completion").isEqualTo(0);
-                try (var verifyConn = newConnection()) {
-                    var rs = verifyConn.createStatement().executeQuery(
-                            "SELECT status FROM iam_provider_commands WHERE id = '" + cmdId2 + "'");
-                    assertThat(rs.next()).isTrue();
-                    assertThat(rs.getString("status")).as("status must remain CLAIMED").isEqualTo("CLAIMED");
-                    verifyConn.commit();
-                }
-                conn.commit();
+                // The row is still selected as an update candidate here — ipc_retry's own USING
+                // clause (same worker+fencing+commandId, no expiry check) also admits it even though
+                // ipc_complete_global's USING would not — so trg_ipc_state()'s own terminal-transition
+                // check is what actually blocks this, as a hard exception rather than a silent no-op.
+                assertThatCode(() -> execUpdateWithDetail(conn,
+                        "UPDATE iam_provider_commands SET status = 'COMPLETED', completed_at = now(), lease_owner = NULL, lease_expires_at = NULL WHERE id = '" + cmdId2 + "' AND status = 'CLAIMED'"))
+                        .as("expired lease must block completion")
+                        .isInstanceOf(SQLException.class);
+                conn.rollback();
+            }
+            try (var verifyConn = newConnection()) {
+                var rs = verifyConn.createStatement().executeQuery(
+                        "SELECT status FROM iam_provider_commands WHERE id = '" + cmdId2 + "'");
+                assertThat(rs.next()).isTrue();
+                assertThat(rs.getString("status")).as("status must remain CLAIMED").isEqualTo("CLAIMED");
+                verifyConn.commit();
             }
         }
 
         @Test
         void nonExpiredLeaseBlocksRenew() throws Exception {
             UUID targetId = UUID.randomUUID();
-            UUID orgId = UUID.randomUUID();
+            UUID identityId = UUID.randomUUID();
             UUID cmdId = UUID.randomUUID();
             try (var conn = newConnection()) {
-                execWithDetail(conn, "INSERT INTO organizations (id, name) VALUES ('" + orgId + "', 'Test')");
-                execWithDetail(conn, "INSERT INTO users (id, status) VALUES ('" + targetId + "', 'PROVISIONING')");
-                execWithDetail(conn, "INSERT INTO iam_provider_commands (id, idempotency_key, provider, command_type, target_user_id, organization_id, payload_fingerprint, username_lookup_hash, encrypted_command_payload, payload_key_id, status, attempt_count, fencing_token, lease_owner, lease_expires_at) VALUES ('" + cmdId + "', 'w4', 'cognito', 'TEACHER_ACCOUNT_CREATE', '" + targetId + "', '" + orgId + "', 'fp', 'hash', '\\x01'::bytea, 'key1', 'CLAIMED', 1, 1, 'worker-A', now() + INTERVAL '5 minutes')");
+                execWithDetail(conn, "INSERT INTO users (id, status) VALUES ('" + targetId + "', 'ACTIVE')");
+                execWithDetail(conn, "INSERT INTO user_identities (id, user_id, issuer, subject) VALUES ('" + identityId + "', '" + targetId + "', 'cognito', 'subject-no-renew')");
+                execWithDetail(conn, "INSERT INTO iam_provider_commands (id, idempotency_key, provider, command_type, target_identity_id, payload_fingerprint, status, attempt_count, fencing_token, lease_owner, lease_expires_at) VALUES ('" + cmdId + "', 'w4', 'cognito', 'USER_DISABLE', '" + identityId + "', 'fp', 'CLAIMED', 1, 1, 'worker-A', now() + INTERVAL '5 minutes')");
                 conn.commit();
             }
             try (var conn = newConnection()) {
@@ -1514,6 +1500,11 @@ class IamMigrationTests {
                             .isInstanceOf(SQLException.class);
                     conn.rollback();
                 }
+                // V9 restricted the worker-facing claim policies to the USER_DISABLE/USER_LOGOUT
+                // allow-list: PASSWORD_RESET (no KMS/payload-decryption yet) must never reach
+                // CLAIMED, so it is asserted separately below and skips the claim/complete steps
+                // entirely — there is nothing further to exercise for a type that can never claim.
+                boolean claimableByWorker = "USER_DISABLE".equals(commandType) || "USER_LOGOUT".equals(commandType);
                 try (var conn = newConnection()) {
                     execWithDetail(conn, "SET ROLE iam_runtime");
                     execWithDetail(conn, "SET LOCAL app.iam_operation_scope = 'GLOBAL'");
@@ -1522,8 +1513,15 @@ class IamMigrationTests {
                     execWithDetail(conn, "SET LOCAL app.iam_fencing_token = '1'");
                     int claimed = execUpdateWithDetail(conn,
                             "UPDATE iam_provider_commands SET status = 'CLAIMED', attempt_count = 1, fencing_token = 1, lease_owner = 'worker-A', lease_expires_at = now() + INTERVAL '5 minutes' WHERE id = '" + cmdId + "' AND status = 'PENDING'");
-                    assertThat(claimed).isEqualTo(1);
+                    if (claimableByWorker) {
+                        assertThat(claimed).as(commandType + " must be claimable by the worker").isEqualTo(1);
+                    } else {
+                        assertThat(claimed).as(commandType + " must NOT be claimable by the worker").isEqualTo(0);
+                    }
                     conn.commit();
+                }
+                if (!claimableByWorker) {
+                    continue;
                 }
                 try (var conn = newConnection()) {
                     execWithDetail(conn, "SET ROLE iam_runtime");
@@ -1531,6 +1529,7 @@ class IamMigrationTests {
                     execWithDetail(conn, "SET LOCAL app.iam_operation_code = '" + commandType + "'");
                     execWithDetail(conn, "SET LOCAL app.iam_target_user_id = '" + targetId + "'");
                     execWithDetail(conn, "SET LOCAL app.iam_target_identity_id = '" + identityId + "'");
+                    execWithDetail(conn, "SET LOCAL app.iam_target_provider_command_id = '" + cmdId + "'");
                     execWithDetail(conn, "SET LOCAL app.iam_worker_id = 'worker-A'");
                     execWithDetail(conn, "SET LOCAL app.iam_fencing_token = '1'");
                     int completed = execUpdateWithDetail(conn,

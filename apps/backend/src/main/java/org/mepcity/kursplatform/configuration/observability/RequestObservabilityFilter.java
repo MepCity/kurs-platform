@@ -28,7 +28,7 @@ public final class RequestObservabilityFilter extends OncePerRequestFilter {
 	public static final String REQUEST_ID_HEADER = "X-Request-Id";
 	private static final Pattern REQUEST_ID = Pattern.compile("[A-Za-z0-9._:-]{1,128}");
 	private static final String INVALID_REQUEST_MESSAGE =
-			"{\"code\":\"INVALID_REQUEST\",\"message\":\"Geçersiz istek kimliği.\",\"requestId\":\"%s\"}";
+			"{\"error\":{\"code\":\"INVALID_REQUEST\",\"message\":\"Geçersiz istek kimliği.\",\"requestId\":\"%s\"}}";
 
 	private final Clock clock;
 	private final SafeEventLogger eventLogger;
