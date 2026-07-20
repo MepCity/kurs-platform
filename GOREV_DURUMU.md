@@ -2,7 +2,7 @@
 
 | Alan | Değer |
 |---|---|
-| Son güncelleme | 19 Temmuz 2026 |
+| Son güncelleme | 20 Temmuz 2026 |
 | Aktif dalga | Dalga 2 — Kimlik, kurum ve mobil kabuk |
 | Aktif görev | Yok |
 | Sıradaki görev | IAM-008 — Mobil güvenli oturum saklamayı uygula |
@@ -18,7 +18,7 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 | IAM-008 | Mobil güvenli oturum saklamayı uygula | M | IAM-002 ve A-005 tamamlandı; mobil alanda IAM-003 backend migration çalışmasıyla paralel ilerleyebilir |
 | IAM-007 | Mobil giriş ekranını uygula | M | IAM-001 ve UI-001 tamamlandı; IAM-008 ile aynı mobil kimlik alanına dokunduğundan paralel başlatılmaz |
 | IAM-004 | Giriş/token değişimi ve provider command akışını uygula | M | IAM-003 tamamlandı; ORG-003 ile ortak backend migration/runtime yüzeyine dokunabileceğinden paralel başlatılmaz |
-| UI-003 | Ortak düğme, alan, liste ve durum bileşenleri | M | UI-001 tamamlandı; backend sözleşme ve migration işleriyle paralel ilerleyebilir |
+| UI-004 | Rol bazlı mobil kabuk ve navigasyon | M | UI-002 ve UI-003 tamamlandı; mobil bootstrap/navigasyon dosyaları nedeniyle IAM-007 ve IAM-008 ile paralel başlatılmadan önce dosya sahipliği koordine edilmelidir |
 | ORG-002 | Marka ayarları sözleşmesini yaz | S | ORG-001 ve A-007 tamamlandı; IAM-003 migration çalışmasıyla dosya sahipliği çakışmıyor |
 | ORG-003 | Kurum migration ve repository'sini oluştur | M | ORG-001 tamamlandı ve PR #37 kaynaklı migration/runtime çakışması merge ile kapandı; IAM-004 ile paralel başlatılmaz |
 | ORG-006 | Platform yöneticisi kurum listeleme ekranı | M | ORG-001 ve UI-001 tamamlandı; onaylı sözleşmeye bağlı mock API ile geliştirilebilir |
@@ -83,6 +83,7 @@ Bloke görev yok.
 | UI-001 | Mobil tasarım tokenlarını tanımla | 17 Temmuz 2026 | `MOBIL_TASARIM_TOKENLARI.md` — deterministik tema üretimi, WCAG kontrast kapıları, erişilebilir metin ölçekleme ve etkileşim alanı kuralları — PR #39 |
 | ORG-001 | Kurum yaşam döngüsü API sözleşmesini yaz | 17 Temmuz 2026 | `ORG_KURUM_YASAM_DONGUSU_API_SOZLESMESI.md`, `ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md` — kurum yaşam döngüsü, GLOBAL/ORGANIZATION yetki bağlamı, audit fail-closed, idempotency ve eşzamanlılık sözleşmesi — PR #38 |
 | UI-002 | Navigasyon ve rol bazlı menü sözleşmesini yaz | 18 Temmuz 2026 | `UI_002_NAVIGASYON_VE_ROL_BAZLI_MENU_SOZLESMESI.md` — rol bazlı NavigationBar, güvenli kurum/rol bağlamı, bağımsız izin görünürlüğü ve sınıf seçimi sözleşmesi — PR #40 |
+| UI-003 | Ortak düğme, alan, liste ve durum bileşenleri | 20 Temmuz 2026 | `apps/mobile/lib/core/theme`, `apps/mobile/lib/core/presentation/widgets` — kurum teması, erişilebilir ortak bileşenler, güvenli alt eylem alanı ve 158 mobil test; Android/iOS kalite kapıları PASS — PR #42 |
 
 ## Sonraki görev nasıl READY yapılır?
 
