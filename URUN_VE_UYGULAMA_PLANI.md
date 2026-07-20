@@ -1293,6 +1293,20 @@ Dalga 0 belgeleri tamamlanmadan ilgili alanda büyük ölçekli geliştirmeye ba
 - Sürekli staging, PITR, Render Pro ve yüksek erişilebilirlik başlangıç zorunluluğu olmaktan
   çıkarılmış; ölçülmüş kullanım veya kabul edilmiş RPO/RTO tetiklerine bağlanmıştır.
 
+### 20 Temmuz 2026 — Erken audit çekirdeği ve migration sırası
+
+- Kurum yaşam döngüsü audit kaydı olmadan production çağrı yüzeyi açmayacağı için audit
+  çekirdeği Dalga 6'yı beklemeden `AUDIT-001A` ile Dalga 2'ye alınmıştır.
+- `AUDIT-001A`, yalnız `audit_action_catalog` ve değişmez `audit_logs` çekirdeğini, FORCE RLS
+  ve varsayılan-red erişimle oluşturur; runtime rolleri için geniş yetki veya audit'i atlayan
+  yol açmaz.
+- `classes` tablosu henüz bulunmadığından sınıf kapsamlı audit satırları geçici DB kısıtlarıyla
+  tamamen kapalıdır. `CLS-002` sonrasında `AUDIT-001`, sınıf bileşik FK'sini ve sınıf kapsamlı
+  audit kataloglarını ekleyerek ortak şemayı tamamlar.
+- Flyway sırası tek sahipli tutulur: önce `AUDIT-001A` merge edilir, ardından açık ORG-003 PR'ı
+  güncel main üzerine rebase edilip bir sonraki migration numarasına taşınır. Böylece aynı
+  migration sürümü ve ortak tablo üzerinde paralel değişiklik yapılmaz.
+
 ---
 
 ## 27. Bir sonraki adım

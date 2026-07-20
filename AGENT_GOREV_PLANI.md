@@ -348,7 +348,8 @@ temeli başlar.
 | IAM-006 | M | Cihaz kaydı, DEVICE_SESSION_REVOKE ve yeniden doğrulamayı uygula | IAM-002, IAM-005 | Backend |
 | IAM-007 | M | Mobil giriş ekranını uygula | IAM-001, UI-001 | Mobil |
 | IAM-008 | M | Mobil güvenli oturum saklamayı uygula | IAM-002, A-005 | Mobil |
-| ORG-003 | M | Kurum migration ve repository'sini oluştur | ORG-001 | Backend |
+| AUDIT-001A | M | Erken ortak audit çekirdeğini ve temel RLS kapısını oluştur | P-011, A-002, IAM-003 | Backend migration |
+| ORG-003 | M | Kurum migration ve repository'sini oluştur | ORG-001, AUDIT-001A | Backend |
 | ORG-004 | M | Platform yöneticisi kurum oluşturma API'si | ORG-003 | Backend |
 | ORG-005 | M | Kurum adı ve renk ayarları API'si (dosyasız) | ORG-002, ORG-003 | Backend |
 | ORG-006 | M | Platform yöneticisi kurum listeleme ekranı | ORG-001, UI-001 | Mobil |
@@ -359,12 +360,47 @@ temeli başlar.
 | IAM-009 | M | Entegrasyon, izolasyon, olay kaybı ve iptal gecikmesi testleri | IAM-004–IAM-008, ORG-004 | Test |
 | ORG-009 | M | Dalga 2 dosyasız çekirdek uçtan uca entegrasyon | IAM-003–IAM-008, ORG-003–ORG-008, UI-003–UI-004 | Entegrasyon |
 
+### AUDIT-001A — Erken ortak audit çekirdeği ve migration kapısı
+
+`ORG-001`, kurum yaşam döngüsündeki kritik işlemlerin iş değişikliği, idempotency sonucu ve
+audit kaydıyla aynı transaction'da tamamlanmasını zorunlu kılar. Bu nedenle `ORG-003`, Dalga
+6'daki tam audit uygulamasını bekleyemez ve audit tablosu yokken audit'i atlayan production
+yolu açamaz. `AUDIT-001A` bu bağımlılığı aşağıdaki dar kapsamla çözer:
+
+- Güncel `origin/main` tabanında sıradaki Flyway migration olarak yalnız
+  `audit_action_catalog` ve `audit_logs` çekirdeğini oluşturur.
+- `VERI_MODELI.md` §13'teki sütun, katalog FK'si, scope/target/operation-group kontrolleri,
+  immutable/append-only kuralı, geri alma öz-referansları ve indeksleri uygular.
+- `audit_logs` için `ENABLE RLS` ve `FORCE RLS` zorunludur. Yeni runtime rolü,
+  `BYPASSRLS`, `SECURITY DEFINER`, tablo-geneli yazma yetkisi veya varsayılan açık policy
+  oluşturulmaz; runtime erişimi görev sahibinin rolü tanımlandığında ayrı migration'da verilir.
+- Yalnız sınıf kapsamı gerektirmeyen, mevcut sözleşmelerde tanımlı
+  `ORG_SETTING_CHANGED` ve `PLATFORM_ADMIN_ORG_ACCESS` katalog satırları eklenir. Yeni audit
+  eylem kodu icat edilmez.
+- `classes` tablosu henüz mevcut olmadığından `audit_logs.scope_class_id` sütunu korunur fakat
+  `AUDIT-001A` boyunca sınıf kapsamlı katalog/audit satırı DB kısıtıyla reddedilir. `classes`
+  bileşik FK'si ve sınıf kapsamlı katalog satırları `CLS-002` sonrasındaki `AUDIT-001`e aittir.
+- Gerçek PostgreSQL/Testcontainers testleri migration'ın güncel main üzerinde çalıştığını;
+  scope ve katalog bütünlüğünü; başka kurum/global-scope karışımının reddini; sınıf kapsamlı
+  satırın reddini; geri alma FK/tekillik kurallarını; `UPDATE`/`DELETE` ve yetkisiz runtime
+  erişiminin varsayılan olarak reddedildiğini kanıtlar. Docker yoksa bu testler sessizce
+  atlanmaz.
+- `ORG-003` branch'ine veya `GOREV_DURUMU.md` dosyasına dokunulmaz. Görev merge edildikten
+  sonra PR #43 güncel main üzerine rebase edilir; ORG migration'ı bir sonraki sürüm numarasını
+  alır ve `org_runtime` için dar audit `INSERT` policy/grant'i ile audit başarısızlığında tüm
+  lifecycle transaction'ının geri alındığını kanıtlayan testler aynı PR'da tamamlanır.
+
+Kabul için migration/test/build/kalite kapılarının tamamı geçmeli; değişen dosya kapsamı audit
+migration'ı, audit testleri ve zorunlu dar sözleşme hizalamalarıyla sınırlı kalmalıdır.
+
 ### Güvenli paralellik
 
 Backend sözleşmeleri onaylandıktan sonra `IAM-004` ile `IAM-007`, `ORG-004` ile `ORG-006`
 paralel yapılabilir. Mobil görevler mock API kullanabilir. `ORG-009` gerçek backend ile bütün
 dosyasız Dalga 2 akışlarını birleştirir. `ORG-005`/`ORG-008` logo dosyası kabul etmez; logo
 backend/mobil akışı Dalga 5'teki `ORG-010`/`ORG-011` görevlerine aittir.
+`AUDIT-001A` ile `ORG-003` aynı Flyway zincirine dokunduğundan paralel yürütülmez; PR #43,
+`AUDIT-001A` merge edilene kadar incelemede ve merge dışı tutulur.
 
 ### Dalga 2 çıkış kapısı
 
@@ -569,7 +605,7 @@ aktif program çalışır. Manuel görev ve çok günlük şablon aynı sistemde
 
 | Kimlik | Boyut | Görev | Bağımlılık |
 |---|---:|---|---|
-| AUDIT-001 | M | Ortak audit event şemasını uygula | P-011, A-002 |
+| AUDIT-001 | M | Ortak audit event şemasını sınıf kapsamıyla tamamla | AUDIT-001A, CLS-002 |
 | AUDIT-002 | M | Öğrenci ve yetki audit entegrasyonu | AUDIT-001, PEOPLE-004, PERM-002 |
 | AUDIT-003 | M | Program ve ilerleme audit entegrasyonu | AUDIT-001, PROGRAM-003, PROG-003 |
 | AUDIT-004 | M | Denetim listeleme/filtreleme API'si | AUDIT-001 |

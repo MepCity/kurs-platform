@@ -5,7 +5,7 @@
 | Son güncelleme | 20 Temmuz 2026 |
 | Aktif dalga | Dalga 2 — Kimlik, kurum ve mobil kabuk |
 | Aktif görev | Yok |
-| Sıradaki görev | IAM-008 — Mobil güvenli oturum saklamayı uygula |
+| Sıradaki görev | AUDIT-001A — Erken ortak audit çekirdeğini ve temel RLS kapısını oluştur |
 
 Bu dosya projenin kaldığı yeri gösteren kısa operasyon panosudur. Her çalışma oturumunun
 başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev tanımları
@@ -15,12 +15,10 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 
 | Kimlik | Görev | Boyut | Not |
 |---|---|---:|---|
+| AUDIT-001A | Erken ortak audit çekirdeğini ve temel RLS kapısını oluştur | M | P-011, A-002 ve IAM-003 tamamlandı; aynı Flyway zincirine dokunan ORG-003 PR #43 bu görev merge edilene kadar ilerletilmez |
 | IAM-008 | Mobil güvenli oturum saklamayı uygula | M | IAM-002 ve A-005 tamamlandı; mobil alanda IAM-003 backend migration çalışmasıyla paralel ilerleyebilir |
 | IAM-007 | Mobil giriş ekranını uygula | M | IAM-001 ve UI-001 tamamlandı; IAM-008 ile aynı mobil kimlik alanına dokunduğundan paralel başlatılmaz |
-| IAM-004 | Giriş/token değişimi ve provider command akışını uygula | M | IAM-003 tamamlandı; ORG-003 ile ortak backend migration/runtime yüzeyine dokunabileceğinden paralel başlatılmaz |
-| UI-004 | Rol bazlı mobil kabuk ve navigasyon | M | UI-002 ve UI-003 tamamlandı; mobil bootstrap/navigasyon dosyaları nedeniyle IAM-007 ve IAM-008 ile paralel başlatılmadan önce dosya sahipliği koordine edilmelidir |
-| ORG-002 | Marka ayarları sözleşmesini yaz | S | ORG-001 ve A-007 tamamlandı; IAM-003 migration çalışmasıyla dosya sahipliği çakışmıyor |
-| ORG-003 | Kurum migration ve repository'sini oluştur | M | ORG-001 tamamlandı ve PR #37 kaynaklı migration/runtime çakışması merge ile kapandı; IAM-004 ile paralel başlatılmaz |
+| IAM-004 | Giriş/token değişimi ve provider command akışını uygula | M | IAM-003 tamamlandı; AUDIT-001A ve ORG-003 ile ortak backend migration/runtime yüzeyine dokunabileceğinden bu migration zinciri kapanmadan paralel başlatılmaz |
 | ORG-006 | Platform yöneticisi kurum listeleme ekranı | M | ORG-001 ve UI-001 tamamlandı; onaylı sözleşmeye bağlı mock API ile geliştirilebilir |
 | ORG-007 | Mobil kurum oluşturma akışı | M | ORG-001 ve UI-001 tamamlandı; ORG-006 ile ortak mobil dosya sahipliği koordine edilmelidir |
 
@@ -30,7 +28,11 @@ Aktif görev yok.
 
 ## REVIEW
 
-İncelemede görev yok.
+| Kimlik | Görev | PR | Durum notu |
+|---|---|---|---|
+| ORG-002 | Marka ayarları sözleşmesini yaz | [#41](https://github.com/MepCity/kurs-platform/pull/41) | Açık; güncel main'in gerisinde ve merkez incelemesi bekliyor |
+| ORG-003 | Kurum migration ve repository'sini oluştur | [#43](https://github.com/MepCity/kurs-platform/pull/43) | Açık; audit fail-closed bağımlılığı nedeniyle `AUDIT-001A` merge edilmeden merge edilmemeli |
+| UI-004 | Rol bazlı mobil kabuk ve navigasyon | [#44](https://github.com/MepCity/kurs-platform/pull/44) | Açık; merkez incelemesi bekliyor |
 
 ## BLOCKED
 

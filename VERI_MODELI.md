@@ -1394,6 +1394,26 @@ zincir olduğundan statik FK/CHECK ile ifade edilemez (bkz. bölüm 15.5).
 
 ## 13. AUDIT — Denetim ve geri alma temeli
 
+### 13.0. Kademeli migration sahipliği
+
+Audit sözleşmesinin davranışı değişmeden iki migration aşamasında uygulanır:
+
+1. `AUDIT-001A`, `audit_action_catalog` ile `audit_logs` çekirdeğini erken oluşturur. Bu aşama
+   yalnız sınıf kapsamı gerektirmeyen `ORG_SETTING_CHANGED` ve
+   `PLATFORM_ADMIN_ORG_ACCESS` katalog satırlarını açar. `audit_logs.scope_class_id` sütunu
+   şemada bulunur; ancak `audit_action_catalog.requires_class_scope = false` ve
+   `audit_logs.requires_class_scope = false AND scope_class_id IS NULL` geçici DB
+   kısıtlarıyla sınıf kapsamlı katalog veya olay yazımı fail-closed reddedilir.
+2. `CLS-002` ile `classes (id, organization_id)` fiziksel olarak oluştuktan sonra `AUDIT-001`,
+   bu geçici kısıtları kontrollü migration ile kaldırır; `(scope_class_id, organization_id)`
+   bileşik FK'sini ve aşağıda tanımlı sınıf kapsamlı katalog satırlarını ekler.
+
+Bu kademelendirme sınıf kapsamı doğrulanmayan audit kaydına izin vermez, `classes` tablosu
+oluşmadan sahte veya zayıf bir FK üretmez ve Dalga 2 kurum yaşam döngüsünün audit kaydını aynı
+transaction'da fail-closed yazabilmesini sağlar. `AUDIT-001A` yeni runtime rolü veya geniş
+tablo yetkisi oluşturmaz; görev sahibi runtime rolüne ait dar `INSERT` policy/grant'i ilgili
+uygulama migration'ında eklenir.
+
 ### 13.1. `audit_action_catalog`
 
 | Alan | Tip | Null | Açıklama |
