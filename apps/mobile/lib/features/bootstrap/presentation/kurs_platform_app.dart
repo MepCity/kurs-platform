@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme_provider.dart';
+import 'mobile_navigation_shell.dart';
 
 /// Provider-aware application root.
 ///
@@ -22,8 +23,8 @@ class KursPlatformApp extends StatefulWidget {
   /// External provider. When null, the app creates and owns its own provider.
   final AppThemeProvider? provider;
 
-  /// Initial screen. Defaults to a placeholder; the real navigation shell is
-  /// introduced by UI-004.
+  /// Initial screen. By default a guarded shell is shown; it never opens an
+  /// authenticated workspace until an IAM flow supplies a verified context.
   final Widget? home;
 
   @override
@@ -76,7 +77,15 @@ class _KursPlatformAppState extends State<KursPlatformApp> {
           return MaterialApp(
             title: 'Kurs Platform',
             theme: _provider.themeData,
-            home: widget.home,
+            home:
+                widget.home ??
+                const MobileNavigationShell(
+                  context: MobileShellContext(
+                    sessionVerified: false,
+                    sessionContextId: '',
+                    role: MobileShellRole.teacher,
+                  ),
+                ),
           );
         },
       ),
