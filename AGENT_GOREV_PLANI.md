@@ -348,7 +348,7 @@ temeli başlar.
 | IAM-006 | M | Cihaz kaydı, DEVICE_SESSION_REVOKE ve yeniden doğrulamayı uygula | IAM-002, IAM-005 | Backend |
 | IAM-007 | M | Mobil giriş ekranını uygula | IAM-001, UI-001 | Mobil |
 | IAM-008 | M | Mobil güvenli oturum saklamayı uygula | IAM-002, A-005 | Mobil |
-| AUDIT-001A | M | Erken ortak audit çekirdeğini ve temel RLS kapısını oluştur | P-011, A-002, IAM-003 | Backend migration |
+| AUDIT-001A | M | Erken ortak audit çekirdeğini ve temel RLS kapısını oluştur | P-011, A-002, IAM-003, ORG-001 | Backend migration |
 | ORG-003 | M | Kurum migration ve repository'sini oluştur | ORG-001, AUDIT-001A | Backend |
 | ORG-004 | M | Platform yöneticisi kurum oluşturma API'si | ORG-003 | Backend |
 | ORG-005 | M | Kurum adı ve renk ayarları API'si (dosyasız) | ORG-002, ORG-003 | Backend |

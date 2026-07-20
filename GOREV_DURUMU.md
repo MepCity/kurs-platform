@@ -15,7 +15,7 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 
 | Kimlik | Görev | Boyut | Not |
 |---|---|---:|---|
-| AUDIT-001A | Erken ortak audit çekirdeğini ve temel RLS kapısını oluştur | M | P-011, A-002 ve IAM-003 tamamlandı; aynı Flyway zincirine dokunan ORG-003 PR #43 bu görev merge edilene kadar ilerletilmez |
+| AUDIT-001A | Erken ortak audit çekirdeğini ve temel RLS kapısını oluştur | M | P-011, A-002, IAM-003 ve ORG-001 tamamlandı; aynı Flyway zincirine dokunan ORG-003 PR #43 bu görev merge edilene kadar ilerletilmez |
 | IAM-008 | Mobil güvenli oturum saklamayı uygula | M | IAM-002 ve A-005 tamamlandı; mobil alanda IAM-003 backend migration çalışmasıyla paralel ilerleyebilir |
 | IAM-007 | Mobil giriş ekranını uygula | M | IAM-001 ve UI-001 tamamlandı; IAM-008 ile aynı mobil kimlik alanına dokunduğundan paralel başlatılmaz |
 | IAM-004 | Giriş/token değişimi ve provider command akışını uygula | M | IAM-003 tamamlandı; AUDIT-001A ve ORG-003 ile ortak backend migration/runtime yüzeyine dokunabileceğinden bu migration zinciri kapanmadan paralel başlatılmaz |
