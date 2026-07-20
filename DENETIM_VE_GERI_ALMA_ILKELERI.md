@@ -87,6 +87,13 @@ kurumun kaydını geri alma denemesi. Bu reddedilmiş olaylarda hedef değerler 
 istek kimliği, aktör, istenen eylem, hedef tür/kimlik (biliniyorsa), kurum bağlamı ve red
 nedeni kaydedilir.
 
+Kurum yaşam döngüsü audit eşlemesi bağlayıcıdır: oluşturma `ORG_CREATED`,
+`SUSPEND`/`ACTIVATE`/`ARCHIVE` durum değişimleri `ORG_STATUS_CHANGED`, kimlik/marka/modül gibi
+ayar değişiklikleri `ORG_SETTING_CHANGED`, platform yöneticisinin hedef kurum verisine
+erişmesi ise `PLATFORM_ADMIN_ORG_ACCESS` üretir. İlk iki kod ile erişim kodu
+`is_undoable=false`; yalnız `ORG_SETTING_CHANGED` bölüm 6'daki kontrollü ters işlem
+sözleşmesine tabidir.
+
 ### 3.3. Görüntüleme kapsamı
 
 | İsteyen | Görebileceği denetim kayıtları |
@@ -253,6 +260,9 @@ Aşağıdaki olaylar denetlenir ancak `is_undoable = false` kalır:
   mevcut olabilecek kopyayı geri çağırmaz.
 - Kurum, öğrenci, sınıf veya program oluşturma; genel oluşturma geri alması fiziksel silme ya
   da ilişki kaybı riski taşıdığından bölüm 6'daki kontrollü yönetim/arşiv akışı kullanılır.
+- Kurumun askıya alınması, yeniden etkinleştirilmesi veya arşivlenmesi; bu durumlar genel audit
+  geri alma yoluyla değil, `ORG-001`deki yetkili yaşam döngüsü komutları ve terminal arşiv
+  kurallarıyla yönetilir.
 - Değerlendirme şeması, plan şablonu dağıtımı, özel alan şeması değişikliği ve **V1 “Hepsi
   Geldi” dışındaki** toplu işlemler; bunların ters etkisi birden çok kayıt veya geçmiş anlamını
   değiştirebilir. Ayrı ürün/API sözleşmesi olmadan geri alınamaz.

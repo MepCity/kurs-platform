@@ -1306,6 +1306,11 @@ Dalga 0 belgeleri tamamlanmadan ilgili alanda büyük ölçekli geliştirmeye ba
 - Flyway sırası tek sahipli tutulur: önce `AUDIT-001A` merge edilir, ardından açık ORG-003 PR'ı
   güncel main üzerine rebase edilip bir sonraki migration numarasına taşınır. Böylece aynı
   migration sürümü ve ortak tablo üzerinde paralel değişiklik yapılmaz.
+- Kurum audit eylemleri geri alınabilirlik anlamını karıştırmayacak şekilde ayrılmıştır:
+  oluşturma `ORG_CREATED`, askıya alma/etkinleştirme/arşivleme `ORG_STATUS_CHANGED`, normal
+  ayar değişikliği `ORG_SETTING_CHANGED`, platform yöneticisi hedef kurum erişimi
+  `PLATFORM_ADMIN_ORG_ACCESS` üretir. Yalnız `ORG_SETTING_CHANGED` genel audit-undo akışına
+  açıktır.
 
 ---
 

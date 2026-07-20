@@ -1399,8 +1399,9 @@ zincir olduğundan statik FK/CHECK ile ifade edilemez (bkz. bölüm 15.5).
 Audit sözleşmesinin davranışı değişmeden iki migration aşamasında uygulanır:
 
 1. `AUDIT-001A`, `audit_action_catalog` ile `audit_logs` çekirdeğini erken oluşturur. Bu aşama
-   yalnız sınıf kapsamı gerektirmeyen `ORG_SETTING_CHANGED` ve
-   `PLATFORM_ADMIN_ORG_ACCESS` katalog satırlarını açar. `audit_logs.scope_class_id` sütunu
+   yalnız sınıf kapsamı gerektirmeyen `ORG_CREATED`, `ORG_STATUS_CHANGED`,
+   `ORG_SETTING_CHANGED` ve `PLATFORM_ADMIN_ORG_ACCESS` katalog satırlarını açar.
+   `audit_logs.scope_class_id` sütunu
    şemada bulunur; ancak `audit_action_catalog.requires_class_scope = false` ve
    `audit_logs.requires_class_scope = false AND scope_class_id IS NULL` geçici DB
    kısıtlarıyla sınıf kapsamlı katalog veya olay yazımı fail-closed reddedilir.
@@ -1418,7 +1419,7 @@ uygulama migration'ında eklenir.
 
 | Alan | Tip | Null | Açıklama |
 |---|---|---|---|
-| `code` | TEXT | Hayır | Eylem kodu, ör. `STUDENT_CREATED`, `STUDENT_ARCHIVED`, `GUARDIAN_UPDATED`, `CLASS_ENROLLMENT_CHANGED`, `TEACHER_ASSIGNMENT_CHANGED`, `ATTENDANCE_RECORD_CHANGED`, `ATTENDANCE_BULK_PRESENT_RECORD_CHANGED`, `PROGRAM_CHANGED`, `CONTENT_CHANGED`, `PROGRESS_CHANGED`, `PERMISSION_CHANGED`, `ORG_SETTING_CHANGED`, `REPORT_EXPORTED`, `PLATFORM_ADMIN_ORG_ACCESS`, `LOGIN_SUCCEEDED`, `SESSION_REVOKED`. |
+| `code` | TEXT | Hayır | Eylem kodu, ör. `STUDENT_CREATED`, `STUDENT_ARCHIVED`, `GUARDIAN_UPDATED`, `CLASS_ENROLLMENT_CHANGED`, `TEACHER_ASSIGNMENT_CHANGED`, `ATTENDANCE_RECORD_CHANGED`, `ATTENDANCE_BULK_PRESENT_RECORD_CHANGED`, `PROGRAM_CHANGED`, `CONTENT_CHANGED`, `PROGRESS_CHANGED`, `PERMISSION_CHANGED`, `ORG_CREATED`, `ORG_STATUS_CHANGED`, `ORG_SETTING_CHANGED`, `REPORT_EXPORTED`, `PLATFORM_ADMIN_ORG_ACCESS`, `LOGIN_SUCCEEDED`, `SESSION_REVOKED`. |
 | `payload_schema_version` | SMALLINT | Hayır | Bu eylemin `old_value`, `new_value`, `event_metadata` ve izinli `reason_code` alanlarının şema sürümü. |
 | `target_entity_type` | TEXT | Hayır | |
 | `event_scope` | ENUM(`ORGANIZATION`,`GLOBAL`) | Hayır | Bu işlem türünün doğası gereği bir kuruma mı bağlı olduğu, yoksa gerçekten global mi olduğu. |
@@ -1442,6 +1443,22 @@ Bağlayıcı katalog değerleri: `ATTENDANCE_RECORD_CHANGED` ve `PROGRESS_CHANGE
 `ATTENDANCE_BULK_PRESENT_RECORD_CHANGED` satırı `requires_class_scope=true` ve
 `requires_operation_group=true` taşır. Bu ayrım, toplu işlemin sıradan tekil yoklama olayı
 olarak kaydedilmesini engeller.
+
+Dalga 2 kurum katalogları aşağıdaki anlamı taşır:
+
+| Kod | `event_scope` | `event_kind` | Hedef | `is_undoable` | Kapalı payload sınırı |
+|---|---|---|---|---:|---|
+| `ORG_CREATED` | `ORGANIZATION` | `DATA_MUTATION` | `ORGANIZATION`, zorunlu | `false` | `old_value=NULL`; `new_value` yalnız `status`, `rowVersion`; metadata yalnız `operationCode` |
+| `ORG_STATUS_CHANGED` | `ORGANIZATION` | `DATA_MUTATION` | `ORGANIZATION`, zorunlu | `false` | Eski/yeni değer yalnız `status`, `rowVersion`; metadata yalnız iptal edilen üyelik/family/token sayıları ve `operationCode` |
+| `ORG_SETTING_CHANGED` | `ORGANIZATION` | `DATA_MUTATION` | `ORGANIZATION`, zorunlu | `true` | Eski/yeni değer yalnız ad, kısa ad, saat dilimi, onaylı marka/modül/yoklama ayarı alanı ve `rowVersion`; metadata yalnız `operationCode` |
+| `PLATFORM_ADMIN_ORG_ACCESS` | `ORGANIZATION` | `ACCESS` | `ORGANIZATION`, zorunlu | `false` | `old_value/new_value=NULL`; metadata yalnız `operationCode`, `outcome`; kontrollü red nedeni dışında serbest metin yok |
+
+Bu dört katalog satırında `requires_class_scope=false` ve
+`requires_operation_group=false`dır. `payload_schema` boş `{}` olamaz: en az eski/yeni değer,
+metadata ve reason-code allow-list'lerini taşıyan kapalı bir nesne olmalı; bilinmeyen alanlar
+uygulama doğrulamasında reddedilmelidir. Kurum oluşturma veya durum değişikliği
+`ORG_SETTING_CHANGED` olarak yazılamaz; aksi halde action seviyesindeki geri alınabilirlik
+yanlışlıkla oluşturma/arşivleme akışına taşınır.
 
 ### 13.2. `audit_logs`
 

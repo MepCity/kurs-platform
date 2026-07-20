@@ -374,9 +374,9 @@ yolu açamaz. `AUDIT-001A` bu bağımlılığı aşağıdaki dar kapsamla çöze
 - `audit_logs` için `ENABLE RLS` ve `FORCE RLS` zorunludur. Yeni runtime rolü,
   `BYPASSRLS`, `SECURITY DEFINER`, tablo-geneli yazma yetkisi veya varsayılan açık policy
   oluşturulmaz; runtime erişimi görev sahibinin rolü tanımlandığında ayrı migration'da verilir.
-- Yalnız sınıf kapsamı gerektirmeyen, mevcut sözleşmelerde tanımlı
-  `ORG_SETTING_CHANGED` ve `PLATFORM_ADMIN_ORG_ACCESS` katalog satırları eklenir. Yeni audit
-  eylem kodu icat edilmez.
+- Yalnız sınıf kapsamı gerektirmeyen, mevcut sözleşmelerde tanımlı `ORG_CREATED`,
+  `ORG_STATUS_CHANGED`, `ORG_SETTING_CHANGED` ve `PLATFORM_ADMIN_ORG_ACCESS` katalog
+  satırları eklenir. Bunların dışında yeni audit eylem kodu icat edilmez.
 - `classes` tablosu henüz mevcut olmadığından `audit_logs.scope_class_id` sütunu korunur fakat
   `AUDIT-001A` boyunca sınıf kapsamlı katalog/audit satırı DB kısıtıyla reddedilir. `classes`
   bileşik FK'si ve sınıf kapsamlı katalog satırları `CLS-002` sonrasındaki `AUDIT-001`e aittir.

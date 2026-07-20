@@ -337,6 +337,20 @@ admin `SELECT` doğrulamasından sonra kurulur.
 
 Bu matrisin dışındaki tablo erişimi sözleşme ihlalidir.
 
+Audit action eşlemesi de kapalıdır:
+
+| İşlem | Üretilen audit action |
+|---|---|
+| `CREATE` | `ORG_CREATED` |
+| Platform admin `LIST` / `DETAIL` | Görüntülenen her hedef kurum için `PLATFORM_ADMIN_ORG_ACCESS` |
+| `PATCH` | `ORG_SETTING_CHANGED`; platform admin hedefli işlemde ayrıca `PLATFORM_ADMIN_ORG_ACCESS` |
+| `SUSPEND` / `ACTIVATE` / `ARCHIVE` | `ORG_STATUS_CHANGED`; ayrıca hedef kurum erişimi için `PLATFORM_ADMIN_ORG_ACCESS` |
+
+`ORG_CREATED` ve `ORG_STATUS_CHANGED` geri alınabilir değildir. `ORG_SETTING_CHANGED` yalnız
+`DENETIM_VE_GERI_ALMA_ILKELERI.md` §6'daki kontrollü ayar geri alma akışına tabidir. Action
+kodları birbirinin yerine kullanılamaz; özellikle oluşturma veya yaşam döngüsü durum değişimi
+`ORG_SETTING_CHANGED` olarak yazılamaz.
+
 ### 4.1a. `platform_administrators` ORGANIZATION scope SELECT RLS (bağlayıcı)
 
 Platform yöneticisinin hedef kurumlu işlemlerinde aktif `platform_administrators` kaydının
