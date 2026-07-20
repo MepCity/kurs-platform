@@ -44,11 +44,13 @@ class AuditCoreMigrationTests {
         Map<String, CatalogExpectation> expected = expectedCatalogs();
 
         try (var connection = connection()) {
-            assertThat(catalogCount(connection)).isEqualTo(4);
+            // 5 rows: AUDIT-001A's original 4 (unchanged) + ORG-003's additional, immutable
+            // ORG_SETTING_CHANGED payload_schema_version=2 row (VERI_MODELI.md §13.0a).
+            assertThat(catalogCount(connection)).isEqualTo(5);
             assertThat(catalogCodes(connection)).containsExactlyElementsOf(expected.keySet());
 
             for (var entry : expected.entrySet()) {
-                CatalogRow actual = catalog(connection, entry.getKey());
+                CatalogRow actual = catalog(connection, entry.getKey(), 1);
                 CatalogExpectation expectation = entry.getValue();
 
                 assertThat(actual.eventScope()).isEqualTo(expectation.eventScope());
@@ -59,6 +61,40 @@ class AuditCoreMigrationTests {
                 assertThat(actual.requiresOperationGroup()).isEqualTo(expectation.requiresOperationGroup());
                 assertThat(actual.isUndoable()).isEqualTo(expectation.isUndoable());
                 assertThat(jsonEquals(connection, actual.payloadSchema(), expectation.payloadSchema())).isTrue();
+            }
+        }
+    }
+
+    @Test
+    void orgSettingChangedV1RowIsUnchangedAndV2RowAddsBrandFieldsAsSeparateImmutableRow() throws Exception {
+        try (var connection = connection()) {
+            // v1 (AUDIT-001A, physically defined in V2__audit_core.sql) must be byte-for-byte the
+            // original seed -- ORG-003 never touches it, only adds a new row alongside it.
+            CatalogRow v1 = catalog(connection, "ORG_SETTING_CHANGED", 1);
+            assertThat(jsonEquals(connection, v1.payloadSchema(), """
+                    {"oldValue":{"allowed":["name","shortName","defaultTimezone","primaryColor","logoAssetId","enabledModules","attendanceStatuses","rowVersion"]},"newValue":{"allowed":["name","shortName","defaultTimezone","primaryColor","logoAssetId","enabledModules","attendanceStatuses","rowVersion"]},"eventMetadata":{"allowed":["operationCode"]},"reasonCodes":[],"rejectUnknown":true}
+                    """)).isTrue();
+
+            // v2 (ORG-003's own V3 migration) = v1 fields + secondaryColor + brandColors, same
+            // scope/kind/target/undoable shape, rejectUnknown still true.
+            CatalogRow v2 = catalog(connection, "ORG_SETTING_CHANGED", 2);
+            assertThat(v2.eventScope()).isEqualTo(v1.eventScope());
+            assertThat(v2.eventKind()).isEqualTo(v1.eventKind());
+            assertThat(v2.targetEntityType()).isEqualTo(v1.targetEntityType());
+            assertThat(v2.requiresTargetEntity()).isEqualTo(v1.requiresTargetEntity());
+            assertThat(v2.requiresClassScope()).isEqualTo(v1.requiresClassScope());
+            assertThat(v2.requiresOperationGroup()).isEqualTo(v1.requiresOperationGroup());
+            assertThat(v2.isUndoable()).isEqualTo(v1.isUndoable());
+            assertThat(jsonEquals(connection, v2.payloadSchema(), """
+                    {"oldValue":{"allowed":["name","shortName","defaultTimezone","primaryColor","secondaryColor","logoAssetId","enabledModules","brandColors","attendanceStatuses","rowVersion"]},"newValue":{"allowed":["name","shortName","defaultTimezone","primaryColor","secondaryColor","logoAssetId","enabledModules","brandColors","attendanceStatuses","rowVersion"]},"eventMetadata":{"allowed":["operationCode"]},"reasonCodes":[],"rejectUnknown":true}
+                    """)).isTrue();
+
+            // Exactly two ORG_SETTING_CHANGED rows exist (v1 and v2), never a third/duplicate.
+            try (var statement = connection.prepareStatement(
+                    "SELECT count(*) FROM audit_action_catalog WHERE code = 'ORG_SETTING_CHANGED'");
+                    var rows = statement.executeQuery()) {
+                rows.next();
+                assertThat(rows.getInt(1)).isEqualTo(2);
             }
         }
     }
@@ -261,7 +297,9 @@ class AuditCoreMigrationTests {
     }
 
     private List<String> catalogCodes(Connection connection) throws SQLException {
-        try (var statement = connection.prepareStatement("SELECT code FROM audit_action_catalog ORDER BY code");
+        // DISTINCT: ORG_SETTING_CHANGED now has two rows (payload_schema_version 1 and 2) but is
+        // still one code; the 4-code closed set assertion is about codes, not (code, version) pairs.
+        try (var statement = connection.prepareStatement("SELECT DISTINCT code FROM audit_action_catalog ORDER BY code");
                 var rows = statement.executeQuery()) {
             var codes = new java.util.ArrayList<String>();
             while (rows.next()) {
@@ -271,11 +309,13 @@ class AuditCoreMigrationTests {
         }
     }
 
-    private CatalogRow catalog(Connection connection, String code) throws SQLException {
+    private CatalogRow catalog(Connection connection, String code, int payloadSchemaVersion) throws SQLException {
         String sql = "SELECT event_scope,event_kind,target_entity_type,requires_target_entity,requires_class_scope,"
-                + "requires_operation_group,is_undoable,payload_schema FROM audit_action_catalog WHERE code=?";
+                + "requires_operation_group,is_undoable,payload_schema FROM audit_action_catalog "
+                + "WHERE code=? AND payload_schema_version=?";
         try (var statement = connection.prepareStatement(sql)) {
             statement.setString(1, code);
+            statement.setInt(2, payloadSchemaVersion);
             try (ResultSet rows = statement.executeQuery()) {
                 assertThat(rows.next()).isTrue();
                 return new CatalogRow(
@@ -399,7 +439,17 @@ class AuditCoreMigrationTests {
             assertThat(rows.getBoolean(1)).isTrue();
             assertThat(rows.getBoolean(2)).isTrue();
         }
-        try (var statement = connection.prepareStatement("SELECT count(*) FROM pg_policies WHERE tablename='audit_logs'");
+        // AUDIT-001A seeded the audit_logs table without INSERT policies; ORG-003 adds the narrow
+        // org_runtime INSERT policies for the four ORG action types. Only org_runtime-targeted
+        // INSERT policies are permitted; SELECT/UPDATE/DELETE policies remain absent.
+        try (var statement = connection.prepareStatement(
+                "SELECT count(*) FROM pg_policies WHERE tablename='audit_logs' AND cmd = 'INSERT' AND roles = '{org_runtime}'");
+                var rows = statement.executeQuery()) {
+            rows.next();
+            assertThat(rows.getInt(1)).isEqualTo(4);
+        }
+        try (var statement = connection.prepareStatement(
+                "SELECT count(*) FROM pg_policies WHERE tablename='audit_logs' AND cmd IN ('SELECT','UPDATE','DELETE')");
                 var rows = statement.executeQuery()) {
             rows.next();
             assertThat(rows.getInt(1)).isZero();
