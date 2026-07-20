@@ -841,7 +841,8 @@ sabittir):
 | `name` | TEXT | Hayır | |
 | `short_name` | TEXT | Evet | |
 | `logo_asset_id` | UUID | Evet | Bileşik FK: `FOREIGN KEY (logo_asset_id, id) REFERENCES file_assets (id, organization_id)` — burada `organizations.id`, `file_assets.organization_id` ile eşleşen tenant değeri olarak kullanılır (yani logo dosyasının `organization_id`'si **bu kurumun kendi `id`'sine** eşit olmalıdır). |
-| `primary_color` | TEXT (hex) | Evet | |
+| `primary_color` | TEXT (hex) | Evet | Kurum ana rengi; `#RRGGBB` biçimi. Boşsa varsayılan Zeytin teması (`#2E7D32`). |
+| `secondary_color` | TEXT (hex) | Evet | Kurum yardımcı rengi; `#RRGGBB` biçimi. Boşsa varsayılan Zeytin temasının yardımcı rengi (`#E65100`). `organization_brand_colors` yardımcı paletinden farklıdır; yardımcı palet tek başına `secondary_color`'u belirlemez. |
 | `status` | ENUM(`ACTIVE`,`SUSPENDED`,`ARCHIVED`) | Hayır | Yalnızca platform yöneticisi değiştirir. |
 | `default_timezone` | TEXT | Hayır, varsayılan `Europe/Istanbul` | §6.1 |
 | temel alanlar | — | — | bkz. §2.3 |
@@ -1414,6 +1415,38 @@ oluşmadan sahte veya zayıf bir FK üretmez ve Dalga 2 kurum yaşam döngüsün
 transaction'da fail-closed yazabilmesini sağlar. `AUDIT-001A` yeni runtime rolü veya geniş
 tablo yetkisi oluşturmaz; görev sahibi runtime rolüne ait dar `INSERT` policy/grant'i ilgili
 uygulama migration'ında eklenir.
+
+### 13.0a. `ORG_SETTING_CHANGED` payload şema sürümleri (bağlayıcı)
+
+`ORG_SETTING_CHANGED` eylemi iki payload şema sürümüyle yaşar; migration'lar
+değişmez (immutable) kuralına uyar, mevcut katalog satırı değiştirilmez:
+
+- **v1 (`payload_schema_version = 1`)** — `AUDIT-001A`'nın `V2__audit_core.sql`
+  migration'ında fiziksel olarak eklenmiş satırdır ve **değiştirilemez**. İzinli
+  eski/yeni alanlar: `name`, `shortName`, `defaultTimezone`, `primaryColor`,
+  `logoAssetId`, `enabledModules`, `attendanceStatuses`, `rowVersion`. **v1 şema
+  `secondaryColor` ve `brandColors` alanlarını kabul etmez.** Bu iki alan v1'de
+  unknown alan sayılır ve `rejectUnknown: true` nedeniyle audit yazımı fail-closed
+  reddedilir. ORG-001 yaşam döngüsü (kimlik/durum/rol) v1 şemayla yazılabilir.
+- **v2 (`payload_schema_version = 2`)** — ORG-003'ün kendi Flyway `V3__...`
+  migration'ında eklediği katalog satırıdır. İzinli eski/yeni alanlar = v1
+  alanları + `secondaryColor` + `brandColors` (rowVersion zaten v1'de mevcuttur);
+  bu liste bir yazmada görünebilecek **üst kümedir**. `brandColors` array
+  biçimindedir; her öğesi `{colorHex, sortOrder}` çiftidir (`organization_brand_
+  colors` tablosunun tam anlık görüntüsü). `enabledModules` v2'de
+  `organization_modules` tablosunun tam anlık görüntüsüdür: array, her öğesi
+  `{moduleCode, isEnabled, sortOrder}` üçlüsü (etkin + devre dışı modüllerin
+  tamamı, `sortOrder` artan). Yeni/unknown alanlar v2'de de `rejectUnknown: true`
+  ile reddedilir; serbest JSON alanı açılmaz. Bir yazmanın `oldValue`/`newValue`'sı
+  yalnız **fiilen değişen alan(lar)ı** taşır; değişmeyen alan hiç yer almaz (PR #43
+  `AuditEvent.SettingChange`'in `changedFields` modeliyle birebir). ORG-005 (marka
+  API backend) yalnız v2 katalog satırıyla audit yazar; v1 yolu fail-closed
+  reddedilir. Tam `payload_schema` şablonu ve "yalnız değişen alan" kuralı
+  `ORG_MARKA_AYARLARI_API_SOZLESMESI.md §2.8.2/§2.8.2a`'da tanımlıdır.
+
+`V2__audit_core.sql` migration'ı bu sürümde dokunulmaz; ORG-003 yeni v2 katalog
+satırını ek olarak `INSERT` eder, v1 satırını değiştirmez/silmez. Bu, AUDIT-001A →
+ORG-003 arasındaki Flyway zinciri ve §4.1c kabul ölçütüyle bağlayıcıdır.
 
 ### 13.1. `audit_action_catalog`
 
