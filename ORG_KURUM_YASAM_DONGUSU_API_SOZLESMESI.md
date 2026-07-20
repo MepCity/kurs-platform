@@ -354,11 +354,12 @@ kodları birbirinin yerine kullanılamaz; özellikle oluşturma veya yaşam dön
 ### 4.1a. `platform_administrators` ORGANIZATION scope SELECT RLS (bağlayıcı)
 
 Platform yöneticisinin hedef kurumlu işlemlerinde aktif `platform_administrators` kaydının
-doğrulanması, aşağıdaki dar `FORCE RLS` policy'si ile yapılır. Bu policy'nin ait olduğu
-runtime rolü ve migration grant'leri `ORG-003` kapsamında kesinleştirilecektir; ORG işlemi
-tek DB transaction ve tek runtime rolüyle çalışır. `iam_runtime` rolü ADR-003 uyarınca
-yalnız IAM ve dar güvenlik yüzeyiyle sınırlıdır; ORG yaşam döngüsü transaction'ını
-işletmez.
+doğrulanması, aşağıdaki dar `FORCE RLS` policy'si ile yapılır. Bu policy **ORG-001 ve
+ORG-002 arasında tek kanonik karar**dır; `ORG-002` marka uçları aynı policy'yi kullanır ve
+ayrı bir RLS policy tanımlamaz. Bu policy'nin ait olduğu runtime rolü ve migration
+grant'leri `ORG-003` kapsamında kesinleştirilecektir; ORG işlemi tek DB transaction ve tek
+runtime rolüyle çalışır. `iam_runtime` rolü ADR-003 uyarınca yalnız IAM ve dar güvenlik
+yüzeyiyle sınırlıdır; ORG yaşam döngüsü transaction'ını işletmez.
 
 ```
 USING (
@@ -370,7 +371,16 @@ USING (
     'ORG_UPDATE_IDENTITY',
     'ORG_SUSPEND',
     'ORG_ACTIVATE',
-    'ORG_ARCHIVE'
+    'ORG_ARCHIVE',
+    'ORG_VIEW_BRAND',
+    'ORG_UPDATE_BRAND',
+    'ORG_VIEW_BRAND_COLORS',
+    'ORG_UPDATE_BRAND_COLORS',
+    'ORG_VIEW_MODULES',
+    'ORG_UPDATE_MODULES',
+    'ORG_UPLOAD_LOGO',
+    'ORG_REMOVE_LOGO',
+    'ORG_VIEW_LOGO'
   )
 )
 ```
@@ -379,20 +389,25 @@ Kısıtlar:
 
 - Bu policy `app.iam_platform_admin_support_access` bayrağına **bağımlı değildir**; bayrak
   ancak bu `SELECT` başarıyla bir satır döndürdükten **sonra** server-set olarak `true`
-  yapılır.
-- Başka platform yöneticisi satırı (`user_id != app.iam_actor_user_id`) bu policy ile
-  görünmez.
+  yapılır. Bayrağın `SELECT` öncesi kurulmuş gibi davranması negatif test kapısıdır ve
+  hiçbir satır döndürmemelidir.
+- Policy yalnız `actor user_id + revoked_at IS NULL` satırını açar; başka admin satırı
+  (`user_id != app.iam_actor_user_id`) görünmez. Başka admin ile sahte destek erişimi
+  negatif test kapısıdır.
 - Genel `SELECT` (boş `USING`), `BYPASSRLS` veya yazma yetkisi (`INSERT`/`UPDATE`/`DELETE`)
   verilmez.
 - Allow-list dışı operation code ile `SELECT` hiçbir satır döndürmez → doğrulama başarısız
-  → `403 FORBIDDEN`.
+  → `403 FORBIDDEN`. Yanlış operation code negatif test kapısıdır.
+- Revoked admin satırı (`revoked_at IS NOT NULL`) görünmez ve fail-closed
+  `403 FORBIDDEN` döner; revoked admin negatif test kapısıdır.
 - Bu policy, `platform_administrators` için mevcut `IAM_AUTH` `PLATFORM_ADMIN_ACTIVATE`
   policy'sinden bağımsız ve ona ek bir `PERMISSIVE` policy'dir; `OR` ile birleşir.
   `ORGANIZATION` scope'unda `IAM_AUTH` policy'sinin `app.iam_operation_scope = 'IAM_AUTH'`
   guard'ı zaten `false` olduğu için çakışma oluşmaz.
 
 Bu policy'nin ADR-004'teki tam karşılığı `ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md`
-işlem/scope matrisinde tanımlıdır ve bu sözleşmeyle birebir aynıdır.
+işlem/scope matrisinde tanımlıdır ve bu sözleşmeyle birebir aynıdır (ORG-002 operation
+code'ları dâhil).
 
 ### 4.1b. `platform_administrators` GLOBAL scope SELECT RLS (bağlayıcı)
 
@@ -444,8 +459,24 @@ birebir aynıdır.
   sahip olmalıdır.
 - Somut rol adı ve migration grant'leri `ORG-003` kapsamında kesinleştirilecektir.
 - `ORG-003` kabul ölçütüne `ORG_CREATE`, `ORG_LIST`, `ORG_DETAIL`,
-  `ORG_UPDATE_IDENTITY`, `ORG_SUSPEND`, `ORG_ACTIVATE` ve `ORG_ARCHIVE` operation
-  code'ları için gerçek PostgreSQL `GRANT`/RLS testleri eklenmelidir.
+  `ORG_UPDATE_IDENTITY`, `ORG_SUSPEND`, `ORG_ACTIVATE`, `ORG_ARCHIVE` ve
+  `ORG-002`'den gelen `ORG_VIEW_BRAND`, `ORG_UPDATE_BRAND`, `ORG_VIEW_BRAND_COLORS`,
+  `ORG_UPDATE_BRAND_COLORS`, `ORG_VIEW_MODULES`, `ORG_UPDATE_MODULES`,
+  `ORG_UPLOAD_LOGO`, `ORG_REMOVE_LOGO`, `ORG_VIEW_LOGO` operation code'ları için
+  gerçek PostgreSQL `GRANT`/RLS testleri eklenmelidir. `ORG-003` bu sözleşmenin
+  §4.1a allow-list'inin tamamını (ORG-001 + ORG-002) tek kanonik liste olarak uygular;
+  ayrı bir ORG-002 allow-list tanımlamaz.
+- `ORG-003` kabul ölçütüne `AUDIT-001A`'nın `V2__audit_core.sql` migration'ını
+  **değiştirmeden** kendi Flyway V3 migration'ında (`V3__...`) `ORG_SETTING_CHANGED`
+  için `payload_schema_version = 2` katalog satırını eklemesi dâhildir. v2 şeması
+  `ORG_MARKA_AYARLARI_API_SOZLESMESI.md §2.8.2`'de tanımlanan izinli alanları
+  (`name`, `shortName`, `defaultTimezone`, `primaryColor`, `secondaryColor`,
+  `logoAssetId`, `enabledModules`, `brandColors`, `attendanceStatuses`,
+  `rowVersion`) `rejectUnknown: true` ile birebir taşımalıdır; mevcut v1 katalog
+  satırı **değiştirilmemeli** ve **silinmemelidir**. ORG-005 (marka API backend)
+  yalnız v2 katalog satırıyla audit yazabilmeli; v1 yolu fail-closed reddedilmeli
+  (testle kanıtlanmalı). ORG-003 audit `INSERT` policy/grant'i başarısız audit
+  kaydında tüm lifecycle transaction'ı rollback yapmalı (testle kanıtlanmalı).
 - `iam_runtime` rolü ADR-003 uyarınca yalnız IAM ve dar güvenlik yüzeyiyle sınırlıdır;
   ORG yaşam döngüsü transaction'ını işletmez ve ORG tablolarına (`organizations` dâhil)
   erişmez.
