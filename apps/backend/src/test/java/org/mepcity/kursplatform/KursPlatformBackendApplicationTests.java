@@ -2,7 +2,9 @@ package org.mepcity.kursplatform;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 
+@ActiveProfiles("test")
 @SpringBootTest(properties = {
 		"KURS_PLATFORM_ENVIRONMENT=development",
 		"KURS_PLATFORM_PUBLIC_API_BASE_URL=https://api-development.example.invalid",

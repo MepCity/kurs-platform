@@ -44,9 +44,11 @@ class AuditCoreMigrationTests {
         Map<String, CatalogExpectation> expected = expectedCatalogs();
 
         try (var connection = connection()) {
-            // 5 rows: AUDIT-001A's original 4 (unchanged) + ORG-003's additional, immutable
-            // ORG_SETTING_CHANGED payload_schema_version=2 row (VERI_MODELI.md §13.0a).
-            assertThat(catalogCount(connection)).isEqualTo(5);
+            // 15 rows: AUDIT-001A's original 4 codes (unchanged) + ORG-003's additional, immutable
+            // ORG_SETTING_CHANGED payload_schema_version=2 row (VERI_MODELI.md §13.0a) + IAM-004's
+            // 6 new codes (V7__iam_audit_events.sql) + IAM-004 Fix Round 3's 4 further new codes
+            // (V10__iam_audit_unknown_and_command_completed.sql), each a single row.
+            assertThat(catalogCount(connection)).isEqualTo(15);
             assertThat(catalogCodes(connection)).containsExactlyElementsOf(expected.keySet());
 
             for (var entry : expected.entrySet()) {
@@ -219,7 +221,7 @@ class AuditCoreMigrationTests {
             assertRejected(() -> deleteAudit(connection, audit));
             assertRlsAndNoPolicies(connection);
             assertNoRuntimeOrPublicGrants(connection);
-            assertRuntimeDmlDenied(connection, "iam_runtime");
+            assertIamRuntimeGrantIsInsertOnlyOnExpectedColumns(connection);
             assertRuntimeDmlDenied(connection, "app_runtime");
             assertIndex(connection, "audit_logs_organization_occurred_idx", "organization_id, occurred_at DESC", false,
                     null);
@@ -235,7 +237,34 @@ class AuditCoreMigrationTests {
     }
 
     private static Map<String, CatalogExpectation> expectedCatalogs() {
+        // LinkedHashMap in ascending-code order to match catalogCodes()'s `ORDER BY code` —
+        // containsExactlyElementsOf compares this iteration order directly.
         Map<String, CatalogExpectation> expected = new LinkedHashMap<>();
+        expected.put("CONTEXT_ACTIVATED", new CatalogExpectation(
+                "ORGANIZATION", "ACCESS", "USER", true, false, false, false,
+                """
+                {"oldValue":{"allowed":[],"requiredNull":true},"newValue":{"allowed":["deviceIdentifier","refreshTokenFamilyId","organizationMembershipId"]},"eventMetadata":{"allowed":["operationCode"]},"reasonCodes":[],"rejectUnknown":true}
+                """));
+        expected.put("IAM_ORG_PROVIDER_SESSION_REVOKED", new CatalogExpectation(
+                "ORGANIZATION", "SECURITY", "USER", true, false, false, false,
+                """
+                {"oldValue":{"allowed":[],"requiredNull":true},"newValue":{"allowed":["providerStatus","organizationMembershipId"]},"eventMetadata":{"allowed":["operationCode"]},"reasonCodes":[],"rejectUnknown":true}
+                """));
+        expected.put("IAM_ORG_PROVIDER_STATUS_CHECK_BLOCKED", new CatalogExpectation(
+                "ORGANIZATION", "SECURITY", "USER", true, false, false, false,
+                """
+                {"oldValue":{"allowed":[],"requiredNull":true},"newValue":{"allowed":[],"requiredNull":true},"eventMetadata":{"allowed":["operationCode","providerStatus"],"enumValues":{"providerStatus":["UNKNOWN"]}},"reasonCodes":[],"rejectUnknown":true}
+                """));
+        expected.put("IAM_PROVIDER_SESSION_REVOKED", new CatalogExpectation(
+                "GLOBAL", "SECURITY", "USER", true, false, false, false,
+                """
+                {"oldValue":{"allowed":[],"requiredNull":true},"newValue":{"allowed":["providerStatus"]},"eventMetadata":{"allowed":["operationCode"]},"reasonCodes":[],"rejectUnknown":true}
+                """));
+        expected.put("IAM_PROVIDER_STATUS_CHECK_BLOCKED", new CatalogExpectation(
+                "GLOBAL", "SECURITY", "USER", true, false, false, false,
+                """
+                {"oldValue":{"allowed":[],"requiredNull":true},"newValue":{"allowed":[],"requiredNull":true},"eventMetadata":{"allowed":["operationCode","providerStatus"],"enumValues":{"providerStatus":["UNKNOWN"]}},"reasonCodes":[],"rejectUnknown":true}
+                """));
         expected.put("ORG_CREATED", new CatalogExpectation(
                 "ORGANIZATION", "DATA_MUTATION", "ORGANIZATION", true, false, false, false,
                 """
@@ -251,10 +280,35 @@ class AuditCoreMigrationTests {
                 """
                 {"oldValue":{"allowed":["status","rowVersion"]},"newValue":{"allowed":["status","rowVersion"]},"eventMetadata":{"allowed":["revokedMembershipCount","revokedFamilyCount","revokedTokenCount","operationCode"]},"reasonCodes":[],"rejectUnknown":true}
                 """));
+        expected.put("PLATFORM_ADMIN_ACTIVATED", new CatalogExpectation(
+                "GLOBAL", "ACCESS", "USER", true, false, false, false,
+                """
+                {"oldValue":{"allowed":[],"requiredNull":true},"newValue":{"allowed":["deviceIdentifier","refreshTokenFamilyId"]},"eventMetadata":{"allowed":["operationCode"]},"reasonCodes":[],"rejectUnknown":true}
+                """));
         expected.put("PLATFORM_ADMIN_ORG_ACCESS", new CatalogExpectation(
                 "ORGANIZATION", "ACCESS", "ORGANIZATION", true, false, false, false,
                 """
                 {"oldValue":{"allowed":[],"requiredNull":true},"newValue":{"allowed":[],"requiredNull":true},"eventMetadata":{"allowed":["operationCode","outcome"]},"reasonCodes":["FORBIDDEN"],"rejectUnknown":true}
+                """));
+        expected.put("PROVIDER_COMMAND_COMPLETED", new CatalogExpectation(
+                "GLOBAL", "SECURITY", "PROVIDER_COMMAND", true, false, false, false,
+                """
+                {"oldValue":{"allowed":[],"requiredNull":true},"newValue":{"allowed":["success","safeErrorCode"]},"eventMetadata":{"allowed":["operationCode"]},"reasonCodes":[],"rejectUnknown":true}
+                """));
+        expected.put("PROVIDER_COMMAND_EXHAUSTED", new CatalogExpectation(
+                "GLOBAL", "SECURITY", "PROVIDER_COMMAND", true, false, false, false,
+                """
+                {"oldValue":{"allowed":[],"requiredNull":true},"newValue":{"allowed":["success","safeErrorCode"]},"eventMetadata":{"allowed":["operationCode"]},"reasonCodes":[],"rejectUnknown":true}
+                """));
+        expected.put("PROVIDER_COMMAND_FAILED", new CatalogExpectation(
+                "GLOBAL", "SECURITY", "PROVIDER_COMMAND", true, false, false, false,
+                """
+                {"oldValue":{"allowed":[],"requiredNull":true},"newValue":{"allowed":["success","safeErrorCode"]},"eventMetadata":{"allowed":["operationCode"]},"reasonCodes":[],"rejectUnknown":true}
+                """));
+        expected.put("PROVIDER_TOKEN_EXCHANGED", new CatalogExpectation(
+                "GLOBAL", "ACCESS", "USER", true, false, false, false,
+                """
+                {"oldValue":{"allowed":[],"requiredNull":true},"newValue":{"allowed":["deviceIdentifier","contextSelectionTokenId"]},"eventMetadata":{"allowed":["operationCode"]},"reasonCodes":[],"rejectUnknown":true}
                 """));
         return expected;
     }
@@ -448,6 +502,14 @@ class AuditCoreMigrationTests {
             rows.next();
             assertThat(rows.getInt(1)).isEqualTo(4);
         }
+        // IAM-004 (V7) adds its own narrow INSERT policies for iam_runtime, same pattern as
+        // org_runtime above — three policies: GLOBAL events, ORGANIZATION events, provider-command.
+        try (var statement = connection.prepareStatement(
+                "SELECT count(*) FROM pg_policies WHERE tablename='audit_logs' AND cmd = 'INSERT' AND roles = '{iam_runtime}'");
+                var rows = statement.executeQuery()) {
+            rows.next();
+            assertThat(rows.getInt(1)).isEqualTo(3);
+        }
         try (var statement = connection.prepareStatement(
                 "SELECT count(*) FROM pg_policies WHERE tablename='audit_logs' AND cmd IN ('SELECT','UPDATE','DELETE')");
                 var rows = statement.executeQuery()) {
@@ -457,14 +519,54 @@ class AuditCoreMigrationTests {
     }
 
     private void assertNoRuntimeOrPublicGrants(Connection connection) throws SQLException {
+        // iam_runtime is deliberately excluded here: IAM-004 grants it a narrow, INSERT-only,
+        // column-level privilege on audit_logs (V7__iam_audit_events.sql), mirroring org_runtime's
+        // own pre-existing grant (V3) — assertIamRuntimeGrantIsInsertOnlyOnExpectedColumns verifies
+        // that grant is exactly as narrow as intended. app_runtime and PUBLIC still get nothing.
         String sql = "SELECT count(*) FROM information_schema.role_table_grants WHERE table_name='audit_logs'"
-                + " AND grantee IN ('PUBLIC','iam_runtime','app_runtime') UNION ALL SELECT count(*)"
+                + " AND grantee IN ('PUBLIC','app_runtime') UNION ALL SELECT count(*)"
                 + " FROM information_schema.column_privileges WHERE table_name='audit_logs'"
-                + " AND grantee IN ('PUBLIC','iam_runtime','app_runtime')";
+                + " AND grantee IN ('PUBLIC','app_runtime')";
         try (var statement = connection.prepareStatement(sql); var rows = statement.executeQuery()) {
             while (rows.next()) {
                 assertThat(rows.getInt(1)).isZero();
             }
+        }
+    }
+
+    private void assertIamRuntimeGrantIsInsertOnlyOnExpectedColumns(Connection connection) throws SQLException {
+        try (var statement = connection.prepareStatement(
+                "SELECT count(*) FROM information_schema.role_table_grants WHERE table_name='audit_logs'"
+                        + " AND grantee='iam_runtime' AND privilege_type != 'INSERT'");
+                var rows = statement.executeQuery()) {
+            rows.next();
+            assertThat(rows.getInt(1)).as("iam_runtime must have no non-INSERT privilege on audit_logs").isZero();
+        }
+        try (var statement = connection.prepareStatement(
+                "SELECT column_name FROM information_schema.column_privileges WHERE table_name='audit_logs'"
+                        + " AND grantee='iam_runtime' AND privilege_type='INSERT' ORDER BY column_name")) {
+            try (var rows = statement.executeQuery()) {
+                var columns = new java.util.ArrayList<String>();
+                while (rows.next()) {
+                    columns.add(rows.getString(1));
+                }
+                assertThat(columns).containsExactlyInAnyOrder(
+                        "id", "organization_id", "actor_user_id", "request_id", "action_type",
+                        "payload_schema_version", "event_scope", "target_entity_type", "event_kind",
+                        "requires_target_entity", "requires_class_scope", "requires_operation_group",
+                        "target_entity_id", "old_value", "new_value", "event_metadata", "reason_code",
+                        "operation_group_id", "is_undo", "undo_of_audit_log_id");
+            }
+        }
+        // SELECT/UPDATE/DELETE remain fully denied for iam_runtime — only the INSERT grant above
+        // plus the RLS policies from V7 determine what it can actually write.
+        connection.createStatement().execute("SET ROLE iam_runtime");
+        try {
+            assertPrivilegeDenied(() -> connection.createStatement().executeQuery("SELECT * FROM audit_logs"));
+            assertPrivilegeDenied(() -> connection.createStatement().execute("UPDATE audit_logs SET request_id='x'"));
+            assertPrivilegeDenied(() -> connection.createStatement().execute("DELETE FROM audit_logs"));
+        } finally {
+            connection.createStatement().execute("RESET ROLE");
         }
     }
 
