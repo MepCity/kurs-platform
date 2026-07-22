@@ -13,6 +13,10 @@ import java.util.List;
 import java.util.UUID;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.mepcity.kursplatform.org.infrastructure.persistence.JacksonOrganizationResultSerializer;
+import org.mepcity.kursplatform.org.infrastructure.persistence.JdbcOrganizationCreateRateLimiter;
+import org.mepcity.kursplatform.org.application.RateLimitExceededException;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -41,6 +45,8 @@ class OrganizationMigrationTests {
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
     static DataSource dataSource;
     static PlatformTransactionManager transactionManager;
+    static final JacksonOrganizationResultSerializer RESULT_SERIALIZER =
+            new JacksonOrganizationResultSerializer(new ObjectMapper().findAndRegisterModules());
 
     @BeforeAll
     static void startContainer() {
@@ -76,6 +82,71 @@ class OrganizationMigrationTests {
                 assertThat(result.getString(1)).isEqualTo("3");
             }
         }
+    }
+
+    @Test
+    void persistentCreateRateLimitIsActorScopedAtomicAndSharedAcrossInstances() throws Exception {
+        var first = new JdbcOrganizationCreateRateLimiter(dataSource, transactionManager,
+                2, java.time.Duration.ofMinutes(1));
+        var second = new JdbcOrganizationCreateRateLimiter(dataSource, transactionManager,
+                2, java.time.Duration.ofMinutes(1));
+        UUID actorOne = activeAdmin();
+        UUID actorTwo = activeAdmin();
+        first.check(actorOne);
+        second.check(actorOne);
+        assertThatThrownBy(() -> first.check(actorOne)).isInstanceOf(RateLimitExceededException.class)
+                .satisfies(error -> assertThat(((RateLimitExceededException) error).retryAfterSeconds()).isPositive());
+        first.check(actorTwo);
+    }
+
+    @Test
+    void iamRuntimeLoginCanOnlyUseOrgPrivilegesAfterExplicitSetRole() throws Exception {
+        UUID actor = activeAdmin();
+        try (Connection owner = openConnection()) {
+            owner.createStatement().execute("ALTER ROLE iam_runtime PASSWORD 'test-runtime-password'");
+            owner.commit();
+        }
+        try (Connection runtime = DriverManager.getConnection(POSTGRES.getJdbcUrl(), "iam_runtime", "test-runtime-password")) {
+            assertSqlState("42501", () -> runtime.createStatement().execute(
+                    "INSERT INTO organizations (id, name, status, default_timezone, row_version, created_by_user_id, updated_by_user_id) "
+                            + "VALUES ('" + UUID.randomUUID() + "', 'Doğrudan red', 'ACTIVE', 'Europe/Istanbul', 1, '"
+                            + actor + "', '" + actor + "')"));
+            runtime.setAutoCommit(false);
+            runtime.createStatement().execute("SET LOCAL ROLE org_runtime");
+            try (ResultSet role = runtime.createStatement().executeQuery("SELECT current_user, session_user")) {
+                role.next();
+                assertThat(role.getString(1)).isEqualTo("org_runtime");
+                assertThat(role.getString(2)).isEqualTo("iam_runtime");
+            }
+            runtime.rollback();
+        }
+        var runtimeDataSource = new DriverManagerDataSource(POSTGRES.getJdbcUrl(), "iam_runtime", "test-runtime-password");
+        var runtimeManager = new DataSourceTransactionManager(runtimeDataSource);
+        var runtimeService = new OrganizationLifecycleService(new JdbcOrganizationRepository(runtimeDataSource), runtimeDataSource,
+                runtimeManager, new JdbcAuditWriter(runtimeDataSource), new JdbcIdempotencyRecorder(runtimeDataSource),
+                RESULT_SERIALIZER, new JdbcOrganizationCreateRateLimiter(runtimeDataSource, runtimeManager, 100, java.time.Duration.ofMinutes(1)));
+        LifecycleResult result = runtimeService.create(new LifecycleRequest(actor, UUID.randomUUID(), 1, "runtime-role-key",
+                "runtime-role-fingerprint", "runtime-role-request", "runtime-role-worker", Instant.now().plusSeconds(60),
+                Instant.now().plusSeconds(300)), "iam runtime zinciri", null, "Europe/Istanbul");
+        assertThat(result).isInstanceOf(LifecycleResult.Committed.class);
+    }
+
+    @Test
+    void completedReplayBypassesDbQuotaButNewKeyIsRateLimited() throws Exception {
+        UUID actor = activeAdmin();
+        var limiter = new JdbcOrganizationCreateRateLimiter(dataSource, transactionManager, 1, java.time.Duration.ofMinutes(1));
+        var service = new OrganizationLifecycleService(new JdbcOrganizationRepository(dataSource), dataSource, transactionManager,
+                new JdbcAuditWriter(dataSource), new JdbcIdempotencyRecorder(dataSource), RESULT_SERIALIZER, limiter);
+        LifecycleRequest first = new LifecycleRequest(actor, UUID.randomUUID(), 1, "replay-rate-key", "same-fingerprint",
+                "request-1", "worker-1", Instant.now().plusSeconds(60), Instant.now().plusSeconds(300));
+        LifecycleResult initial = service.create(first, "Replay kotası", null, "Europe/Istanbul");
+        LifecycleResult replay = service.create(first, "Replay kotası", null, "Europe/Istanbul");
+        assertThat(initial).isInstanceOf(LifecycleResult.Committed.class);
+        assertThat(replay).isInstanceOf(LifecycleResult.Replayed.class);
+        LifecycleRequest another = new LifecycleRequest(actor, UUID.randomUUID(), 1, "new-rate-key", "different-fingerprint",
+                "request-2", "worker-2", Instant.now().plusSeconds(60), Instant.now().plusSeconds(300));
+        assertThatThrownBy(() -> service.create(another, "Yeni kota", null, "Europe/Istanbul"))
+                .isInstanceOf(RateLimitExceededException.class);
     }
 
     @Test
@@ -569,6 +640,66 @@ class OrganizationMigrationTests {
     // --------------------------------------------------------------------------
     // Atomicity — SUSPEND / ARCHIVE / ACTIVATE full chain rollback on audit failure
     // --------------------------------------------------------------------------
+
+    @Test
+    void createCommitsActiveOrganizationAuditAndGlobalIdempotency() throws Exception {
+        UUID admin = activeAdmin();
+        UUID organizationId = UUID.randomUUID();
+        var request = lifecycleRequest(admin, organizationId, 1, "create-ok");
+
+        LifecycleResult result = serviceWithRealWriter().create(request, "Yeni Kurum", "Yeni", "Europe/Istanbul");
+
+        assertThat(result).isInstanceOf(LifecycleResult.Committed.class);
+        Organization created = ((LifecycleResult.Committed) result).organization();
+        assertThat(created.id()).isEqualTo(organizationId);
+        assertThat(created.status()).isEqualTo(OrganizationStatus.ACTIVE);
+        assertThat(created.rowVersion()).isEqualTo(1);
+        try (var connection = openConnection()) {
+            assertThat(count(connection, "SELECT count(*) FROM organizations WHERE id = '" + organizationId
+                    + "' AND status = 'ACTIVE' AND row_version = 1")).isEqualTo(1);
+            assertThat(count(connection, "SELECT count(*) FROM audit_logs WHERE organization_id = '" + organizationId
+                    + "' AND action_type = 'ORG_CREATED'")).isEqualTo(1);
+            assertThat(count(connection, "SELECT count(*) FROM idempotency_keys WHERE client_mutation_id = 'create-ok'"
+                    + " AND scope_type = 'GLOBAL' AND organization_id IS NULL AND status = 'COMPLETED'"
+                    + " AND terminal_http_status = 201")).isEqualTo(1);
+        }
+    }
+
+    @Test
+    void createReplayDoesNotCreateSecondOrganizationOrAudit() throws Exception {
+        UUID admin = activeAdmin();
+        UUID organizationId = UUID.randomUUID();
+        var request = lifecycleRequest(admin, organizationId, 1, "create-replay");
+        var service = serviceWithRealWriter();
+
+        assertThat(service.create(request, "Tek Kurum", null, "Europe/Istanbul"))
+                .isInstanceOf(LifecycleResult.Committed.class);
+        assertThat(service.create(request, "Tek Kurum", null, "Europe/Istanbul"))
+                .isInstanceOf(LifecycleResult.Replayed.class);
+        try (var connection = openConnection()) {
+            assertThat(count(connection, "SELECT count(*) FROM organizations WHERE id = '" + organizationId + "'"))
+                    .isEqualTo(1);
+            assertThat(count(connection, "SELECT count(*) FROM audit_logs WHERE organization_id = '" + organizationId
+                    + "' AND action_type = 'ORG_CREATED'")).isEqualTo(1);
+        }
+    }
+
+    @Test
+    void createRollsBackOrganizationAndClaimWhenAuditWriteFails() throws Exception {
+        UUID admin = activeAdmin();
+        UUID organizationId = UUID.randomUUID();
+        assertThatThrownBy(() -> serviceWithRlsCorruptingWriter().create(
+                lifecycleRequest(admin, organizationId, 1, "create-rollback"), "Hatalı", null, "Europe/Istanbul"))
+                .isInstanceOf(RuntimeException.class);
+        try (var connection = openConnection()) {
+            assertThat(count(connection, "SELECT count(*) FROM organizations WHERE id = '" + organizationId + "'"))
+                    .isZero();
+            assertThat(count(connection, "SELECT count(*) FROM audit_logs WHERE organization_id = '" + organizationId + "'"))
+                    .isZero();
+            assertThat(count(connection, "SELECT count(*) FROM idempotency_keys WHERE client_mutation_id = 'create-rollback'"))
+                    .isZero();
+        }
+    }
 
     @Test
     void suspendAtomicallyWritesStatusBarrierFamilyTokenAuditAndIdempotency() throws Exception {
@@ -1575,14 +1706,14 @@ class OrganizationMigrationTests {
             new JdbcAuditWriter(dataSource).write(event);
         };
         var first = new OrganizationLifecycleService(new JdbcOrganizationRepository(dataSource), dataSource,
-                transactionManager, barrierWriter, new JdbcIdempotencyRecorder(dataSource));
+                transactionManager, barrierWriter, new JdbcIdempotencyRecorder(dataSource), RESULT_SERIALIZER, actor -> { });
 
         // The second producer's IdempotencyRecorder captures its own backend pid on the transactional
         // connection immediately before delegating to the real recorder (which is where it blocks) --
         // this is what lets the main thread find and watch the exact right backend in pg_stat_activity.
         var secondPid = new java.util.concurrent.CompletableFuture<Integer>();
         var second = new OrganizationLifecycleService(new JdbcOrganizationRepository(dataSource), dataSource,
-                transactionManager, new JdbcAuditWriter(dataSource), pidCapturingRecorder(secondPid));
+                transactionManager, new JdbcAuditWriter(dataSource), pidCapturingRecorder(secondPid), RESULT_SERIALIZER, actor -> { });
         var request = lifecycleRequest(admin, org, 1, "concurrent-same-key");
 
         var firstResult = java.util.concurrent.CompletableFuture.supplyAsync(() -> first.suspend(request));
@@ -1641,9 +1772,9 @@ class OrganizationMigrationTests {
         UUID org = organization("Concurrent clash", admin, null, "ACTIVE");
         createMembershipChain(org);
         var first = new OrganizationLifecycleService(new JdbcOrganizationRepository(dataSource), dataSource,
-                transactionManager, new JdbcAuditWriter(dataSource), new JdbcIdempotencyRecorder(dataSource));
+                transactionManager, new JdbcAuditWriter(dataSource), new JdbcIdempotencyRecorder(dataSource), RESULT_SERIALIZER, actor -> { });
         var second = new OrganizationLifecycleService(new JdbcOrganizationRepository(dataSource), dataSource,
-                transactionManager, new JdbcAuditWriter(dataSource), new JdbcIdempotencyRecorder(dataSource));
+                transactionManager, new JdbcAuditWriter(dataSource), new JdbcIdempotencyRecorder(dataSource), RESULT_SERIALIZER, actor -> { });
 
         var firstRequest = lifecycleRequest(admin, org, 1, "concurrent-clash-key");
         var firstFuture = java.util.concurrent.CompletableFuture.supplyAsync(() -> first.suspend(firstRequest));
@@ -2113,7 +2244,7 @@ class OrganizationMigrationTests {
         var repository = new JdbcOrganizationRepository(dataSource);
         var auditWriter = new JdbcAuditWriter(dataSource);
         var idempotencyRecorder = new JdbcIdempotencyRecorder(dataSource);
-        return new OrganizationLifecycleService(repository, dataSource, transactionManager, auditWriter, idempotencyRecorder);
+        return new OrganizationLifecycleService(repository, dataSource, transactionManager, auditWriter, idempotencyRecorder, RESULT_SERIALIZER, actor -> { });
     }
 
     /**
@@ -2136,7 +2267,7 @@ class OrganizationMigrationTests {
             new JdbcAuditWriter(dataSource).write(event);
         };
         var idempotencyRecorder = new JdbcIdempotencyRecorder(dataSource);
-        return new OrganizationLifecycleService(repository, dataSource, transactionManager, corrupting, idempotencyRecorder);
+        return new OrganizationLifecycleService(repository, dataSource, transactionManager, corrupting, idempotencyRecorder, RESULT_SERIALIZER, actor -> { });
     }
 
     private UUID insertAuditAsOwner(UUID actor, UUID org, String action, String eventKind) throws Exception {

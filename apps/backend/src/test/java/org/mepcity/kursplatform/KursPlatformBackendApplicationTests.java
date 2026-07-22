@@ -2,10 +2,12 @@ package org.mepcity.kursplatform;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.test.context.ActiveProfiles;
 
 @ActiveProfiles("test")
-@SpringBootTest(properties = {
+@SpringBootTest(classes = KursPlatformBackendApplicationTests.DbFreeApplication.class, properties = {
 		"KURS_PLATFORM_ENVIRONMENT=development",
 		"KURS_PLATFORM_PUBLIC_API_BASE_URL=https://api-development.example.invalid",
 		"KURS_PLATFORM_COGNITO_ISSUER_URI=https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_EXAMPLE",
@@ -17,6 +19,10 @@ import org.springframework.test.context.ActiveProfiles;
 		"spring.autoconfigure.exclude=org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration"
 })
 class KursPlatformBackendApplicationTests {
+
+    @Configuration
+    @EnableAutoConfiguration(exclude = org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration.class)
+    static class DbFreeApplication { }
 
 	@Test
 	void contextLoads() {

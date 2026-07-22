@@ -40,6 +40,15 @@ public class SessionInfoService {
                 () -> resolve(accessTokenHash));
     }
 
+    public org.mepcity.kursplatform.iam.application.contract.ActiveSession resolveActiveSession(String accessTokenValue) {
+        SessionInfoResult result = resolveSession(accessTokenValue);
+        if (SessionScope.GLOBAL_PLATFORM_ADMIN.name().equals(result.session().scope())) {
+            return org.mepcity.kursplatform.iam.application.contract.ActiveSession.globalPlatformAdmin(result.user().id());
+        }
+        return org.mepcity.kursplatform.iam.application.contract.ActiveSession.organization(
+                result.user().id(), result.organizationMembership().organizationId());
+    }
+
     /**
      * Resolves the session in two RLS-visible steps rather than the single JOIN
      * findAuthSessionByAccessTokenHash used to perform: refresh_tokens' own SELECT policies

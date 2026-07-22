@@ -57,18 +57,24 @@ public final class OrganizationLifecycleService {
     private final TransactionTemplate transactions;
     private final AuditWriter auditWriter;
     private final IdempotencyRecorder idempotencyRecorder;
+    private final OrganizationResultSerializer resultSerializer;
+    private final OrganizationCreateRateLimiter createRateLimiter;
 
     public OrganizationLifecycleService(
             OrganizationRepository organizations,
             DataSource dataSource,
             PlatformTransactionManager transactionManager,
             AuditWriter auditWriter,
-            IdempotencyRecorder idempotencyRecorder) {
+            IdempotencyRecorder idempotencyRecorder,
+            OrganizationResultSerializer resultSerializer,
+            OrganizationCreateRateLimiter createRateLimiter) {
         this.organizations = organizations;
         this.dataSource = dataSource;
         this.transactions = new TransactionTemplate(transactionManager);
         this.auditWriter = auditWriter;
         this.idempotencyRecorder = idempotencyRecorder;
+        this.resultSerializer = resultSerializer;
+        this.createRateLimiter = createRateLimiter;
     }
 
     public LifecycleResult suspend(LifecycleRequest request) {
@@ -82,6 +88,49 @@ public final class OrganizationLifecycleService {
     /** Does not restore membership generations or revoked session material. */
     public LifecycleResult activate(LifecycleRequest request) {
         return changeStatus(request, OrganizationStatus.SUSPENDED, OrganizationStatus.ACTIVE, "ORG_ACTIVATE", false);
+    }
+
+    /**
+     * Creates an ACTIVE organization in the GLOBAL platform-administrator scope.  The active
+     * administrator check deliberately happens before idempotency lookup: an administrator whose
+     * grant was revoked must not be able to replay an old successful create request.
+     */
+    public LifecycleResult create(LifecycleRequest request, String name, String shortName, String defaultTimezone) {
+        return transactions.execute(status -> {
+            Connection connection = DataSourceUtils.getConnection(dataSource);
+            setGlobalCreateRuntimeContext(connection, request.actorId());
+            if (!activeAdminExists(connection, request.actorId())) {
+                throw new ForbiddenException();
+            }
+
+            IdempotencyOutcome outcome = idempotencyRecorder.resolveOrClaim(
+                    "GLOBAL", null, request.actorId(), request.clientMutationId(), "ORG_CREATE",
+                    request.requestFingerprint(), request.leaseOwner(), request.leaseExpiresAt(),
+                    request.keyRetentionExpiresAt());
+            if (outcome instanceof IdempotencyOutcome.Replay replay) {
+                return new LifecycleResult.Replayed(replay.result());
+            }
+            if (outcome instanceof IdempotencyOutcome.Clash) {
+                throw new IdempotencyKeyReusedException();
+            }
+            if (outcome instanceof IdempotencyOutcome.Pending) {
+                throw new IdempotencyPendingException();
+            }
+            IdempotencyOutcome.Claimed claim = (IdempotencyOutcome.Claimed) outcome;
+            // Replays and key-reuse conflicts returned above must remain available even when the
+            // create quota is exhausted. Only a freshly claimed mutation consumes quota.
+            createRateLimiter.check(request.actorId());
+
+            Organization created = organizations.create(new Organization(
+                    request.organizationId(), name, shortName, null, null, OrganizationStatus.ACTIVE,
+                    defaultTimezone, null, null, 1, request.actorId(), request.actorId()));
+            AuditEvent event = new AuditEvent.Factory(request.requestId()).orgCreated(
+                    UUID.randomUUID(), created.id(), request.actorId(), created.id(), "ORG_CREATE", created.rowVersion());
+            auditWriter.write(event);
+            idempotencyRecorder.markCompleted(claim.claimId(), claim.leaseOwner(), claim.leaseGeneration(),
+                    created.id(), (short) 201, resultSerializer.serialize(created), request.keyRetentionExpiresAt());
+            return new LifecycleResult.Committed(created);
+        });
     }
 
     /**
@@ -238,6 +287,17 @@ public final class OrganizationLifecycleService {
             set(connection, "app.iam_operation_code", operation);
         } catch (SQLException exception) {
             throw new OrganizationPersistenceStateException("ORG RLS bağlamı kurulamadı", exception);
+        }
+    }
+
+    private static void setGlobalCreateRuntimeContext(Connection connection, UUID actorId) {
+        try (var statement = connection.createStatement()) {
+            statement.execute("SET LOCAL ROLE org_runtime");
+            set(connection, "app.iam_operation_scope", "GLOBAL");
+            set(connection, "app.iam_actor_user_id", actorId.toString());
+            set(connection, "app.iam_operation_code", "ORG_CREATE");
+        } catch (SQLException exception) {
+            throw new OrganizationPersistenceStateException("ORG GLOBAL RLS bağlamı kurulamadı", exception);
         }
     }
 
