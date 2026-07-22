@@ -17,6 +17,9 @@ import org.mepcity.kursplatform.iam.application.ProviderTokenExchangeService;
 import org.mepcity.kursplatform.iam.application.SessionActivationService;
 import org.mepcity.kursplatform.iam.application.SessionInfoService;
 import org.mepcity.kursplatform.iam.application.SessionRefreshService;
+import org.mepcity.kursplatform.iam.application.contract.ActiveSessionResolver;
+import org.mepcity.kursplatform.iam.application.contract.CredentialResolution;
+import org.mepcity.kursplatform.iam.application.contract.CredentialAuthenticationException;
 import org.mepcity.kursplatform.iam.domain.TokenHasher;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -134,6 +137,23 @@ public class IamInfrastructureConfiguration {
                                                 IamTransactionExecutor transactionExecutor, IamServiceSettings settings,
                                                 AeadEscrowService escrowService, IamAuditWriter auditWriter) {
         return new SessionRefreshService(repository, tokenHasher, secureRandom, clock, transactionExecutor, settings, escrowService, auditWriter);
+    }
+
+    @Bean
+    ActiveSessionResolver activeSessionResolver(SessionInfoService sessionInfoService,
+                                                ContextSelectionService contextSelectionService) {
+        return credential -> {
+            try {
+                return CredentialResolution.platformAccess(sessionInfoService.resolveActiveSession(credential));
+            } catch (org.mepcity.kursplatform.iam.domain.IamException accessFailure) {
+                try {
+                    contextSelectionService.listContextSelections(credential);
+                    return CredentialResolution.contextSelection();
+                } catch (org.mepcity.kursplatform.iam.domain.IamException ignored) {
+                    throw new CredentialAuthenticationException(accessFailure.errorCode());
+                }
+            }
+        };
     }
 
     @Bean

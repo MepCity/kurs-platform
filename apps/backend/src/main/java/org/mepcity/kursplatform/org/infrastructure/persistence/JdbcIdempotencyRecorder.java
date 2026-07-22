@@ -60,7 +60,7 @@ public final class JdbcIdempotencyRecorder implements IdempotencyRecorder {
 
     private static final String SELECT_EXISTING_SQL = """
             SELECT id, status, request_fingerprint, terminal_http_status, terminal_error_code,
-                   result_entity_id, lease_owner, lease_generation, lease_expires_at
+                   result_entity_id, result_payload, lease_owner, lease_generation, lease_expires_at
             FROM idempotency_keys
             WHERE scope_type = ?::idempotency_scope_enum
               AND COALESCE(organization_id::text, '') = COALESCE((?::uuid)::text, '')
@@ -88,7 +88,7 @@ public final class JdbcIdempotencyRecorder implements IdempotencyRecorder {
                 terminal_http_status = ?,
                 terminal_error_code = NULL,
                 result_entity_id = ?,
-                result_payload = NULL,
+                result_payload = ?::jsonb,
                 result_reference = NULL,
                 result_expires_at = NULL,
                 key_retention_expires_at = ?
@@ -145,7 +145,7 @@ public final class JdbcIdempotencyRecorder implements IdempotencyRecorder {
                     : IdempotencyOutcome.TerminalStatus.FAILED;
             short httpStatus = record.terminalHttpStatus == null ? 0 : record.terminalHttpStatus;
             var result = new IdempotencyOutcome.IdempotencyResult(
-                    record.id, status, httpStatus, record.terminalErrorCode, record.resultEntityId);
+                    record.id, status, httpStatus, record.terminalErrorCode, record.resultEntityId, record.resultPayload);
             return new IdempotencyOutcome.Replay(result);
         }
 
@@ -169,14 +169,23 @@ public final class JdbcIdempotencyRecorder implements IdempotencyRecorder {
             UUID resultEntityId,
             short terminalHttpStatus,
             Instant keyRetentionExpiresAt) {
+        markCompleted(idempotencyKeyId, leaseOwner, leaseGeneration, resultEntityId,
+                terminalHttpStatus, null, keyRetentionExpiresAt);
+    }
+
+    @Override
+    public void markCompleted(UUID idempotencyKeyId, String leaseOwner, long leaseGeneration,
+                              UUID resultEntityId, short terminalHttpStatus, String resultPayload,
+                              Instant keyRetentionExpiresAt) {
         Connection connection = DataSourceUtils.getConnection(dataSource);
         try (PreparedStatement statement = connection.prepareStatement(MARK_COMPLETED_SQL)) {
             statement.setShort(1, terminalHttpStatus);
             statement.setObject(2, resultEntityId);
-            statement.setTimestamp(3, Timestamp.from(keyRetentionExpiresAt));
-            statement.setObject(4, idempotencyKeyId);
-            statement.setString(5, leaseOwner);
-            statement.setLong(6, leaseGeneration);
+            statement.setString(3, resultPayload);
+            statement.setTimestamp(4, Timestamp.from(keyRetentionExpiresAt));
+            statement.setObject(5, idempotencyKeyId);
+            statement.setString(6, leaseOwner);
+            statement.setLong(7, leaseGeneration);
             if (statement.executeUpdate() != 1) {
                 throw new IdempotencyRecordException(
                         "İdempotency kaydı COMPLETED'a güncellenemedi (lease sahipliği doğrulanamadı)", null);
@@ -237,7 +246,7 @@ public final class JdbcIdempotencyRecorder implements IdempotencyRecorder {
                         result.getString("request_fingerprint"),
                         httpStatus,
                         result.getString("terminal_error_code"),
-                        result.getObject("result_entity_id", UUID.class),
+                        result.getObject("result_entity_id", UUID.class), result.getString("result_payload"),
                         leaseGeneration,
                         leaseExpiry == null ? null : leaseExpiry.toInstant());
             }
@@ -271,6 +280,7 @@ public final class JdbcIdempotencyRecorder implements IdempotencyRecorder {
             Short terminalHttpStatus,
             String terminalErrorCode,
             UUID resultEntityId,
+            String resultPayload,
             Long leaseGeneration,
             Instant leaseExpiresAt) {}
 

@@ -11,13 +11,11 @@ import org.mepcity.kursplatform.org.domain.OrganizationRepository;
 import org.mepcity.kursplatform.org.domain.OrganizationStatus;
 import javax.sql.DataSource;
 import org.springframework.jdbc.datasource.DataSourceUtils;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Repository;
 
 /** JDBC adapter that uses the caller's transaction and its PostgreSQL RLS context. */
 @Repository
-@ConditionalOnBean(DataSource.class)
-public final class JdbcOrganizationRepository implements OrganizationRepository {
+public class JdbcOrganizationRepository implements OrganizationRepository {
 
     private static final String ORGANIZATION_COLUMNS = "id, name, short_name, primary_color, secondary_color, status, "
             + "default_timezone, created_at, updated_at, row_version, created_by_user_id, updated_by_user_id";

@@ -69,4 +69,11 @@ public interface IdempotencyRecorder {
             UUID resultEntityId,
             short terminalHttpStatus,
             Instant keyRetentionExpiresAt);
+
+    default void markCompleted(UUID idempotencyKeyId, String leaseOwner, long leaseGeneration,
+                               UUID resultEntityId, short terminalHttpStatus, String resultPayload,
+                               Instant keyRetentionExpiresAt) {
+        markCompleted(idempotencyKeyId, leaseOwner, leaseGeneration, resultEntityId,
+                terminalHttpStatus, keyRetentionExpiresAt);
+    }
 }
