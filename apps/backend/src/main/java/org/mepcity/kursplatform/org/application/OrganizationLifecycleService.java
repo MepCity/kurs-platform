@@ -85,6 +85,46 @@ public final class OrganizationLifecycleService {
     }
 
     /**
+     * Creates an ACTIVE organization in the GLOBAL platform-administrator scope.  The active
+     * administrator check deliberately happens before idempotency lookup: an administrator whose
+     * grant was revoked must not be able to replay an old successful create request.
+     */
+    public LifecycleResult create(LifecycleRequest request, String name, String shortName, String defaultTimezone) {
+        return transactions.execute(status -> {
+            Connection connection = DataSourceUtils.getConnection(dataSource);
+            setGlobalCreateRuntimeContext(connection, request.actorId());
+            if (!activeAdminExists(connection, request.actorId())) {
+                throw new ForbiddenException();
+            }
+
+            IdempotencyOutcome outcome = idempotencyRecorder.resolveOrClaim(
+                    "GLOBAL", null, request.actorId(), request.clientMutationId(), "ORG_CREATE",
+                    request.requestFingerprint(), request.leaseOwner(), request.leaseExpiresAt(),
+                    request.keyRetentionExpiresAt());
+            if (outcome instanceof IdempotencyOutcome.Replay replay) {
+                return new LifecycleResult.Replayed(replay.result());
+            }
+            if (outcome instanceof IdempotencyOutcome.Clash) {
+                throw new IdempotencyKeyReusedException();
+            }
+            if (outcome instanceof IdempotencyOutcome.Pending) {
+                throw new IdempotencyPendingException();
+            }
+            IdempotencyOutcome.Claimed claim = (IdempotencyOutcome.Claimed) outcome;
+
+            Organization created = organizations.create(new Organization(
+                    request.organizationId(), name, shortName, null, null, OrganizationStatus.ACTIVE,
+                    defaultTimezone, null, null, 1, request.actorId(), request.actorId()));
+            AuditEvent event = new AuditEvent.Factory(request.requestId()).orgCreated(
+                    UUID.randomUUID(), created.id(), request.actorId(), created.id(), "ORG_CREATE", created.rowVersion());
+            auditWriter.write(event);
+            idempotencyRecorder.markCompleted(claim.claimId(), claim.leaseOwner(), claim.leaseGeneration(),
+                    created.id(), (short) 201, organizationSnapshot(created), request.keyRetentionExpiresAt());
+            return new LifecycleResult.Committed(created);
+        });
+    }
+
+    /**
      * {@code ORG_UPDATE_IDENTITY}: either an org actor (active membership + un-revoked {@code
      * ORG_ADMIN} role, or un-revoked {@code TEACHER} role with a delegated, un-revoked {@code
      * BRAND_MANAGE} permission) or a platform admin (targeted support access, same as {@link
@@ -241,6 +281,17 @@ public final class OrganizationLifecycleService {
         }
     }
 
+    private static void setGlobalCreateRuntimeContext(Connection connection, UUID actorId) {
+        try (var statement = connection.createStatement()) {
+            statement.execute("SET LOCAL ROLE org_runtime");
+            set(connection, "app.iam_operation_scope", "GLOBAL");
+            set(connection, "app.iam_actor_user_id", actorId.toString());
+            set(connection, "app.iam_operation_code", "ORG_CREATE");
+        } catch (SQLException exception) {
+            throw new OrganizationPersistenceStateException("ORG GLOBAL RLS bağlamı kurulamadı", exception);
+        }
+    }
+
     private static boolean activeAdminExists(Connection connection, UUID actorId) {
         try (PreparedStatement statement = connection.prepareStatement(ADMIN_VERIFY_SQL)) {
             statement.setObject(1, actorId);
@@ -318,6 +369,19 @@ public final class OrganizationLifecycleService {
     private void completeIdempotency(IdempotencyOutcome.Claimed claim, Organization changed, Instant keyRetentionExpiresAt) {
         idempotencyRecorder.markCompleted(claim.claimId(), claim.leaseOwner(), claim.leaseGeneration(),
                 changed.id(), (short) 200, keyRetentionExpiresAt);
+    }
+
+    private static String organizationSnapshot(Organization organization) {
+        return "{\"id\":\"" + organization.id() + "\",\"name\":\"" + json(organization.name())
+                + "\",\"shortName\":" + (organization.shortName() == null ? "null" : "\"" + json(organization.shortName()) + "\"")
+                + ",\"defaultTimezone\":\"" + json(organization.defaultTimezone()) + "\",\"status\":\"ACTIVE\""
+                + ",\"createdAt\":\"" + organization.createdAt() + "\",\"updatedAt\":\"" + organization.updatedAt()
+                + "\",\"rowVersion\":1}";
+    }
+
+    private static String json(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n")
+                .replace("\r", "\\r").replace("\t", "\\t");
     }
 
     private static void set(Connection connection, String key, String value) {

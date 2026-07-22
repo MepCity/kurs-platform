@@ -65,7 +65,8 @@ public sealed interface IdempotencyOutcome
             TerminalStatus status,
             short terminalHttpStatus,
             String terminalErrorCode,
-            UUID resultEntityId) {
+            UUID resultEntityId,
+            String resultPayload) {
 
         public boolean isCompleted() {
             return status == TerminalStatus.COMPLETED;

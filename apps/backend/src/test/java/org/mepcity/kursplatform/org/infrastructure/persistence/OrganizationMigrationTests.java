@@ -571,6 +571,66 @@ class OrganizationMigrationTests {
     // --------------------------------------------------------------------------
 
     @Test
+    void createCommitsActiveOrganizationAuditAndGlobalIdempotency() throws Exception {
+        UUID admin = activeAdmin();
+        UUID organizationId = UUID.randomUUID();
+        var request = lifecycleRequest(admin, organizationId, 1, "create-ok");
+
+        LifecycleResult result = serviceWithRealWriter().create(request, "Yeni Kurum", "Yeni", "Europe/Istanbul");
+
+        assertThat(result).isInstanceOf(LifecycleResult.Committed.class);
+        Organization created = ((LifecycleResult.Committed) result).organization();
+        assertThat(created.id()).isEqualTo(organizationId);
+        assertThat(created.status()).isEqualTo(OrganizationStatus.ACTIVE);
+        assertThat(created.rowVersion()).isEqualTo(1);
+        try (var connection = openConnection()) {
+            assertThat(count(connection, "SELECT count(*) FROM organizations WHERE id = '" + organizationId
+                    + "' AND status = 'ACTIVE' AND row_version = 1")).isEqualTo(1);
+            assertThat(count(connection, "SELECT count(*) FROM audit_logs WHERE organization_id = '" + organizationId
+                    + "' AND action_type = 'ORG_CREATED'")).isEqualTo(1);
+            assertThat(count(connection, "SELECT count(*) FROM idempotency_keys WHERE client_mutation_id = 'create-ok'"
+                    + " AND scope_type = 'GLOBAL' AND organization_id IS NULL AND status = 'COMPLETED'"
+                    + " AND terminal_http_status = 201")).isEqualTo(1);
+        }
+    }
+
+    @Test
+    void createReplayDoesNotCreateSecondOrganizationOrAudit() throws Exception {
+        UUID admin = activeAdmin();
+        UUID organizationId = UUID.randomUUID();
+        var request = lifecycleRequest(admin, organizationId, 1, "create-replay");
+        var service = serviceWithRealWriter();
+
+        assertThat(service.create(request, "Tek Kurum", null, "Europe/Istanbul"))
+                .isInstanceOf(LifecycleResult.Committed.class);
+        assertThat(service.create(request, "Tek Kurum", null, "Europe/Istanbul"))
+                .isInstanceOf(LifecycleResult.Replayed.class);
+        try (var connection = openConnection()) {
+            assertThat(count(connection, "SELECT count(*) FROM organizations WHERE id = '" + organizationId + "'"))
+                    .isEqualTo(1);
+            assertThat(count(connection, "SELECT count(*) FROM audit_logs WHERE organization_id = '" + organizationId
+                    + "' AND action_type = 'ORG_CREATED'")).isEqualTo(1);
+        }
+    }
+
+    @Test
+    void createRollsBackOrganizationAndClaimWhenAuditWriteFails() throws Exception {
+        UUID admin = activeAdmin();
+        UUID organizationId = UUID.randomUUID();
+        assertThatThrownBy(() -> serviceWithRlsCorruptingWriter().create(
+                lifecycleRequest(admin, organizationId, 1, "create-rollback"), "Hatalı", null, "Europe/Istanbul"))
+                .isInstanceOf(RuntimeException.class);
+        try (var connection = openConnection()) {
+            assertThat(count(connection, "SELECT count(*) FROM organizations WHERE id = '" + organizationId + "'"))
+                    .isZero();
+            assertThat(count(connection, "SELECT count(*) FROM audit_logs WHERE organization_id = '" + organizationId + "'"))
+                    .isZero();
+            assertThat(count(connection, "SELECT count(*) FROM idempotency_keys WHERE client_mutation_id = 'create-rollback'"))
+                    .isZero();
+        }
+    }
+
+    @Test
     void suspendAtomicallyWritesStatusBarrierFamilyTokenAuditAndIdempotency() throws Exception {
         UUID admin = activeAdmin();
         UUID org = organization("Suspend ok", admin, null, "ACTIVE");

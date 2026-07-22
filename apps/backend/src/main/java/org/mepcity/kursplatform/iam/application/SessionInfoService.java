@@ -17,7 +17,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
 
-public class SessionInfoService {
+public class SessionInfoService implements org.mepcity.kursplatform.iam.application.contract.ActiveSessionResolver {
 
     private final IamAuthRepository repository;
     private final TokenHasher tokenHasher;
@@ -38,6 +38,13 @@ public class SessionInfoService {
                 OperationCode.SESSION_INFO,
                 IamAuthScopeContext.bootstrapAccessToken(accessTokenHash),
                 () -> resolve(accessTokenHash));
+    }
+
+    @Override
+    public org.mepcity.kursplatform.iam.application.contract.ActiveSession resolveActiveSession(String accessTokenValue) {
+        SessionInfoResult result = resolveSession(accessTokenValue);
+        return new org.mepcity.kursplatform.iam.application.contract.ActiveSession(
+                result.user().id(), result.session().scope());
     }
 
     /**
