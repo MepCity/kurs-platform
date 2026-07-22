@@ -113,6 +113,27 @@ public class JdbcOrganizationRepository implements OrganizationRepository {
         }
     }
 
+    @Override
+    public Optional<Organization> updateBrand(UUID organizationId, String primaryColor, String secondaryColor,
+            int expectedRowVersion, UUID updatedByUserId) {
+        Connection connection = DataSourceUtils.getConnection(dataSource);
+        String sql = "UPDATE organizations SET primary_color = ?, secondary_color = ?, "
+                + "updated_at = transaction_timestamp(), row_version = row_version + 1, updated_by_user_id = ? "
+                + "WHERE id = ? AND row_version = ? RETURNING " + ORGANIZATION_COLUMNS;
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, primaryColor);
+            statement.setString(2, secondaryColor);
+            statement.setObject(3, updatedByUserId);
+            statement.setObject(4, organizationId);
+            statement.setInt(5, expectedRowVersion);
+            try (ResultSet result = statement.executeQuery()) {
+                return result.next() ? Optional.of(map(result)) : Optional.empty();
+            }
+        } catch (SQLException exception) {
+            throw new OrganizationPersistenceException("Kurum markası güncellenemedi", exception);
+        }
+    }
+
     private Optional<Organization> queryOne(Connection connection, String sql, UUID organizationId) {
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setObject(1, organizationId);

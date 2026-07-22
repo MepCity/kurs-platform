@@ -37,7 +37,7 @@ public class SessionInfoService {
         return transactionExecutor.executeInIamAuthScope(
                 OperationCode.SESSION_INFO,
                 IamAuthScopeContext.bootstrapAccessToken(accessTokenHash),
-                () -> resolve(accessTokenHash));
+                () -> resolveSessionHash(accessTokenHash));
     }
 
     public org.mepcity.kursplatform.iam.application.contract.ActiveSession resolveActiveSession(String accessTokenValue) {
@@ -59,7 +59,7 @@ public class SessionInfoService {
      * via refreshIamAuthScope before reading refresh_token_families by id, avoids any cross-table
      * subquery in either policy.
      */
-    private SessionInfoResult resolve(String accessTokenHash) {
+    private SessionInfoResult resolveSessionHash(String accessTokenHash) {
         Instant now = clock.instant();
         RefreshToken token = repository.findRefreshTokenByAccessTokenHash(accessTokenHash)
                 .filter(t -> !t.isRevoked() && !t.isUsed())

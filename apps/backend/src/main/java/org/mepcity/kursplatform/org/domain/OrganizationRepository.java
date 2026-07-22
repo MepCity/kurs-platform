@@ -20,4 +20,7 @@ public interface OrganizationRepository {
     Optional<Organization> transitionStatus(
             UUID organizationId, OrganizationStatus expectedStatus,
             OrganizationStatus nextStatus, int expectedRowVersion, UUID updatedByUserId);
+
+    Optional<Organization> updateBrand(UUID organizationId, String primaryColor, String secondaryColor,
+            int expectedRowVersion, UUID updatedByUserId);
 }

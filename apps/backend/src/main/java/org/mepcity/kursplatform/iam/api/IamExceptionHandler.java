@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -44,6 +45,12 @@ public class IamExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Map<String, Object>> handleUnreadableBody(HttpMessageNotReadableException ex) {
         return respond(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "İstek gövdesi okunamadı veya eksik.");
+    }
+
+    /** Mapping rejects unsupported content types before it resolves a controller method. */
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<Map<String, Object>> handleUnsupportedContentType(HttpMediaTypeNotSupportedException ex) {
+        return respond(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "Content-Type application/json olmalıdır.");
     }
 
     /** A path/query parameter (e.g. a UUID) could not be converted to its target type. */
