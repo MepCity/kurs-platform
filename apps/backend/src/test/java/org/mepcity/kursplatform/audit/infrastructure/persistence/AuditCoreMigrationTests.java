@@ -48,7 +48,7 @@ class AuditCoreMigrationTests {
             // ORG_SETTING_CHANGED payload_schema_version=2 row (VERI_MODELI.md §13.0a) + IAM-004's
             // 6 new codes (V7__iam_audit_events.sql) + IAM-004 Fix Round 3's 4 further new codes
             // (V10__iam_audit_unknown_and_command_completed.sql), each a single row.
-            assertThat(catalogCount(connection)).isEqualTo(15);
+            assertThat(catalogCount(connection)).isEqualTo(19);
             assertThat(catalogCodes(connection)).containsExactlyElementsOf(expected.keySet());
 
             for (var entry : expected.entrySet()) {
@@ -310,6 +310,16 @@ class AuditCoreMigrationTests {
                 """
                 {"oldValue":{"allowed":[],"requiredNull":true},"newValue":{"allowed":["deviceIdentifier","contextSelectionTokenId"]},"eventMetadata":{"allowed":["operationCode"]},"reasonCodes":[],"rejectUnknown":true}
                 """));
+        String refreshPayload = """
+                {"oldValue":{"allowed":[],"requiredNull":true},"newValue":{"allowed":[],"requiredNull":true},"eventMetadata":{"allowed":["operationCode","refreshTokenFamilyId"]},"reasonCodes":[],"rejectUnknown":true}
+                """;
+        String refreshAuditPayload = """
+                {"oldValue":{"allowed":[],"requiredNull":true},"newValue":{"allowed":[],"requiredNull":true},"eventMetadata":{"allowed":["operationCode","refreshTokenFamilyId","organizationMembershipId","trustedDeviceId"]},"reasonCodes":[],"rejectUnknown":true}
+                """;
+        expected.put("SESSION_LOGGED_OUT", new CatalogExpectation("GLOBAL", "ACCESS", "USER", true, false, false, false, refreshAuditPayload));
+        expected.put("SESSION_REFRESHED", new CatalogExpectation("GLOBAL", "SECURITY", "USER", true, false, false, false, refreshAuditPayload));
+        expected.put("SESSION_REFRESH_REPLAY_RECONCILED", new CatalogExpectation("GLOBAL", "SECURITY", "USER", true, false, false, false, refreshAuditPayload));
+        expected.put("SESSION_REFRESH_REUSE_DETECTED", new CatalogExpectation("GLOBAL", "SECURITY", "USER", true, false, false, false, refreshAuditPayload));
         return expected;
     }
 

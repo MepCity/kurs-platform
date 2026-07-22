@@ -90,6 +90,14 @@ public class SpringIamTransactionExecutor implements IamTransactionExecutor {
         applySessionVarsToBoundConnection(vars);
     }
 
+    @Override
+    public void requireSecurityRevoke() {
+        if (!Boolean.TRUE.equals(mutationScopeActive.get()) || !TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new IllegalStateException("Security revoke yalnız aktif IAM transaction içinde kurulabilir.");
+        }
+        applySessionVarsToBoundConnection(Map.of("app.iam_security_revoke_required", "true"));
+    }
+
     private void putContextVars(Map<String, String> vars, IamAuthScopeContext context) {
         if (context.actorUserId() != null) {
             vars.put("app.iam_actor_user_id", context.actorUserId().toString());
@@ -131,6 +139,9 @@ public class SpringIamTransactionExecutor implements IamTransactionExecutor {
         }
         if (context.accessTokenHash() != null) {
             vars.put("app.iam_access_token_hash", context.accessTokenHash());
+        }
+        if (context.refreshTokenHash() != null) {
+            vars.put("app.iam_refresh_token_hash", context.refreshTokenHash());
         }
     }
 

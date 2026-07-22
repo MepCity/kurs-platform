@@ -28,6 +28,11 @@ public interface IamTransactionExecutor {
      */
     void refreshIamAuthScope(IamAuthScopeContext context);
 
+    /** Server-only fail-closed security revoke gate; never sourced from an HTTP request. */
+    default void requireSecurityRevoke() {
+        throw new IllegalStateException("Security revoke gate bu transaction executor tarafından desteklenmiyor.");
+    }
+
     record IamAuthScopeContext(
             UUID actorUserId,
             UUID currentTrustedDeviceId,
@@ -40,51 +45,62 @@ public interface IamTransactionExecutor {
             UUID providerDeviceIdentifier,
             Instant verifiedAuthTime,
             String contextTokenHash,
-            String accessTokenHash
+            String accessTokenHash,
+            String refreshTokenHash
     ) {
         public static IamAuthScopeContext actorOnly(UUID actorUserId) {
-            return new IamAuthScopeContext(actorUserId, null, null, null, null, null, null, null, null, null, null, null);
+            return new IamAuthScopeContext(actorUserId, null, null, null, null, null, null, null, null, null, null, null, null);
         }
 
         public static IamAuthScopeContext bootstrapContextToken(String contextTokenHash) {
-            return new IamAuthScopeContext(null, null, null, null, null, null, null, null, null, null, contextTokenHash, null);
+            return new IamAuthScopeContext(null, null, null, null, null, null, null, null, null, null, contextTokenHash, null, null);
         }
 
         public static IamAuthScopeContext bootstrapAccessToken(String accessTokenHash) {
-            return new IamAuthScopeContext(null, null, null, null, null, null, null, null, null, null, null, accessTokenHash);
+            return new IamAuthScopeContext(null, null, null, null, null, null, null, null, null, null, null, accessTokenHash, null);
         }
 
         public static IamAuthScopeContext bootstrapFamily(UUID familyId) {
-            return new IamAuthScopeContext(null, null, familyId, null, null, null, null, null, null, null, null, null);
+            return new IamAuthScopeContext(null, null, familyId, null, null, null, null, null, null, null, null, null, null);
+        }
+
+        public static IamAuthScopeContext bootstrapRefreshToken(String refreshTokenHash) {
+            return new IamAuthScopeContext(null, null, null, null, null, null, null, null, null, null, null, null, refreshTokenHash);
         }
 
         public IamAuthScopeContext withDevice(UUID trustedDeviceId) {
             return new IamAuthScopeContext(actorUserId, trustedDeviceId, currentFamilyId,
                     targetMembershipId, targetOrganizationId, targetDeviceId, targetUserId,
-                    targetIdentityId, providerDeviceIdentifier, verifiedAuthTime, contextTokenHash, accessTokenHash);
+                    targetIdentityId, providerDeviceIdentifier, verifiedAuthTime, contextTokenHash, accessTokenHash, refreshTokenHash);
         }
 
         public IamAuthScopeContext withFamily(UUID familyId) {
             return new IamAuthScopeContext(actorUserId, currentTrustedDeviceId, familyId,
                     targetMembershipId, targetOrganizationId, targetDeviceId, targetUserId,
-                    targetIdentityId, providerDeviceIdentifier, verifiedAuthTime, contextTokenHash, accessTokenHash);
+                    targetIdentityId, providerDeviceIdentifier, verifiedAuthTime, contextTokenHash, accessTokenHash, refreshTokenHash);
         }
 
         public IamAuthScopeContext withProviderDevice(UUID providerDeviceIdentifier, Instant verifiedAuthTime) {
             return new IamAuthScopeContext(actorUserId, currentTrustedDeviceId, currentFamilyId,
                     targetMembershipId, targetOrganizationId, targetDeviceId, targetUserId,
-                    targetIdentityId, providerDeviceIdentifier, verifiedAuthTime, contextTokenHash, accessTokenHash);
+                    targetIdentityId, providerDeviceIdentifier, verifiedAuthTime, contextTokenHash, accessTokenHash, refreshTokenHash);
+        }
+
+        public IamAuthScopeContext withAccessTokenHash(String value) {
+            return new IamAuthScopeContext(actorUserId, currentTrustedDeviceId, currentFamilyId,
+                    targetMembershipId, targetOrganizationId, targetDeviceId, targetUserId,
+                    targetIdentityId, providerDeviceIdentifier, verifiedAuthTime, contextTokenHash, value, refreshTokenHash);
         }
 
         public IamAuthScopeContext withMembership(UUID membershipId, UUID organizationId) {
             return new IamAuthScopeContext(actorUserId, currentTrustedDeviceId, currentFamilyId,
                     membershipId, organizationId, targetDeviceId, targetUserId,
-                    targetIdentityId, providerDeviceIdentifier, verifiedAuthTime, contextTokenHash, accessTokenHash);
+                    targetIdentityId, providerDeviceIdentifier, verifiedAuthTime, contextTokenHash, accessTokenHash, refreshTokenHash);
         }
 
         /** Actor and device now known; used with refreshIamAuthScope after a bootstrap read. */
         public static IamAuthScopeContext actorAndDevice(UUID actorUserId, UUID trustedDeviceId) {
-            return new IamAuthScopeContext(actorUserId, trustedDeviceId, null, null, null, null, null, null, null, null, null, null);
+            return new IamAuthScopeContext(actorUserId, trustedDeviceId, null, null, null, null, null, null, null, null, null, null, null);
         }
 
         /**
@@ -98,14 +114,14 @@ public interface IamTransactionExecutor {
         public IamAuthScopeContext withTargetIdentity(UUID targetIdentityId, UUID resolvingUserId) {
             return new IamAuthScopeContext(actorUserId, currentTrustedDeviceId, currentFamilyId,
                     targetMembershipId, targetOrganizationId, targetDeviceId, resolvingUserId,
-                    targetIdentityId, providerDeviceIdentifier, verifiedAuthTime, contextTokenHash, accessTokenHash);
+                    targetIdentityId, providerDeviceIdentifier, verifiedAuthTime, contextTokenHash, accessTokenHash, refreshTokenHash);
         }
 
         /** IAM_PROVISIONING-scope provider-command target (TEACHER_ACCOUNT_CREATE/_FINALIZE). */
         public IamAuthScopeContext withTargetUserAndOrganization(UUID targetUserId, UUID organizationId) {
             return new IamAuthScopeContext(actorUserId, currentTrustedDeviceId, currentFamilyId,
                     targetMembershipId, organizationId, targetDeviceId, targetUserId,
-                    targetIdentityId, providerDeviceIdentifier, verifiedAuthTime, contextTokenHash, accessTokenHash);
+                    targetIdentityId, providerDeviceIdentifier, verifiedAuthTime, contextTokenHash, accessTokenHash, refreshTokenHash);
         }
     }
 }

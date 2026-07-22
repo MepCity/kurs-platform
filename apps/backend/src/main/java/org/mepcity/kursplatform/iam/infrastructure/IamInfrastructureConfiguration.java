@@ -16,6 +16,7 @@ import org.mepcity.kursplatform.iam.application.ProviderCommandWorkerAdapter;
 import org.mepcity.kursplatform.iam.application.ProviderTokenExchangeService;
 import org.mepcity.kursplatform.iam.application.SessionActivationService;
 import org.mepcity.kursplatform.iam.application.SessionInfoService;
+import org.mepcity.kursplatform.iam.application.SessionRefreshService;
 import org.mepcity.kursplatform.iam.domain.TokenHasher;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -125,6 +126,14 @@ public class IamInfrastructureConfiguration {
     SessionInfoService sessionInfoService(IamAuthRepository repository, TokenHasher tokenHasher,
                                           Clock clock, IamTransactionExecutor transactionExecutor) {
         return new SessionInfoService(repository, tokenHasher, clock, transactionExecutor);
+    }
+
+    @Bean
+    SessionRefreshService sessionRefreshService(IamAuthRepository repository, TokenHasher tokenHasher,
+                                                SecureRandom secureRandom, Clock clock,
+                                                IamTransactionExecutor transactionExecutor, IamServiceSettings settings,
+                                                AeadEscrowService escrowService, IamAuditWriter auditWriter) {
+        return new SessionRefreshService(repository, tokenHasher, secureRandom, clock, transactionExecutor, settings, escrowService, auditWriter);
     }
 
     @Bean
