@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kurs_platform_mobile/features/auth/data/unavailable_authentication_repository.dart';
 import 'package:kurs_platform_mobile/features/bootstrap/presentation/kurs_platform_app.dart';
 import 'package:kurs_platform_mobile/features/bootstrap/presentation/mobile_navigation_shell.dart';
 
@@ -26,6 +27,7 @@ class _ShellHarness {
     );
     await tester.pumpWidget(
       KursPlatformApp(
+        authenticationRepository: const UnavailableAuthenticationRepository(),
         home: MobileNavigationShell(
           context: context,
           requests: requests ?? (request == null ? const [] : [request]),
@@ -931,6 +933,7 @@ void main() {
       );
       await tester.pumpWidget(
         KursPlatformApp(
+          authenticationRepository: const UnavailableAuthenticationRepository(),
           home: MobileNavigationShell(
             context: c,
             requests: const [

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme_provider.dart';
-import 'mobile_navigation_shell.dart';
+import '../../auth/domain/authentication_repository.dart';
+import '../../auth/presentation/sign_in_screen.dart';
 
 /// Provider-aware application root.
 ///
@@ -18,7 +19,16 @@ import 'mobile_navigation_shell.dart';
 /// without double insets. A reusable safe-area helper is provided by
 /// [AppBottomActionArea].
 class KursPlatformApp extends StatefulWidget {
-  const KursPlatformApp({super.key, this.provider, this.home});
+  const KursPlatformApp({
+    required this.authenticationRepository,
+    super.key,
+    this.provider,
+    this.home,
+  });
+
+  /// IAM-007 domain port, supplied by the composition root. The presentation
+  /// layer never constructs or imports a concrete data adapter.
+  final AuthenticationRepository authenticationRepository;
 
   /// External provider. When null, the app creates and owns its own provider.
   final AppThemeProvider? provider;
@@ -79,13 +89,7 @@ class _KursPlatformAppState extends State<KursPlatformApp> {
             theme: _provider.themeData,
             home:
                 widget.home ??
-                const MobileNavigationShell(
-                  context: MobileShellContext(
-                    sessionVerified: false,
-                    sessionContextId: '',
-                    role: MobileShellRole.teacher,
-                  ),
-                ),
+                SignInScreen(repository: widget.authenticationRepository),
           );
         },
       ),
