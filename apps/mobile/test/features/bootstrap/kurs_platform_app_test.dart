@@ -1,7 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kurs_platform_mobile/core/theme/app_theme_provider.dart';
+import 'package:kurs_platform_mobile/features/auth/domain/authentication_repository.dart';
 import 'package:kurs_platform_mobile/features/bootstrap/presentation/kurs_platform_app.dart';
+
+class _TestAuthenticationRepository implements AuthenticationRepository {
+  const _TestAuthenticationRepository();
+
+  @override
+  Future<ActivatedSession> activateOrganization(String membershipId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<ActivatedSession> activatePlatformAdministrator() =>
+      throw UnimplementedError();
+
+  @override
+  Future<AuthContextChoices> beginSignIn() => throw UnimplementedError();
+}
 
 void main() {
   Widget buildApp({
@@ -15,7 +31,11 @@ void main() {
         size: size ?? const Size(360, 640),
         padding: padding ?? EdgeInsets.zero,
       ),
-      child: KursPlatformApp(provider: provider, home: home),
+      child: KursPlatformApp(
+        authenticationRepository: const _TestAuthenticationRepository(),
+        provider: provider,
+        home: home,
+      ),
     );
   }
 
