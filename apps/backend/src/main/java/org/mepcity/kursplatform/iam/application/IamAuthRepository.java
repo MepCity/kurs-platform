@@ -75,9 +75,19 @@ public interface IamAuthRepository {
 
     Optional<RefreshToken> findRefreshTokenByHash(String tokenHash);
 
+    Optional<RefreshToken> findRefreshTokenById(UUID tokenId);
+
+    Optional<RefreshToken> findRefreshTokenByHashForUpdate(String tokenHash);
+
     Optional<RefreshToken> findRefreshTokenByAccessTokenHash(String accessTokenHash);
 
     Optional<RefreshTokenFamily> findRefreshTokenFamilyById(UUID familyId);
+
+    void markRefreshTokenUsed(UUID tokenId, Instant usedAt);
+
+    void revokeRefreshTokenFamily(UUID familyId, Instant revokedAt);
+
+    void revokeRefreshTokensInFamily(UUID familyId, Instant revokedAt);
 
     Optional<AuthSession> findAuthSessionByAccessTokenHash(String accessTokenHash);
 
@@ -92,6 +102,20 @@ public interface IamAuthRepository {
     void saveAuthReplayEscrow(org.mepcity.kursplatform.iam.domain.AuthReplayEscrow escrow);
 
     Optional<org.mepcity.kursplatform.iam.domain.AuthReplayEscrow> findAuthReplayEscrowByIdempotencyKeyId(UUID idempotencyKeyId);
+
+    /**
+     * Makes a replay escrow terminal and removes every encrypted secret.  The caller must hold the
+     * IAM_AUTH security-revoke gate; this is deliberately not a general purpose update operation.
+     */
+    /**
+     * Atomically terminalizes a READY escrow and returns whether this call performed the state
+     * transition.  Callers use that result to emit exactly one reconciliation audit without a
+     * read-then-write race.
+     */
+    boolean revokeAuthReplayEscrow(UUID escrowId);
+
+    /** Returns true only when this transaction changed an active family to revoked. */
+    boolean revokeRefreshTokenFamilyIfActive(UUID familyId);
 
     void revokeAllActorFamilies(UUID actorUserId, OperationCode operationCode, Instant now);
 

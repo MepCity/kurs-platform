@@ -341,6 +341,22 @@ public class JdbcIamAuthRepository implements IamAuthRepository {
     }
 
     @Override
+    public Optional<RefreshToken> findRefreshTokenById(UUID tokenId) {
+        List<RefreshToken> results = jdbcTemplate.query(
+                "SELECT id, family_id, previous_refresh_token_id, token_hash, access_token_hash, access_expires_at, issued_at, used_at, expires_at, revoked_at FROM refresh_tokens WHERE id = ?",
+                (rs, rowNum) -> mapRefreshToken(rs), tokenId);
+        return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+    }
+
+    @Override
+    public Optional<RefreshToken> findRefreshTokenByHashForUpdate(String tokenHash) {
+        List<RefreshToken> results = jdbcTemplate.query(
+                "SELECT id, family_id, previous_refresh_token_id, token_hash, access_token_hash, access_expires_at, issued_at, used_at, expires_at, revoked_at FROM refresh_tokens WHERE token_hash = ? FOR UPDATE",
+                (rs, rowNum) -> mapRefreshToken(rs), tokenHash);
+        return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+    }
+
+    @Override
     public Optional<RefreshToken> findRefreshTokenByAccessTokenHash(String accessTokenHash) {
         List<RefreshToken> results = jdbcTemplate.query(
                 "SELECT id, family_id, previous_refresh_token_id, token_hash, access_token_hash, access_expires_at, issued_at, used_at, expires_at, revoked_at FROM refresh_tokens WHERE access_token_hash = ?",
@@ -364,6 +380,31 @@ public class JdbcIamAuthRepository implements IamAuthRepository {
                         toInstant(rs.getTimestamp("created_at"))),
                 familyId);
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+    }
+
+    @Override
+    public void markRefreshTokenUsed(UUID tokenId, Instant usedAt) {
+        jdbcTemplate.update("UPDATE refresh_tokens SET used_at = transaction_timestamp() WHERE id = ? AND used_at IS NULL AND revoked_at IS NULL",
+                tokenId);
+    }
+
+    @Override
+    public void revokeRefreshTokenFamily(UUID familyId, Instant revokedAt) {
+        jdbcTemplate.update("UPDATE refresh_token_families SET revoked_at = transaction_timestamp() WHERE id = ? AND revoked_at IS NULL",
+                familyId);
+    }
+
+    @Override
+    public boolean revokeRefreshTokenFamilyIfActive(UUID familyId) {
+        return jdbcTemplate.update(
+                "UPDATE refresh_token_families SET revoked_at = transaction_timestamp() WHERE id = ? AND revoked_at IS NULL",
+                familyId) == 1;
+    }
+
+    @Override
+    public void revokeRefreshTokensInFamily(UUID familyId, Instant revokedAt) {
+        jdbcTemplate.update("UPDATE refresh_tokens SET revoked_at = transaction_timestamp() WHERE family_id = ? AND revoked_at IS NULL",
+                familyId);
     }
 
     @Override
@@ -478,6 +519,17 @@ public class JdbcIamAuthRepository implements IamAuthRepository {
                         toInstant(rs.getTimestamp("deleted_at"))),
                 idempotencyKeyId);
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+    }
+
+    @Override
+    public boolean revokeAuthReplayEscrow(UUID escrowId) {
+        // The RLS policy intentionally accepts this only after requireSecurityRevoke() has set the
+        // transaction-local gate.  Keep all secret-bearing columns out of the terminal row.
+        return jdbcTemplate.update(
+                "UPDATE iam_auth_response_escrows SET status = 'REVOKED', ciphertext = NULL, "
+                        + "aead_key_reference = NULL, aead_nonce = NULL, aad_context = NULL, "
+                        + "deleted_at = transaction_timestamp() WHERE id = ? AND status = 'READY'",
+                escrowId) == 1;
     }
 
     @Override

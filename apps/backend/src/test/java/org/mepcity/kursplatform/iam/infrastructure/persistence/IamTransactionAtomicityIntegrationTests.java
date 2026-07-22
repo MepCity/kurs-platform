@@ -26,6 +26,7 @@ import org.mepcity.kursplatform.iam.application.SessionActivationResult;
 import org.mepcity.kursplatform.iam.application.SessionActivationService;
 import org.mepcity.kursplatform.iam.application.SessionInfoResult;
 import org.mepcity.kursplatform.iam.application.SessionInfoService;
+import org.mepcity.kursplatform.iam.application.SessionRefreshService;
 import org.mepcity.kursplatform.iam.domain.AuthReplayEscrow;
 import org.mepcity.kursplatform.iam.domain.ContextSelectionSummary;
 import org.mepcity.kursplatform.iam.domain.CognitoTokenClaims;
@@ -44,6 +45,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.testcontainers.containers.PostgreSQLContainer;
+import org.slf4j.MDC;
 
 import java.security.SecureRandom;
 import java.time.Clock;
@@ -91,6 +93,7 @@ class IamTransactionAtomicityIntegrationTests {
     static SessionActivationService activationService;
     static SessionInfoService sessionInfoService;
     static ContextSelectionService contextSelectionService;
+    static SessionRefreshService refreshService;
     static ProviderCommandService providerCommandService;
     static StubCognitoUserStatusChecker statusChecker;
     static IamAuditWriter auditWriter;
@@ -119,7 +122,10 @@ class IamTransactionAtomicityIntegrationTests {
         tokenHasher = new HmacSha256TokenHasher("test-pepper-for-atomicity-tests-1234");
         escrowService = new AeadEscrowServiceImpl("test-escrow-secret-for-atomicity-1234");
         secureRandom = new SecureRandom();
-        clock = Clock.systemUTC();
+        // IAM mutation policies deliberately stamp state with PostgreSQL's transaction clock.
+        // Keep fixture-issued timestamps safely before that clock so millisecond scheduling cannot
+        // create an impossible issued_at > revoked_at/used_at row during a fast Testcontainers run.
+        clock = Clock.offset(Clock.systemUTC(), Duration.ofSeconds(-1));
         settings = new FixedServiceSettings();
         statusChecker = new StubCognitoUserStatusChecker();
         auditWriter = new JdbcIamAuditWriter(runtimeDataSource);
@@ -133,6 +139,8 @@ class IamTransactionAtomicityIntegrationTests {
                 providerCommandService);
         sessionInfoService = new SessionInfoService(repository, tokenHasher, clock, transactionExecutor);
         contextSelectionService = new ContextSelectionService(repository, tokenHasher, clock, transactionExecutor);
+        refreshService = new SessionRefreshService(repository, tokenHasher, secureRandom, clock, transactionExecutor,
+                settings, escrowService, auditWriter);
     }
 
     @AfterAll
@@ -170,7 +178,7 @@ class IamTransactionAtomicityIntegrationTests {
     }
 
     private void seedIdentity(UUID userId, String issuer, String subject) {
-        adminJdbcTemplate.update("INSERT INTO user_identities (id, user_id, issuer, subject) VALUES (?, ?, ?, ?)",
+        adminJdbcTemplate.update("INSERT INTO user_identities (id, user_id, issuer, subject) VALUES (?, ?, ?, ?) ON CONFLICT (issuer, subject) DO NOTHING",
                 UUID.randomUUID(), userId, issuer, subject);
     }
 
@@ -521,6 +529,175 @@ class IamTransactionAtomicityIntegrationTests {
             assertThat(visible)
                     .as("trusted_devices_select_activation must hide a revoked device row even under the exact matching actor+device scope")
                     .isFalse();
+        }
+    }
+
+    @Nested
+    class SessionRefreshAtomicity {
+        private record ReplayFixture(UUID userId, UUID familyId, String originalRefresh, String mutationKey) {}
+
+        private ReplayFixture prepareCompletedRefreshReplay(String suffix) {
+            UUID userId = seedUser();
+            UUID deviceId = seedTrustedDevice(userId, UUID.randomUUID());
+            adminJdbcTemplate.update("INSERT INTO platform_administrators (id, user_id, granted_at) VALUES (?, ?, ?)",
+                    UUID.randomUUID(), userId, java.sql.Timestamp.from(clock.instant()));
+            String context = "ctx-reconcile-" + suffix + "-" + UUID.randomUUID();
+            Instant now = clock.instant();
+            adminJdbcTemplate.update("INSERT INTO context_selection_tokens (id,user_id,trusted_device_id,token_hash,authenticated_at,issued_at,expires_at) VALUES (?,?,?,?,?,?,?)",
+                    UUID.randomUUID(), userId, deviceId, tokenHasher.hash(context), java.sql.Timestamp.from(now.minusSeconds(5)),
+                    java.sql.Timestamp.from(now), java.sql.Timestamp.from(now.plusSeconds(300)));
+            String key = "refresh-reconcile-" + suffix;
+            SessionActivationResult activation = activationService.activatePlatformAdmin(context, "activation-" + suffix);
+            String originalRefresh = activation.session().refreshToken().value();
+            refreshService.refresh(originalRefresh, key);
+            UUID familyId = adminJdbcTemplate.queryForObject("SELECT id FROM refresh_token_families WHERE user_id = ?", UUID.class, userId);
+            return new ReplayFixture(userId, familyId, originalRefresh, key);
+        }
+
+        private void assertReplayReconciledAndZeroized(ReplayFixture fixture) {
+            assertThatThrownBy(() -> refreshService.refresh(fixture.originalRefresh(), fixture.mutationKey()))
+                    .isInstanceOf(IamException.class).extracting("errorCode").isEqualTo("SESSION_REVOKED");
+            assertThat(adminJdbcTemplate.queryForObject("SELECT revoked_at IS NOT NULL FROM refresh_token_families WHERE id = ?",
+                    Boolean.class, fixture.familyId())).isTrue();
+            assertThat(adminJdbcTemplate.queryForObject("SELECT count(*) FROM refresh_tokens WHERE family_id = ? AND revoked_at IS NOT NULL",
+                    Integer.class, fixture.familyId())).isEqualTo(2);
+            Map<String, Object> escrow = adminJdbcTemplate.queryForMap("SELECT status::text, ciphertext, aead_key_reference, aead_nonce, aad_context, deleted_at "
+                            + "FROM iam_auth_response_escrows WHERE idempotency_key_id = (SELECT id FROM idempotency_keys WHERE user_id = ? AND client_mutation_id = ?)",
+                    fixture.userId(), fixture.mutationKey());
+            assertThat(escrow.get("status")).isEqualTo("REVOKED");
+            assertThat(escrow.get("ciphertext")).isNull();
+            assertThat(escrow.get("aead_key_reference")).isNull();
+            assertThat(escrow.get("aead_nonce")).isNull();
+            assertThat(escrow.get("aad_context")).isNull();
+            assertThat(escrow.get("deleted_at")).isNotNull();
+            assertThat(countAuditLogs(fixture.userId(), "SESSION_REFRESH_REPLAY_RECONCILED")).isEqualTo(1);
+            assertThatThrownBy(() -> refreshService.refresh(fixture.originalRefresh(), fixture.mutationKey()))
+                    .isInstanceOf(IamException.class).extracting("errorCode").isEqualTo("SESSION_REVOKED");
+            assertThat(countAuditLogs(fixture.userId(), "SESSION_REFRESH_REPLAY_RECONCILED")).isEqualTo(1);
+        }
+
+        private SessionActivationResult activateOrganizationSession(UUID userId, UUID deviceId, UUID membershipId, String mutation) {
+            String context = "ctx-logout-negative-" + UUID.randomUUID();
+            Instant now = clock.instant();
+            adminJdbcTemplate.update("INSERT INTO context_selection_tokens (id,user_id,trusted_device_id,token_hash,authenticated_at,issued_at,expires_at) VALUES (?,?,?,?,?,?,?)",
+                    UUID.randomUUID(), userId, deviceId, tokenHasher.hash(context), java.sql.Timestamp.from(now.minusSeconds(5)),
+                    java.sql.Timestamp.from(now), java.sql.Timestamp.from(now.plusSeconds(300)));
+            return activationService.activateContext(context, membershipId, mutation);
+        }
+
+        @Test
+        void refreshReplayAndReuseAreAtomicForGlobalFamily() {
+            UUID userId = seedUser();
+            UUID deviceId = seedTrustedDevice(userId, UUID.randomUUID());
+            adminJdbcTemplate.update("INSERT INTO platform_administrators (id, user_id, granted_at) VALUES (?, ?, ?)",
+                    UUID.randomUUID(), userId, java.sql.Timestamp.from(clock.instant()));
+            String context = "ctx-refresh-" + UUID.randomUUID();
+            Instant now = clock.instant();
+            adminJdbcTemplate.update("INSERT INTO context_selection_tokens (id,user_id,trusted_device_id,token_hash,authenticated_at,issued_at,expires_at) VALUES (?,?,?,?,?,?,?)",
+                    UUID.randomUUID(), userId, deviceId, tokenHasher.hash(context), java.sql.Timestamp.from(now.minusSeconds(5)),
+                    java.sql.Timestamp.from(now), java.sql.Timestamp.from(now.plusSeconds(300)));
+            SessionActivationResult activation = activationService.activatePlatformAdmin(context, "activation-refresh");
+            var first = refreshService.refresh(activation.session().refreshToken().value(), "refresh-retry-1");
+            var replay = refreshService.refresh(activation.session().refreshToken().value(), "refresh-retry-1");
+            assertThat(replay.session().refreshToken().value()).isEqualTo(first.session().refreshToken().value());
+            assertThat(countTable("refresh_tokens", null, null)).isEqualTo(2);
+            assertThatThrownBy(() -> refreshService.refresh(activation.session().refreshToken().value(), "refresh-reuse-2"))
+                    .isInstanceOf(IamException.class).extracting("errorCode").isEqualTo("SESSION_REVOKED");
+            assertThat(adminJdbcTemplate.queryForObject("SELECT count(*) FROM refresh_token_families WHERE revoked_at IS NOT NULL", Integer.class)).isEqualTo(1);
+        }
+
+        @Test
+        void terminalReplayEscrowCommitsOneReconciliationBeforeReturningFailClosed() {
+            ReplayFixture fixture = prepareCompletedRefreshReplay("expired");
+            // Keep the escrow READY and secret-bearing; only its TTL has elapsed.  The service,
+            // not fixture SQL, must perform the terminal transition and zeroization.
+            adminJdbcTemplate.update("UPDATE iam_auth_response_escrows SET created_at = transaction_timestamp() - interval '11 minutes', "
+                            + "expires_at = transaction_timestamp() - interval '1 minute' "
+                            + "WHERE idempotency_key_id = (SELECT id FROM idempotency_keys WHERE user_id = ? AND client_mutation_id = ?)",
+                    fixture.userId(), fixture.mutationKey());
+            assertReplayReconciledAndZeroized(fixture);
+        }
+
+        @Test
+        void decryptFailureOnReadyEscrowIsZeroizedByTheService() {
+            ReplayFixture fixture = prepareCompletedRefreshReplay("decrypt");
+            adminJdbcTemplate.update("UPDATE iam_auth_response_escrows SET aad_context = 'tampered-aad' "
+                            + "WHERE idempotency_key_id = (SELECT id FROM idempotency_keys WHERE user_id = ? AND client_mutation_id = ?)",
+                    fixture.userId(), fixture.mutationKey());
+            assertReplayReconciledAndZeroized(fixture);
+        }
+
+        @Test
+        void alreadyRevokedFamilyStillZeroizesReadyEscrowAndAuditsOnce() {
+            ReplayFixture fixture = prepareCompletedRefreshReplay("pre-revoked");
+            adminJdbcTemplate.update("UPDATE refresh_token_families SET revoked_at = transaction_timestamp() WHERE id = ?", fixture.familyId());
+            assertReplayReconciledAndZeroized(fixture);
+        }
+
+        @Test
+        void logoutReplayIsACommittedNoOpAndAuditsDeviceMembershipAndRequestId() {
+            UUID userId = seedUser();
+            UUID deviceId = seedTrustedDevice(userId, UUID.randomUUID());
+            UUID orgId = seedOrganization();
+            UUID membershipId = seedActiveMembership(orgId, userId, "TEACHER");
+            String context = "ctx-logout-" + UUID.randomUUID();
+            Instant now = clock.instant();
+            adminJdbcTemplate.update("INSERT INTO context_selection_tokens (id,user_id,trusted_device_id,token_hash,authenticated_at,issued_at,expires_at) VALUES (?,?,?,?,?,?,?)",
+                    UUID.randomUUID(), userId, deviceId, tokenHasher.hash(context), java.sql.Timestamp.from(now.minusSeconds(5)),
+                    java.sql.Timestamp.from(now), java.sql.Timestamp.from(now.plusSeconds(300)));
+            SessionActivationResult activation = activationService.activateContext(context, membershipId, "activation-logout");
+            String access = activation.session().accessToken().value();
+            String refresh = activation.session().refreshToken().value();
+            MDC.put("requestId", "request-logout-proof");
+            try {
+                refreshService.logout(access, refresh, "logout-replay");
+                int auditsAfterFirst = countAuditLogs(userId, "SESSION_LOGGED_OUT");
+                refreshService.logout(access, refresh, "logout-replay");
+                assertThat(countAuditLogs(userId, "SESSION_LOGGED_OUT")).isEqualTo(auditsAfterFirst).isEqualTo(1);
+            } finally {
+                MDC.remove("requestId");
+            }
+            assertThat(adminJdbcTemplate.queryForObject("SELECT count(*) FROM refresh_token_families WHERE user_id = ? AND revoked_at IS NOT NULL",
+                    Integer.class, userId)).isEqualTo(1);
+            Map<String, Object> audit = adminJdbcTemplate.queryForMap("SELECT request_id, event_metadata FROM audit_logs WHERE actor_user_id = ? AND action_type = 'SESSION_LOGGED_OUT'",
+                    userId);
+            assertThat(audit.get("request_id")).isEqualTo("request-logout-proof");
+            assertThat(audit.get("event_metadata").toString()).contains(deviceId.toString(), membershipId.toString());
+        }
+
+        @Test
+        void logoutSameKeyWithDifferentFingerprintIsRejectedWithoutSecondMutation() {
+            UUID user = seedUser(); UUID org = seedOrganization(); UUID membership = seedActiveMembership(org, user, "TEACHER");
+            SessionActivationResult first = activateOrganizationSession(user, seedTrustedDevice(user, UUID.randomUUID()), membership, "a1");
+            SessionActivationResult second = activateOrganizationSession(user, seedTrustedDevice(user, UUID.randomUUID()), membership, "a2");
+            refreshService.logout(first.session().accessToken().value(), first.session().refreshToken().value(), "same-key");
+            assertThatThrownBy(() -> refreshService.logout(second.session().accessToken().value(), second.session().refreshToken().value(), "same-key"))
+                    .isInstanceOf(IamException.class).extracting("errorCode").isEqualTo("IDEMPOTENCY_KEY_REUSED");
+            assertThat(countAuditLogs(user, "SESSION_LOGGED_OUT")).isEqualTo(1);
+            assertThat(countRowsIdempotency(user, "SESSION_LOGOUT")).isEqualTo(1);
+            assertThat(adminJdbcTemplate.queryForObject("SELECT count(*) FROM refresh_token_families WHERE user_id=? AND revoked_at IS NULL", Integer.class, user)).isEqualTo(1);
+        }
+
+        @Test
+        void logoutDifferentKeyOnTerminalFamilyIsRejectedWithoutSecondAudit() {
+            UUID user = seedUser(); UUID org = seedOrganization(); UUID membership = seedActiveMembership(org, user, "TEACHER");
+            SessionActivationResult session = activateOrganizationSession(user, seedTrustedDevice(user, UUID.randomUUID()), membership, "terminal");
+            refreshService.logout(session.session().accessToken().value(), session.session().refreshToken().value(), "first-key");
+            assertThatThrownBy(() -> refreshService.logout(session.session().accessToken().value(), session.session().refreshToken().value(), "second-key"))
+                    .isInstanceOf(IamException.class).extracting("errorCode").isEqualTo("SESSION_REVOKED");
+            assertThat(countAuditLogs(user, "SESSION_LOGGED_OUT")).isEqualTo(1);
+            assertThat(countRowsIdempotency(user, "SESSION_LOGOUT")).isEqualTo(1);
+        }
+
+        @Test
+        void logoutRejectsCrossActorAccessRefreshPairWithoutAnyPersistence() {
+            UUID org = seedOrganization(); UUID firstUser = seedUser(); UUID secondUser = seedUser();
+            SessionActivationResult first = activateOrganizationSession(firstUser, seedTrustedDevice(firstUser, UUID.randomUUID()), seedActiveMembership(org, firstUser, "TEACHER"), "cross-a");
+            SessionActivationResult second = activateOrganizationSession(secondUser, seedTrustedDevice(secondUser, UUID.randomUUID()), seedActiveMembership(org, secondUser, "TEACHER"), "cross-b");
+            assertThatThrownBy(() -> refreshService.logout(second.session().accessToken().value(), first.session().refreshToken().value(), "cross-key"))
+                    .isInstanceOf(IamException.class).extracting("errorCode").isEqualTo("UNAUTHENTICATED");
+            assertThat(countAuditLogs(firstUser, "SESSION_LOGGED_OUT")).isZero(); assertThat(countRowsIdempotency(firstUser, "SESSION_LOGOUT")).isZero();
+            assertThat(adminJdbcTemplate.queryForObject("SELECT count(*) FROM refresh_token_families WHERE revoked_at IS NOT NULL", Integer.class)).isZero();
         }
     }
 
