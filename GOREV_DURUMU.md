@@ -5,7 +5,7 @@
 | Son güncelleme | 22 Temmuz 2026 |
 | Aktif dalga | Dalga 2 — Kimlik, kurum ve mobil kabuk |
 | Aktif görev | Yok |
-| Sıradaki görev | ORG-004 — Platform yöneticisi kurum oluşturma API'si |
+| Sıradaki görev | ORG-005 — Kurum adı ve renk ayarları API'si (dosyasız) |
 
 Bu dosya projenin kaldığı yeri gösteren kısa operasyon panosudur. Her çalışma oturumunun
 başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev tanımları
@@ -17,8 +17,8 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 |---|---|---:|---|
 | IAM-008 | Mobil güvenli oturum saklamayı uygula | M | IAM-002 ve A-005 tamamlandı; mobil alanda IAM-003 backend migration çalışmasıyla paralel ilerleyebilir |
 | IAM-006 | Cihaz kaydı, DEVICE_SESSION_REVOKE ve yeniden doğrulamayı uygula | M | IAM-002 ve IAM-005 tamamlandı; IAM backend oturum alanında başlanabilir |
-| ORG-004 | Platform yöneticisi kurum oluşturma API'si | M | ORG-003 tamamlandı; sıradaki ORG backend görevi |
-| ORG-005 | Kurum adı ve renk ayarları API'si (dosyasız) | M | ORG-002 ve ORG-003 tamamlandı; ORG-004 ile aynı backend/ORG alanına dokunduğundan paralel başlatılmaz |
+| ORG-005 | Kurum adı ve renk ayarları API'si (dosyasız) | M | ORG-002, ORG-003 ve ORG-004 tamamlandı; sıradaki ORG backend görevi |
+| ORG-008 | Kurum adı ve renk ayarı mobil akışı (dosyasız) | M | ORG-002, UI-001, UI-003 ve UI-004 tamamlandı; ORG-005 ile farklı mobil/backend alanlarında paralel ilerleyebilir |
 
 ## IN_PROGRESS
 
@@ -83,6 +83,7 @@ Bloke görev yok.
 | ORG-001 | Kurum yaşam döngüsü API sözleşmesini yaz | 17 Temmuz 2026 | `ORG_KURUM_YASAM_DONGUSU_API_SOZLESMESI.md`, `ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md` — kurum yaşam döngüsü, GLOBAL/ORGANIZATION yetki bağlamı, audit fail-closed, idempotency ve eşzamanlılık sözleşmesi — PR #38 |
 | ORG-002 | Marka ayarları sözleşmesini yaz | 20 Temmuz 2026 | `ORG_MARKA_AYARLARI_API_SOZLESMESI.md`, `ORG_KURUM_YASAM_DONGUSU_API_SOZLESMESI.md`, `ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md`, `VERI_MODELI.md` — dokuz marka/modül/logo ucu, aktör bazlı yetki sınırları, WCAG kontrast kapıları ve audit v2 payload sözleşmesi — PR #41 |
 | ORG-003 | Kurum migration ve repository'sini oluştur | 20 Temmuz 2026 | `V3__org_organizations_and_runtime.sql`, ORG domain/repository/lifecycle ve gerçek PostgreSQL testleri — dar `org_runtime`, FORCE RLS, idempotency, atomik audit/yaşam döngüsü, oturum iptali ve marka audit v2 kapıları; 80 ORG migration testi — PR #43 |
+| ORG-004 | Platform yöneticisi kurum oluşturma API'si | 22 Temmuz 2026 | Gerçek HTTP → `iam_runtime` → `org_runtime` → PostgreSQL zinciri, kalıcı aktör bazlı rate limit, güvenli idempotency replay ve 406 backend testi — PR #49 |
 | UI-002 | Navigasyon ve rol bazlı menü sözleşmesini yaz | 18 Temmuz 2026 | `UI_002_NAVIGASYON_VE_ROL_BAZLI_MENU_SOZLESMESI.md` — rol bazlı NavigationBar, güvenli kurum/rol bağlamı, bağımsız izin görünürlüğü ve sınıf seçimi sözleşmesi — PR #40 |
 | UI-003 | Ortak düğme, alan, liste ve durum bileşenleri | 20 Temmuz 2026 | `apps/mobile/lib/core/theme`, `apps/mobile/lib/core/presentation/widgets` — kurum teması, erişilebilir ortak bileşenler, güvenli alt eylem alanı ve 158 mobil test; Android/iOS kalite kapıları PASS — PR #42 |
 | AUDIT-001A | Erken ortak audit çekirdeğini ve temel RLS kapısını oluştur | 20 Temmuz 2026 | `apps/backend/src/main/resources/db/migration/V2__audit_core.sql`, `AuditCoreMigrationTests.java` — dört kapalı katalog seed'i, append-only audit çekirdeği, FORCE RLS varsayılan-red kapısı ve gerçek PostgreSQL kapsam/undo/indeks testleri — PR #45 |
