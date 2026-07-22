@@ -16,7 +16,7 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 | Kimlik | Görev | Boyut | Not |
 |---|---|---:|---|
 | IAM-008 | Mobil güvenli oturum saklamayı uygula | M | IAM-002 ve A-005 tamamlandı; mobil alanda IAM-003 backend migration çalışmasıyla paralel ilerleyebilir |
-| IAM-005 | Refresh ailesi, yenileme, çıkış ve tekrar kullanım tespitini uygula | M | IAM-004 tamamlandı; IAM backend oturum alanının sıradaki görevi |
+| IAM-006 | Cihaz kaydı, DEVICE_SESSION_REVOKE ve yeniden doğrulamayı uygula | M | IAM-002 ve IAM-005 tamamlandı; IAM backend oturum alanında başlanabilir |
 | ORG-004 | Platform yöneticisi kurum oluşturma API'si | M | ORG-003 tamamlandı; sıradaki ORG backend görevi |
 | ORG-005 | Kurum adı ve renk ayarları API'si (dosyasız) | M | ORG-002 ve ORG-003 tamamlandı; ORG-004 ile aynı backend/ORG alanına dokunduğundan paralel başlatılmaz |
 
@@ -77,6 +77,7 @@ Bloke görev yok.
 | IAM-002 | Cihaz ve oturum iptali sözleşmesini yaz | 17 Temmuz 2026 | `IAM_CIHAZ_VE_OTURUM_IPTALI_SOZLESMESI.md`, `ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md`, `API_GENEL_KURALLARI.md`, `IAM_GIRIS_OTURUM_API_SOZLESMESI.md`, `VERI_MODELI.md` — cihaz/kurum/platform iptali, dar FORCE RLS, idempotency ve eşzamanlılık sözleşmesi — PR #36 |
 | IAM-003 | IAM tabloları, roller ve migration'ı uygula | 19 Temmuz 2026 | `apps/backend/src/main/resources/db/migration/V1__iam_tables.sql`, IAM domain kayıtları ve PostgreSQL migration testleri — IAM tabloları, runtime rol sınırları, FORCE RLS, provider-command lease/fencing ve secret-delivery durum makinesi — PR #37 |
 | IAM-004 | Giriş/token değişimi ve provider command akışını uygula | 21 Temmuz 2026 | IAM giriş/token değişimi, kurum/platform aktivasyonu, canlı oturum doğrulaması, provider-command worker'ı, dar FORCE RLS migration'ları ve 378 test — PR #46 |
+| IAM-005 | Refresh ailesi, yenileme, çıkış ve tekrar kullanım tespitini uygula | 22 Temmuz 2026 | Refresh rotation/replay, reuse tespiti, atomik aile iptali, logout idempotency, terminal escrow uzlaştırması/zeroization ve gerçek PostgreSQL kabul testleri — PR #51 |
 | IAM-007 | Mobil giriş ekranını uygula | 22 Temmuz 2026 | `apps/mobile/lib/features/auth`, composition-root repository enjeksiyonu, parola işlemeyen PKCE giriş yüzeyi, kurum/platform bağlam seçimi ve 461 mobil test — PR #50 |
 | UI-001 | Mobil tasarım tokenlarını tanımla | 17 Temmuz 2026 | `MOBIL_TASARIM_TOKENLARI.md` — deterministik tema üretimi, WCAG kontrast kapıları, erişilebilir metin ölçekleme ve etkileşim alanı kuralları — PR #39 |
 | ORG-001 | Kurum yaşam döngüsü API sözleşmesini yaz | 17 Temmuz 2026 | `ORG_KURUM_YASAM_DONGUSU_API_SOZLESMESI.md`, `ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md` — kurum yaşam döngüsü, GLOBAL/ORGANIZATION yetki bağlamı, audit fail-closed, idempotency ve eşzamanlılık sözleşmesi — PR #38 |
