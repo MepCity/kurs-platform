@@ -1,14 +1,19 @@
 import 'package:flutter/foundation.dart';
 
 import '../domain/authentication_repository.dart';
+import '../domain/secure_session_store.dart';
 
 enum SignInStatus { ready, authenticating, choosingContext, activating, error }
 
 /// Owns the AUTH-01 → CTX-01 transition without exposing token values to UI.
 class SignInController extends ChangeNotifier {
-  SignInController({required this.repository});
+  SignInController({
+    required this.repository,
+    required this.secureSessionStore,
+  });
 
   final AuthenticationRepository repository;
+  final SecureSessionStore secureSessionStore;
   SignInStatus _status = SignInStatus.ready;
   AuthContextChoices? _choices;
   String? _message;
@@ -64,18 +69,19 @@ class SignInController extends ChangeNotifier {
       _activate(repository.activatePlatformAdministrator);
 
   Future<ActivatedSession?> _activate(
-    Future<ActivatedSession> Function() action,
+    Future<AuthenticatedSessionActivation> Function() action,
   ) async {
     if (_disposed || isBusy) return null;
     _status = SignInStatus.activating;
     _message = null;
     notifyListeners();
     try {
-      final session = await action();
+      final activation = await action();
+      await secureSessionStore.write(activation.secureSession);
       if (_disposed) return null;
       _status = SignInStatus.choosingContext;
       notifyListeners();
-      return session;
+      return activation.session;
     } on AuthenticationFailure catch (failure) {
       _showFailure(failure);
       return null;

@@ -47,6 +47,8 @@ Android debug APK build'i ayrı Linux işinde doğrulanır. Flutter SDK cache an
 revision'ını, pub cache anahtarı `pubspec.lock` içeriğini kullanır. Mobil bağımlılık envanteri
 CycloneDX SBOM olarak CI artefaktında saklanır.
 
-İskelet yalnız Flutter SDK, Material ve resmî `flutter_lints`/`flutter_test` yüzeylerini
-kullanır. Durum yönetimi, ağ, kalıcılık, secure storage veya sağlayıcı paketi eklenmemiştir;
-bunlar ilgili sözleşme ve uygulama görevlerinin karar alanıdır.
+IAM-008, platform access/refresh tokenları için `flutter_secure_storage` adaptörünü ekler.
+Bu adaptör Android Keystore ve iOS Keychain kullanır; parola veya Cognito tokenı saklamaz,
+Android yedeğini kapatır ve iOS anahtarlarını başka cihaza taşınmayacak şekilde yapılandırır.
+Durum yönetimi, ağ istemcisi, şifreli yerel veritabanı ve kalıcı kuyruk hâlâ ilgili sonraki
+görevlerin karar alanıdır.

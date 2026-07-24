@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kurs_platform_mobile/core/theme/app_theme.dart';
 import 'package:kurs_platform_mobile/features/auth/domain/authentication_repository.dart';
+import 'package:kurs_platform_mobile/features/auth/domain/secure_session_store.dart';
 import 'package:kurs_platform_mobile/features/auth/presentation/sign_in_screen.dart';
 
 class _Repository implements AuthenticationRepository {
@@ -10,27 +11,88 @@ class _Repository implements AuthenticationRepository {
   String? activatedMembershipId;
 
   @override
-  Future<ActivatedSession> activateOrganization(String membershipId) async {
+  Future<AuthenticatedSessionActivation> activateOrganization(
+    String membershipId,
+  ) async {
     activatedMembershipId = membershipId;
-    return ActivatedSession(
-      scope: ActivatedSessionScope.organization,
-      displayName: 'Yasir',
-      organizationMembership: choices!.memberships.single,
+    return AuthenticatedSessionActivation(
+      session: ActivatedSession(
+        scope: ActivatedSessionScope.organization,
+        displayName: 'Yasir',
+        organizationMembership: choices!.memberships.single,
+      ),
+      secureSession: _organizationSession,
     );
   }
 
   @override
-  Future<ActivatedSession> activatePlatformAdministrator() async =>
-      const ActivatedSession(
-        scope: ActivatedSessionScope.globalPlatformAdministrator,
-        displayName: 'Yasir',
-      );
+  Future<AuthenticatedSessionActivation>
+  activatePlatformAdministrator() async => AuthenticatedSessionActivation(
+    session: ActivatedSession(
+      scope: ActivatedSessionScope.globalPlatformAdministrator,
+      displayName: 'Yasir',
+    ),
+    secureSession: _globalSession,
+  );
 
   @override
   Future<AuthContextChoices> beginSignIn() async {
     if (failure != null) throw failure!;
     return choices!;
   }
+}
+
+final _organizationSession = SecureSession(
+  userId: 'user-1',
+  deviceId: 'device-1',
+  scope: SecureSessionScope.organization,
+  accessToken: 'access-token',
+  refreshToken: 'refresh-token',
+  expiresAt: DateTime.utc(2026, 7, 24, 10),
+  refreshExpiresAt: DateTime.utc(2026, 8, 24, 10),
+  authenticatedAt: DateTime.utc(2026, 7, 24, 9),
+  organizationMembershipId: 'membership-1',
+  organizationId: 'organization-1',
+  sessionGeneration: 2,
+);
+
+final _globalSession = SecureSession(
+  userId: 'user-1',
+  deviceId: 'device-1',
+  scope: SecureSessionScope.globalPlatformAdministrator,
+  accessToken: 'access-token',
+  refreshToken: 'refresh-token',
+  expiresAt: DateTime.utc(2026, 7, 24, 10),
+  refreshExpiresAt: DateTime.utc(2026, 8, 24, 10),
+  authenticatedAt: DateTime.utc(2026, 7, 24, 9),
+);
+
+class _SessionStore implements SecureSessionStore {
+  SecureSession? value;
+
+  @override
+  Future<void> clear() async => value = null;
+
+  @override
+  Future<SecureSession?> read() async => value;
+
+  @override
+  Future<void> write(SecureSession session) async => value = session;
+}
+
+class _FailingSessionStore implements SecureSessionStore {
+  @override
+  Future<void> clear() async {}
+
+  @override
+  Future<SecureSession?> read() async => null;
+
+  @override
+  Future<void> write(SecureSession session) => Future<void>.error(
+    const SecureSessionStoreFailure(
+      SecureSessionStoreFailureReason.unavailable,
+    ),
+  );
 }
 
 Widget _wrap(Widget child) => MaterialApp(
@@ -51,7 +113,14 @@ void main() {
         memberships: <AuthOrganizationMembership>[],
         canActivatePlatformAdministrator: true,
       );
-    await tester.pumpWidget(_wrap(SignInScreen(repository: repository)));
+    await tester.pumpWidget(
+      _wrap(
+        SignInScreen(
+          repository: repository,
+          secureSessionStore: _SessionStore(),
+        ),
+      ),
+    );
 
     expect(find.text('Giriş Yap'), findsOneWidget);
     expect(find.byType(TextField), findsNothing);
@@ -76,10 +145,12 @@ void main() {
         canActivatePlatformAdministrator: false,
       );
     ActivatedSession? result;
+    final sessionStore = _SessionStore();
     await tester.pumpWidget(
       _wrap(
         SignInScreen(
           repository: repository,
+          secureSessionStore: sessionStore,
           onSessionActivated: (value) => result = value,
         ),
       ),
@@ -92,6 +163,7 @@ void main() {
 
     expect(repository.activatedMembershipId, 'membership-1');
     expect(result?.scope, ActivatedSessionScope.organization);
+    expect(sessionStore.value?.refreshToken, 'refresh-token');
   });
 
   testWidgets('shows a recoverable safe error when sign-in cannot start', (
@@ -102,7 +174,14 @@ void main() {
         AuthenticationFailureCode.providerUnavailable,
         'Kimlik sağlayıcısına şu anda ulaşılamıyor.',
       );
-    await tester.pumpWidget(_wrap(SignInScreen(repository: repository)));
+    await tester.pumpWidget(
+      _wrap(
+        SignInScreen(
+          repository: repository,
+          secureSessionStore: _SessionStore(),
+        ),
+      ),
+    );
 
     await tester.tap(find.text('Giriş Yap'));
     await tester.pumpAndSettle();
@@ -112,5 +191,43 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Geri Dön'), findsOneWidget);
+  });
+
+  testWidgets('does not activate UI when secure session persistence fails', (
+    tester,
+  ) async {
+    final repository = _Repository()
+      ..choices = const AuthContextChoices(
+        displayName: 'Yasir',
+        memberships: <AuthOrganizationMembership>[
+          AuthOrganizationMembership(
+            id: 'membership-1',
+            organizationName: 'Fındıklı Kur’an Kursu',
+            roleCodes: <String>['ORG_ADMIN'],
+          ),
+        ],
+        canActivatePlatformAdministrator: false,
+      );
+    ActivatedSession? activated;
+    await tester.pumpWidget(
+      _wrap(
+        SignInScreen(
+          repository: repository,
+          secureSessionStore: _FailingSessionStore(),
+          onSessionActivated: (value) => activated = value,
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Giriş Yap'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Fındıklı Kur’an Kursu'));
+    await tester.pumpAndSettle();
+
+    expect(activated, isNull);
+    expect(
+      find.text('Oturum açılırken beklenmeyen bir hata oluştu.'),
+      findsOneWidget,
+    );
   });
 }

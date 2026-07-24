@@ -1,15 +1,20 @@
+import 'secure_session_store.dart';
+
 /// IAM-001 mobile authentication boundary.
 ///
 /// Implementations start the system-browser OIDC Code + PKCE flow, exchange
 /// only the provider access token with IAM, and activate one server-provided
-/// context. They must not persist provider or platform tokens; IAM-008 owns
-/// secure session storage.
+/// context. Provider tokens are discarded after that exchange. The resulting
+/// platform session is handed to the application layer, which persists it via
+/// the IAM-008 secure-session port without exposing its secrets to UI.
 abstract interface class AuthenticationRepository {
   Future<AuthContextChoices> beginSignIn();
 
-  Future<ActivatedSession> activateOrganization(String membershipId);
+  Future<AuthenticatedSessionActivation> activateOrganization(
+    String membershipId,
+  );
 
-  Future<ActivatedSession> activatePlatformAdministrator();
+  Future<AuthenticatedSessionActivation> activatePlatformAdministrator();
 }
 
 class AuthContextChoices {
@@ -51,6 +56,25 @@ class ActivatedSession {
   final ActivatedSessionScope scope;
   final String displayName;
   final AuthOrganizationMembership? organizationMembership;
+}
+
+/// The activation result before the application layer persists its opaque
+/// platform tokens. Presentation consumes only [session].
+class AuthenticatedSessionActivation {
+  AuthenticatedSessionActivation({
+    required this.session,
+    required this.secureSession,
+  }) {
+    final expectedScope = session.scope == ActivatedSessionScope.organization
+        ? SecureSessionScope.organization
+        : SecureSessionScope.globalPlatformAdministrator;
+    if (secureSession.scope != expectedScope) {
+      throw ArgumentError('Aktivasyon ve güvenli oturum kapsamı uyuşmuyor.');
+    }
+  }
+
+  final ActivatedSession session;
+  final SecureSession secureSession;
 }
 
 enum AuthenticationFailureCode {

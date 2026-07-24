@@ -11,12 +11,13 @@ class UnavailableAuthenticationRepository implements AuthenticationRepository {
   );
 
   @override
-  Future<ActivatedSession> activateOrganization(String membershipId) =>
-      Future<ActivatedSession>.error(_failure);
+  Future<AuthenticatedSessionActivation> activateOrganization(
+    String membershipId,
+  ) => Future<AuthenticatedSessionActivation>.error(_failure);
 
   @override
-  Future<ActivatedSession> activatePlatformAdministrator() =>
-      Future<ActivatedSession>.error(_failure);
+  Future<AuthenticatedSessionActivation> activatePlatformAdministrator() =>
+      Future<AuthenticatedSessionActivation>.error(_failure);
 
   @override
   Future<AuthContextChoices> beginSignIn() =>
