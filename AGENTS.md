@@ -18,7 +18,13 @@ alanıdır. Eski HTML, Apps Script ve Excel dosyaları yalnızca referanstır; y
 - `GOREV_DURUMU.md` dosyasını çalışan agent değiştirmez; görev panosunu merge sonrasında
   yalnızca koordinatör günceller.
 - Görev kapsamı dışındaki özellikleri ekleme veya yeniden tasarlama.
-- Bir görev bir iş gününden büyükse uygulamaya başlamadan önce daha küçük görevlere böl.
+- Bir görev bir iş gününden büyükse uygulamaya başlamadan önce daha küçük görevlere böl. Bir PR
+  yaklaşık 4.000 net satırı, 30 dosyayı veya birden fazla bağımsız kullanım senaryosunu aşıyorsa
+  görev başlamadan atomik görevlere ayrılır; istisna yalnız merkez koordinatörün açık ve gerekçeli
+  onayıyla mümkündür. Üretilmiş dosyalar ve lockfile'lar ham satır hesabında ayrıca
+  değerlendirilir. Migration, worker/scheduler, API yüzeyi ve bağımsız güvenlik sorumlulukları
+  mümkün olduğunda ayrı atomik görevlere ayrılır. Eşikler kalite sinyalidir; küçük görünmesi kötü
+  mimariyi kabul edilebilir yapmaz.
 - Başka agentın sahip olduğu dosyayı veya modülü eşzamanlı değiştirme.
 - API, veritabanı şeması, yetki modeli veya ortak paket değişikliği gerekiyorsa önce ilgili
   sözleşme/ADR görevini tamamla.

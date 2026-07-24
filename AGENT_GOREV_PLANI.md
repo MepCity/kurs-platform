@@ -2,7 +2,7 @@
 
 | Alan | Değer |
 |---|---|
-| Belge sürümü | 1.3 |
+| Belge sürümü | 1.4 |
 | Ana sözleşme | `URUN_VE_UYGULAMA_PLANI.md` |
 | Amaç | Ürünü küçük, bağımsız, doğrulanabilir ve agentlara atanabilir işlere bölmek |
 | Görev üst sınırı | Bir görev tercihen 2–6 saat, en fazla bir iş günü |
@@ -42,6 +42,15 @@ mikroservis karmaşıklığına sokmaz.
 
 Bir agenta aynı anda yalnızca bir görev atanır. “Kullanıcı yönetimini yap” geçersiz görevdir;
 “Hoca oluşturma API sözleşmesini yaz” geçerli görevdir.
+
+### 2.1. Zorunlu görev bölme eşiği
+
+Bir PR yaklaşık **4.000 net satırı**, **30 dosyayı** veya **birden fazla bağımsız kullanım
+senaryosunu** aşıyorsa görev başlamadan önce atomik görevlere bölünür. İstisna yalnız merkez
+koordinatörün açık ve gerekçeli onayıyla mümkündür. Üretilmiş dosyalar ve lockfile'lar ham satır
+hesabında ayrıca değerlendirilir. Migration, worker/scheduler, API yüzeyi ve bağımsız güvenlik
+sorumlulukları mümkün olduğunda ayrı atomik görevlere ayrılır. Bu eşikler kalite sinyalidir;
+küçük görünmesi kötü mimariyi kabul edilebilir yapmaz.
 
 ---
 

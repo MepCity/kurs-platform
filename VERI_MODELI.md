@@ -3,25 +3,43 @@
 | Alan | Değer |
 |---|---|
 | Görev | P-008 — Çekirdek veri modeli taslağını yaz |
-| Belge sürümü | 4.2 |
+| Belge sürümü | 5.0 |
 | Ana sözleşme | `URUN_VE_UYGULAMA_PLANI.md` |
 | Terim kaynağı | `TERIMLER_SOZLUGU.md` |
 | Yetki kaynağı | `YETKI_MATRISI.md` |
 | Veri hassasiyet kaynağı | `KISISEL_VERI_ENVANTERI.md` |
 | Çapraz kontrol | `AKTORLER_VE_KULLANIM_SENARYOLARI.md`, `YONETICI_BILGI_MIMARISI.md`, `HOCA_MOBIL_BILGI_MIMARISI.md` |
-| Son güncelleme | 15 Temmuz 2026 |
+| Son güncelleme | 24 Temmuz 2026 |
 
 ---
 
-## PLAN-005 sağlayıcı revizyon notu
+## Revizyon notu (v4.2 → v5.0) — Cognito Essentials senkronizasyonu
 
-A-004R3 tamamlanana kadar bu belgedeki `issuer + subject`, platform `user_id`, üyelik/rol/izin,
-opaque platform token aileleri, `session_generation`, kurum kapsamlı iptal, provider-command
-idempotency ve fail-closed `PROVISIONING` değişmezdir. `Keycloak` adı geçen create/finalize,
-event polling, `Location`, `auth_time` ve token değişim ayrıntıları ise A-004'ün fallback
-tasarımını belgeler; Cognito Essentials seçilirse A-004R1–A-004R3/IAM-001 aynı güvenlik sonuçlarını
-sağlayacak alan ve akışları kesinleştirir. Bu ayrıntılar A-004R3 öncesinde migration'a veya
-provider SDK'sına dönüştürülemez.
+A-004R3 ile V1 global kimlik doğrulama sağlayıcısı Amazon Cognito Essentials User Pool olarak
+kesinleşmiştir. Bu revizyon, eski sağlayıcı taslağını mekanik olarak yeniden adlandırmaz;
+`ADR-004`, A-004R3 ve IAM-001/IAM-002'nin uygulanmış sınırlarını veri modeline bağlar:
+
+1. Cognito yalnız global OIDC kimliğini doğrular; doğrulanmış `(issuer, subject)` platform
+   `user_id` eşlemesinin değişmez anahtarıdır. Kurum üyeliği, rol, izin ve sınıf yetkisi Cognito
+   claim/gruplarından türetilmez.
+2. Public mobil istemci Authorization Code + PKCE ile aldığı Cognito tokenlarını yalnız
+   `provider-token-exchange` sınırına sunar. Kurum API'leri Cognito tokenı değil, platformun
+   hash'i tutulan opaque access/refresh token ailelerini kabul eder.
+3. Provisioning için kalıcı ve idempotent provider-command modeli tanımlıdır. Cognito kullanıcı
+   oluşturma sonucu veya güvenli username + değişmez `platform_user_id` uzlaştırması doğrulanmadan
+   `user_identities`, kullanıcı/üyelik `ACTIVE` ve tek-seferlik secret teslimi yazılamaz;
+   belirsizlikte akış `PROVISIONING`te fail-closed kalır. `TEACHER_ACCOUNT_CREATE`/finalize ve
+   şifreli payload çözümü güncel uygulamada etkin değildir; bu akış STAFF-002'ye bırakılmıştır.
+4. Doğrulanmış Cognito `auth_time`, kullanıcı/üyelik ve cihaz yeniden doğrulama eşiklerine
+   karşı canlı denetlenir. `session_generation`, kurum kapsamlı iptal ve refresh reuse aile
+   iptali sağlayıcıdan bağımsız platform kuralları olarak kalır.
+5. Provider command, olay tüketimi ve durum uzlaştırması ayrı checkpoint/dedup kayıtları taşır.
+   Bilinmeyen subject, belirsiz güvenlik olayı veya erişilemeyen kanonik provider durumu yeni
+   aile üretmez; gerekli durumlarda idempotent iptal ve alarm üretir. Olay kaybı uzlaştırması
+   uygulanmıştır; gelecekteki provider genişletmeleri bu davranışı varsayamaz.
+
+Keycloak, yalnız `ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md` içindeki tarihsel fallback
+seçeneğidir; bu belgenin normatif alan ve akışlarının sağlayıcısı değildir.
 
 ## Revizyon notu (v1.0 → v2.0)
 
@@ -209,7 +227,7 @@ hariç — bkz. bölüm 15.3) kasıtlı olarak `users(id)`'ye **düz** (bileşik
   fiziksel silinmez; bunlarda `status` alanı zorunludur ve en az `ACTIVE`/`ARCHIVED` (kurum için
   ayrıca `SUSPENDED`) değerlerini taşır.
 - Kullanıcı (`users`) fiziksel silinmez; `status` alanı `PROVISIONING`/`ACTIVE`/`SUSPENDED`
-  taşır. `PROVISIONING`, Keycloak create/finalize uzlaştırması bitmeden giriş ve kurum seçimine
+  taşır. `PROVISIONING`, Cognito provisioning/finalize uzlaştırması bitmeden giriş ve kurum seçimine
   kapalıdır.
 - **Güncellenebilir güncel-durum tabloları:** `attendance_records` ve `progress_records`
   **değişmez geçmiş kaydı değildir** — bunlar bir öğrencinin/oturumun **güncel** durumunu
@@ -273,12 +291,12 @@ olduğunda kısıt tekrarları **engellemez**. Bu belgede bu hataya düşmemek i
 | Alan | Tip | Null | Açıklama |
 |---|---|---|---|
 | `id` | UUID | Hayır | PK |
-| `status` | ENUM(`PROVISIONING`,`ACTIVE`,`SUSPENDED`) | Hayır | `PROVISIONING`, Keycloak hesabı kalıcı provider-command ile tamamlanana dek girişe kapalıdır. Kullanıcı normal arayüzden fiziksel silinmez (§14). Hesabın **kendisinin** genel durumudur; belirli bir kurumdaki üyeliğin durumu `organization_memberships.status`'tadır (bkz. 4.5). |
+| `status` | ENUM(`PROVISIONING`,`ACTIVE`,`SUSPENDED`) | Hayır | `PROVISIONING`, Cognito hesabı kalıcı provider-command ile güvenli biçimde finalize edilene dek girişe kapalıdır. Kullanıcı normal arayüzden fiziksel silinmez (§14). Hesabın **kendisinin** genel durumudur; belirli bir kurumdaki üyeliğin durumu `organization_memberships.status`'tadır (bkz. 4.5). |
 | `reauthentication_required_after` | TIMESTAMPTZ, varsayılan `'epoch'` | Hayır | Global yeni cihaz ve platform yöneticisi ailesi üretim eşiği. |
 | temel alanlar | — | — | bkz. §2.3 |
 
 `users`, parola özeti, kullanıcı adı veya sağlayıcıya ait oturum sırrı taşımaz. Bu kaynaklar
-Keycloak'a aittir. **`users` artık `person_id` taşımaz.** Bir global kullanıcının, üye olduğu her kurumda **ayrı
+Cognito'ya aittir. **`users` artık `person_id` taşımaz.** Bir global kullanıcının, üye olduğu her kurumda **ayrı
 bir `people` satırı** (o kurumun kendi tuttuğu PII kopyası) vardır; tek bir global "kişi"
 kaydına indirgenemez (bkz. 4.2, 4.5). Bu, önceki sürümdeki `v2.0`'da `people`'ın da global
 yapılmasının yol açtığı "kurumlar arası PII paylaşımı" riskini ortadan kaldırır.
@@ -291,7 +309,7 @@ yöneticisi global ailesi üretimi bu eşiğin sonrasındaki doğrulanmış `aut
 
 ### 4.1a. `user_identities` (GLOBAL — sağlayıcı kimliği eşlemesi)
 
-Keycloak'ta doğrulanmış özne ile uygulama hesabının tek kaynak eşlemesidir. `issuer` OIDC
+Cognito'da doğrulanmış özne ile uygulama hesabının tek kaynak eşlemesidir. `issuer` OIDC
 discovery belgesindeki değişmez `iss` değerinin kanonik metnidir; `subject`, o issuer'ın
 `sub` değeridir. Kullanıcı adı ve geçici parola bu tabloda bulunmaz.
 
@@ -300,19 +318,22 @@ discovery belgesindeki değişmez `iss` değerinin kanonik metnidir; `subject`, 
 | `id` | UUID | Hayır | PK |
 | `user_id` | UUID (FK → `users.id`) | Hayır | Uygulama hesabı. |
 | `issuer` | TEXT | Hayır | Doğrulanmış OIDC issuer; URL normalizasyonu istemci girdisinden yapılmaz. |
-| `subject` | TEXT | Hayır | Keycloak `sub`; **[Hassas]** kalıcı çevrimiçi kimlik. |
+| `subject` | TEXT | Hayır | Cognito `sub`; **[Hassas]** kalıcı çevrimiçi kimlik. |
 | `created_at` | TIMESTAMPTZ | Hayır | |
 | `disabled_at` | TIMESTAMPTZ | Evet | Global hesap devre dışı bırakılınca eşleme korunur ama girişte kullanılamaz. |
 
-Kısıtlar: `UNIQUE (issuer, subject)`; `UNIQUE (user_id, issuer)`. Bir Keycloak öznesi yalnız
+Kısıtlar: `UNIQUE (issuer, subject)`; `UNIQUE (user_id, issuer)`. Bir Cognito öznesi yalnız
 bir uygulama hesabına, bir uygulama hesabı da bu V1'de yalnız seçili issuer'a bağlanabilir.
 İstemcinin taşıdığı e-posta, kullanıcı adı veya ad/soyadla mevcut hesaba otomatik bağlama
-yasaktır. Bağlama yalnız backend'in Keycloak management API ile oluşturduğu hesapta veya
-zaten doğrulanmış aynı `(issuer, subject)` eşlemesinde yapılır; çakışma güvenli biçimde
-reddedilir ve denetlenir. `TEACHER_ACCOUNT_CREATE` ilk transaction'ında `user_identities`
-**oluşturulmaz**: Keycloak'un `POST /users` cevabındaki `Location` başlığından gerçek subject
-alınır; ikinci finalize transaction'ı bu subject ile eşlemeyi yazar ve hesabı etkinleştirir.
-Başarısızlıkta satırlar `PROVISIONING` durumundan normal girişe geçmez.
+yasaktır. Bağlama yalnız backend'in Cognito yönetim çağrısı ile oluşturduğu hesapta veya zaten
+doğrulanmış aynı `(issuer, subject)` eşlemesinde yapılır; çakışma güvenli biçimde reddedilir ve
+denetlenir. Planlanan `TEACHER_ACCOUNT_CREATE` ilk transaction'ında `user_identities`
+**oluşturulmaz**: worker, Cognito create sonucunu veya kayıp cevapta yalnız güvenli username +
+değişmez `platform_user_id` attribute uzlaştırmasını doğrular; gerçek `sub` güvenilir biçimde
+elde edilmeden finalize eşlemesi yazılamaz. Bu create/finalize akışı güncel uygulamada etkin
+değildir ve STAFF-002'nin kapsamıdır. Etkinleştirildiğinde ikinci finalize transaction'ı eşlemeyi
+ve ancak güvenli koşullar sağlanırsa aktivasyonu yazar; başarısızlıkta satırlar `PROVISIONING`
+durumundan normal girişe geçmez.
 
 ### 4.2. `people` (KURUM KAPSAMLI)
 
@@ -395,9 +416,9 @@ bağlayan köprü tablodur.
 | `organization_id` | UUID (FK → `organizations.id`) | Hayır | |
 | `user_id` | UUID (FK → `users.id`) | Hayır | |
 | `person_id` | UUID | Hayır | Bu kullanıcının **bu kurumdaki kendi** profili. Bileşik FK: `(person_id, organization_id) REFERENCES people (id, organization_id)`. |
-| `status` | ENUM(`PROVISIONING`,`ACTIVE`,`SUSPENDED`) | Hayır | `PROVISIONING` üyeliği giriş/kurum seçimine kapalıdır; Keycloak hesabı tamamlanınca allow-listli aktivasyonla `ACTIVE` olur. Kurum yöneticisinin "hoca hesabını askıya alma" işlemi (`KURUM-04`) burada uygulanır; kullanıcının **başka kurumdaki** üyeliğini etkilemez. |
+| `status` | ENUM(`PROVISIONING`,`ACTIVE`,`SUSPENDED`) | Hayır | `PROVISIONING` üyeliği giriş/kurum seçimine kapalıdır; Cognito hesabı güvenli biçimde finalize edilince allow-listli aktivasyonla `ACTIVE` olur. Kurum yöneticisinin "hoca hesabını askıya alma" işlemi (`KURUM-04`) burada uygulanır; kullanıcının **başka kurumdaki** üyeliğini etkilemez. |
 | `session_generation` | INTEGER, varsayılan `1` | Hayır | Bu üyeliğin oturum "kuşak" sayacı. `status` `SUSPENDED`'a çekildiğinde veya bir rolü geri alındığında artırılır; kurum kapsamlı `refresh_tokens`'ın hâlâ geçerli olup olmadığını doğrulamak için kullanılır (bkz. 4.11, 15.5). |
-| `reauthentication_required_after` | TIMESTAMPTZ, varsayılan `'epoch'` | Hayır | Bu üyelik için yeni cihaz/kurum oturumu üretilebilmesinin alt sınırı. IAM, doğrulanmış Keycloak `auth_time` değerinin bundan **sonra** olmasını zorunlu kılar. |
+| `reauthentication_required_after` | TIMESTAMPTZ, varsayılan `'epoch'` | Hayır | Bu üyelik için yeni cihaz/kurum oturumu üretilebilmesinin alt sınırı. IAM, doğrulanmış Cognito `auth_time` değerinin bundan **sonra** olmasını zorunlu kılar. |
 | `granted_by_user_id` | UUID (FK → `users.id`) | Evet | |
 | `granted_at` | TIMESTAMPTZ | Hayır | |
 
@@ -586,7 +607,7 @@ iptali `iam_runtime`/RLS eklentisi" bölümündedir.
 
 ### 4.10a. `context_selection_tokens` — tek kullanımlı kurum seçimi
 
-İlk doğrulanmış Keycloak access-token değişiminden sonra verilen bu token, platformun kurum
+İlk doğrulanmış Cognito access-token değişiminden sonra verilen bu token, platformun kurum
 bağlamsız kalıcı oturumu değildir; yalnız üyelik listesini göstermeye ve **bir** kurum seçimine
 yarar. Ham değer en az 256-bit kriptografik rastgele opaque değerdir; yalnız cihazın güvenli
 saklamasında bulunur ve DB/log/audit/telemetry'ye yazılmaz.
@@ -597,7 +618,7 @@ saklamasında bulunur ve DB/log/audit/telemetry'ye yazılmaz.
 | `user_id` | UUID (FK → `users.id`) | Hayır | |
 | `trusted_device_id` | UUID | Hayır | Bileşik FK: `(trusted_device_id, user_id) REFERENCES trusted_devices (id, user_id)`. |
 | `token_hash` | TEXT, **UNIQUE** | Hayır | **[Hassas]** — `HMAC-SHA-256(pepper, token)`; ham değer saklanmaz. |
-| `authenticated_at` | TIMESTAMPTZ | Hayır | Doğrulanmış Keycloak `auth_time`. |
+| `authenticated_at` | TIMESTAMPTZ | Hayır | Doğrulanmış Cognito `auth_time`. |
 | `issued_at` | TIMESTAMPTZ | Hayır | |
 | `expires_at` | TIMESTAMPTZ | Hayır | Kesin ömür: **5 dakika**. |
 | `consumed_at` | TIMESTAMPTZ | Evet | Başarılı kurum seçimiyle bir kez dolar. |
@@ -630,7 +651,7 @@ listesi/seçimi için kısa ömürlüdür; refresh ailesi veya kalıcı genel re
 | `user_id` | UUID (FK → `users.id`) | Hayır | |
 | `trusted_device_id` | UUID | Hayır | Bileşik FK: `(trusted_device_id, user_id) REFERENCES trusted_devices (id, user_id)`. |
 | `organization_membership_id` | UUID | Evet | Kurum ailesinde zorunlu; platform yöneticisi global ailesinde `NULL` olabilir. |
-| `authenticated_at` | TIMESTAMPTZ | Hayır | IAM'in Keycloak access tokenından güvenilir biçimde doğruladığı `auth_time`. |
+| `authenticated_at` | TIMESTAMPTZ | Hayır | IAM'in Cognito access tokenından güvenilir biçimde doğruladığı `auth_time`. |
 | `issued_at_session_generation` | INTEGER | Üyelik doluyken zorunlu | Üyeliğin token üretimindeki kuşağı. |
 | `revoked_at` | TIMESTAMPTZ | Evet | |
 | `created_at` | TIMESTAMPTZ | Hayır | |
@@ -674,7 +695,7 @@ kapsamlı roller kurum dışına çıkamaz" mutlak sınırının doğal bir sonu
 
 **Context-selection tokenı:** §4.10a'daki token kısa ömürlü, refresh edilemez ve yalnız üyelik
 listesi/tek bağlam seçimi içindir. Seçilen üyelik için aile üretimi; `ACTIVE` üyelik, aktif rol,
-güncel `session_generation` ve doğrulanmış Keycloak `auth_time >
+güncel `session_generation` ve doğrulanmış Cognito `auth_time >
 reauthentication_required_after` koşullarının tümünü ister. Başka kurumun oturumu veya bu
 token eski `auth_time` ile hedef üyelik için yeni aile oluşturamaz.
 
@@ -693,7 +714,7 @@ eklenmiştir (bağlayıcı yeni bir yetki kararı değildir; mevcut kurum izolas
 teknik sonucudur). Kesin token/oturum sağlayıcı teknolojisi `A-004` ADR'sine bırakılmıştır; bu
 belge yalnızca dolanmayı engelleyen değişmezi (invariant) tanımlar.
 
-Keycloak refresh tokenı yalnız ilk etkileşimli değişime kadar mobil güvenli saklamadadır; başarılı
+Cognito refresh tokenı yalnız ilk etkileşimli değişime kadar mobil güvenli saklamadadır; başarılı
 değişimden sonra silinir ve platform DB'sine hiç yazılmaz. Bu tablo
 yalnız platform opaque refresh tokenını temsil eder. Platform access tokenı JWT değildir:
 en az 256-bit kriptografik rastgele opaque bearer değerdir; `access_token_hash` üzerinden
@@ -745,8 +766,11 @@ sonuç yazamaz.
 `iam_secret_deliveries`: `id` UUID PK, `provider_command_id` UUID **UNIQUE** FK,
 `recipient_actor_user_id` UUID FK, `encrypted_secret` BYTEA, `payload_key_id` TEXT,
 `status` ENUM(`ESCROWED`,`READY`,`CONSUMED`,`EXPIRED`), `created_at`, `ready_at`,
-`expires_at`, `consumed_at`. Worker geçici parolayı üretir; sağlayıcı çağrısından önce yalnız bu
-ayrı şifreli escrow satırına yazar, Keycloak create/uzlaştırması doğrulanmadan `READY` yapmaz.
+`expires_at`, `consumed_at`. Bu, planlanan provisioning secret teslim modelidir:
+`TEACHER_ACCOUNT_CREATE`/finalize ve şifreli payload çözümü güncel uygulamada etkin değildir
+ve STAFF-002'ye bırakılmıştır. Etkinleştirildiğinde worker geçici parolayı üretir; sağlayıcı
+çağrısından önce yalnız bu ayrı şifreli escrow satırına yazar, Cognito create/uzlaştırması
+doğrulanmadan `READY` yapmaz.
 `expires_at`, oluşturma anından sonra ve en geç `created_at + INTERVAL '10 minutes'` değerindedir.
 İkinci finalize transaction'ı `app.iam_operation_scope='IAM_PROVISIONING'` ve
 `app.iam_operation_code='TEACHER_ACCOUNT_FINALIZE'` ile `user_identities` eşlemesini, `ACTIVE`
@@ -782,7 +806,9 @@ gizli teslim yüzeyinde bulunur.
 `iam_event_cursors`: `id` UUID PK, `source` ENUM(`ADMIN_EVENTS`,`USER_EVENTS`) **UNIQUE**,
 `realm` TEXT, `last_event_time` TIMESTAMPTZ, `last_event_id` TEXT, `last_successful_poll_at`
 TIMESTAMPTZ, `status` TEXT, `updated_at` TIMESTAMPTZ. `last_event_time`/`last_event_id` yalnız
-yerel checkpoint'tir; Keycloak `eventId` start-after cursoru veya sıralama garantisi değildir.
+yerel checkpoint'tir; Cognito olay teslimi için genel bir start-after cursoru veya sıralama
+garantisi değildir. Olay kaybı/düzensiz teslim, kanonik provider durum sorgusu ve dedup ile
+ayrı uzlaştırma akışında fail-closed ele alınır.
 `iam_event_deduplications`: `source`,
 `event_id`, `event_time` TIMESTAMPTZ, `processed_at` TIMESTAMPTZ ve **UNIQUE (`source`,
 `event_id`)**. Retention sonrası temizlenmesi cursor güvenlik penceresinden önce olamaz. Bu dört
@@ -1258,7 +1284,7 @@ vermek zorunda değildir (bkz. 11.7).
 | `class_id` | UUID | Hayır | Bileşik FK: `(class_id, organization_id) REFERENCES classes (id, organization_id)`. |
 | `name` | TEXT | Hayır | |
 | `based_on_starter_template_id` | TEXT (FK → `starter_program_templates.code`) | Evet | |
-| `status` | ENUM(`ACTIVE`,`PASSIVE`,`ARCHIVED`) | Hayır | |
+| `status` | ENUM(`ACTIVE`,`INACTIVE`,`ARCHIVED`) | Hayır | `INACTIVE`, programın normal kullanımda kapalı fakat arşivlenmemiş olduğunu belirtir. |
 | `current_program_version_id` | UUID | Evet | Bileşik FK: `(current_program_version_id, id) REFERENCES program_versions (id, program_id)` — bu, referans verilen sürümün **gerçekten bu programa ait** olmasını (başka bir programın sürümü olamayacağını) DB seviyesinde zorunlu kılar (kendi `id`'sini FK tuple'ının bir parçası olarak kullanan, PostgreSQL'de geçerli bir öz-referans tekniğidir; `program_versions` üzerinde `UNIQUE (id, program_id)` gerektirir, bkz. 11.3). |
 | temel alanlar | — | — | bkz. §2.3 |
 
@@ -1855,7 +1881,7 @@ bilgisini taşır ve bilinçli olarak bileşik FK ile korunur (bkz. 4.11).
 
 | Tablo | Neden `organization_id` yok | Tenant bağlamı nasıl korunur |
 |---|---|---|
-| `users`, `user_identities` | Global uygulama hesabı ve Keycloak issuer/subject eşlemesi — bkz. bölüm 4.1–4.1a. | Kendileri tenant verisi değildir; `organization_memberships` üzerinden kurum bağlamına girilir. |
+| `users`, `user_identities` | Global uygulama hesabı ve Cognito issuer/subject eşlemesi — bkz. bölüm 4.1–4.1a. | Kendileri tenant verisi değildir; `organization_memberships` üzerinden kurum bağlamına girilir. |
 | `platform_administrators`, `platform_administrator_profiles` | Rol/profil global kapsamlıdır (§5.1). | Kapsam dışı — tanımı gereği kurum bağlamsızdır. |
 | `permission_categories`, `permission_catalog`, `audit_action_catalog`, `starter_program_templates` | Platform genelinde paylaşılan, kuruma özel olmayan kataloglardır. | İçerikleri kuruma özel değildir; kurum bağlamı bunlara referans veren tablolarda taşınır. |
 | `trusted_devices` | Global kullanıcıya ait fiziksel/güvenilir cihaz kaydıdır; tek kuruma özgü değildir. | `user_id` ile global hesaba bağlıdır; kurum kapsamlı oturum yetkisi taşımaz. |
