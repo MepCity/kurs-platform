@@ -7,6 +7,7 @@ import 'package:kurs_platform_mobile/features/auth/domain/secure_session_store.d
 
 AuthOrganizationMembership _membership(String id) => AuthOrganizationMembership(
   id: id,
+  organizationId: 'org-$id',
   organizationName: 'Kurs $id',
   roleCodes: const <String>['ORG_ADMIN'],
 );
@@ -36,10 +37,15 @@ AuthenticatedSessionActivation _organizationActivation(String membershipId) =>
     );
 
 class _Repository implements AuthenticationRepository {
-  _Repository(this.organizationActivation, {this.platformActivation});
+  _Repository(
+    this.organizationActivation, {
+    this.platformActivation,
+    this.choices,
+  });
   final Future<AuthenticatedSessionActivation> Function()
   organizationActivation;
   final Future<AuthenticatedSessionActivation> Function()? platformActivation;
+  final AuthContextChoices? choices;
   int organizationCalls = 0;
 
   @override
@@ -56,7 +62,9 @@ class _Repository implements AuthenticationRepository {
       Future<AuthenticatedSessionActivation>.error(UnimplementedError());
 
   @override
-  Future<AuthContextChoices> beginSignIn() => throw UnimplementedError();
+  Future<AuthContextChoices> beginSignIn() => choices == null
+      ? Future<AuthContextChoices>.error(UnimplementedError())
+      : Future<AuthContextChoices>.value(choices);
 }
 
 class _CountingStore implements SecureSessionStore {
@@ -204,6 +212,62 @@ void main() {
     expect(sharedStore.value?.organizationMembershipId, 'B');
     expect(sharedStore.commits, 1);
   });
+
+  test(
+    'aynı membership farklı organizationId token yazmadan reddedilir',
+    () async {
+      final store = _CountingStore();
+      final controller = SignInController(
+        repository: _Repository(
+          () async => _organizationActivation('A'),
+          choices: AuthContextChoices(
+            displayName: 'Yasir',
+            memberships: <AuthOrganizationMembership>[
+              const AuthOrganizationMembership(
+                id: 'A',
+                organizationId: 'org-selected',
+                organizationName: 'Seçilen',
+                roleCodes: <String>['ORG_ADMIN'],
+              ),
+            ],
+            canActivatePlatformAdministrator: false,
+          ),
+        ),
+        secureSessionStore: store,
+      );
+
+      await controller.begin();
+      expect(await controller.activateOrganization('A'), isNull);
+      expect(store.commits, 0);
+    },
+  );
+
+  test(
+    'seçilen organizationId güvenli oturumla eşleşince aktivasyon başarılı',
+    () async {
+      final store = _CountingStore();
+      final controller = SignInController(
+        repository: _Repository(
+          () async => _organizationActivation('A'),
+          choices: AuthContextChoices(
+            displayName: 'Yasir',
+            memberships: <AuthOrganizationMembership>[_membership('A')],
+            canActivatePlatformAdministrator: false,
+          ),
+        ),
+        secureSessionStore: store,
+      );
+
+      await controller.begin();
+      expect(
+        (await controller.activateOrganization(
+          'A',
+        ))?.organizationMembership?.id,
+        'A',
+      );
+      expect(store.commits, 1);
+    },
+  );
 
   test(
     'organization/global activation invariantları token yazılmadan reddedilir',

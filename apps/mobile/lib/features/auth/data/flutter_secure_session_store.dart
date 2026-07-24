@@ -90,23 +90,26 @@ class FlutterSecureSessionStore implements SecureSessionStore {
   static const _installationKey = 'iam.installation.v1';
   static const _commitKey = 'iam.platform-session.v2.commit';
   static const _payloadPrefix = 'iam.platform-session.v2.payload.';
+  static final Expando<_PhysicalStoreCoordinator> _coordinators =
+      Expando<_PhysicalStoreCoordinator>('secure-session-coordinator');
 
   final SecureKeyValueStorage _storage;
   final ApplicationMarkerStorage _markerStorage;
   Future<void> _tail = Future<void>.value();
-  int _nextAttempt = 0;
-  int _latestAttempt = 0;
+  late final _PhysicalStoreCoordinator _coordinator =
+      _coordinators[_storage] ??= _PhysicalStoreCoordinator();
 
   @override
   Future<SecureSessionWriteLease> beginActivation() async {
-    final lease = SecureSessionWriteLease(++_nextAttempt);
-    _latestAttempt = lease.value;
+    final lease = SecureSessionWriteLease(++_coordinator.nextAttempt);
+    _coordinator.latestAttempt = lease.value;
     await _serialize<void>(() async {
       await _installationId();
       if (!_isLatest(lease)) return;
-      // A new activation must never fall back to the prior account if its
-      // subsequent secure write is incomplete or fails.
-      await _markerStorage.delete(_commitKey);
+      final previous = await _readCommitOrNull();
+      if (!_isLatest(lease)) return;
+      await _makeMarkerUnreadable();
+      if (previous != null) await _deletePayloadStrict(previous.slot);
       await _storage.delete(_legacyPayloadKey);
     });
     return lease;
@@ -115,20 +118,32 @@ class FlutterSecureSessionStore implements SecureSessionStore {
   @override
   void abandonActivation(SecureSessionWriteLease lease) {
     if (!_isLatest(lease)) return;
-    _latestAttempt = ++_nextAttempt;
+    _coordinator.latestAttempt = ++_coordinator.nextAttempt;
     unawaited(
       _serialize<void>(() async {
-        await _markerStorage.delete(_commitKey);
+        if (!_isLatest(lease)) return;
+        await _makeMarkerUnreadable(expectedLease: lease.value);
       }).catchError((Object _) {}),
     );
   }
 
   @override
-  Future<void> clear() => _serialize<void>(() async {
-    final commit = await _readCommitOrNull();
-    await _markerStorage.delete(_commitKey);
-    if (commit != null) await _deletePayload(commit.slot);
-  });
+  Future<void> clear() {
+    _coordinator.latestAttempt = ++_coordinator.nextAttempt;
+    return _serialize<void>(() async {
+      _CommitMarker? commit;
+      try {
+        commit = await _readCommitOrNull();
+      } on SecureSessionStoreFailure {
+        await _makeMarkerUnreadable();
+        await _storage.delete(_legacyPayloadKey);
+        rethrow;
+      }
+      await _makeMarkerUnreadable();
+      if (commit != null) await _deletePayloadStrict(commit.slot);
+      await _storage.delete(_legacyPayloadKey);
+    });
+  }
 
   @override
   Future<bool> commit(SecureSessionWriteLease lease, SecureSession session) =>
@@ -162,13 +177,16 @@ class FlutterSecureSessionStore implements SecureSessionStore {
             }),
           );
           if (!_isLatest(lease)) {
-            await _markerStorage.delete(_commitKey);
             await _deletePayload(slot);
             return false;
           }
           return true;
         } catch (_) {
-          await _invalidateSlot(slot);
+          if (_isLatest(lease)) {
+            await _invalidateSlot(slot);
+          } else {
+            await _deletePayload(slot);
+          }
           throw const SecureSessionStoreFailure(
             SecureSessionStoreFailureReason.unavailable,
           );
@@ -220,7 +238,7 @@ class FlutterSecureSessionStore implements SecureSessionStore {
         slot: decoded['slot'] as String,
       );
     } catch (_) {
-      await _deleteMarkerOnly();
+      await _makeMarkerUnreadable();
       throw const SecureSessionStoreFailure(
         SecureSessionStoreFailureReason.corrupted,
       );
@@ -247,15 +265,33 @@ class FlutterSecureSessionStore implements SecureSessionStore {
   }
 
   Future<void> _invalidateSlot(String slot) async {
-    await _deleteMarkerOnly();
+    await _makeMarkerUnreadable(expectedSlot: slot);
     await _deletePayload(slot);
   }
 
-  Future<void> _deleteMarkerOnly() async {
+  Future<void> _makeMarkerUnreadable({
+    String? expectedSlot,
+    int? expectedLease,
+  }) async {
     try {
+      if (expectedSlot != null || expectedLease != null) {
+        final raw = await _markerStorage.read(_commitKey);
+        if (raw == null) return;
+        final decoded = jsonDecode(raw);
+        if (decoded is! Map<String, dynamic> ||
+            decoded['slot'] is! String ||
+            (expectedSlot != null && decoded['slot'] != expectedSlot) ||
+            (expectedLease != null &&
+                !(decoded['slot'] as String).startsWith('$expectedLease-'))) {
+          return;
+        }
+      }
+      // Overwrite before delete: a failed delete leaves a durable tombstone,
+      // never a readable pointer to the prior token-bearing payload.
+      await _markerStorage.write(_commitKey, '{"version":0}');
       await _markerStorage.delete(_commitKey);
     } catch (_) {
-      // No marker read failure can make an unverified value valid.
+      // A written tombstone remains a fail-closed read barrier.
     }
   }
 
@@ -267,6 +303,16 @@ class FlutterSecureSessionStore implements SecureSessionStore {
     }
   }
 
+  Future<void> _deletePayloadStrict(String slot) async {
+    try {
+      await _storage.delete('$_payloadPrefix$slot');
+    } catch (_) {
+      throw const SecureSessionStoreFailure(
+        SecureSessionStoreFailureReason.unavailable,
+      );
+    }
+  }
+
   Future<T> _serialize<T>(Future<T> Function() operation) {
     final result = _tail.then((_) => operation());
     _tail = result.then<void>((_) {}, onError: (_, _) {});
@@ -274,7 +320,7 @@ class FlutterSecureSessionStore implements SecureSessionStore {
   }
 
   bool _isLatest(SecureSessionWriteLease lease) =>
-      lease.value == _latestAttempt;
+      lease.value == _coordinator.latestAttempt;
 
   Map<String, Object?> _encode(SecureSession session) => <String, Object?>{
     'userId': session.userId,
@@ -368,4 +414,9 @@ class _CommitMarker {
   const _CommitMarker({required this.installationId, required this.slot});
   final String installationId;
   final String slot;
+}
+
+class _PhysicalStoreCoordinator {
+  int nextAttempt = 0;
+  int latestAttempt = 0;
 }

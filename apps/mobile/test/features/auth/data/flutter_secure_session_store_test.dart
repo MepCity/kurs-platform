@@ -11,6 +11,7 @@ class _MemorySecureStorage implements SecureKeyValueStorage {
   bool failWriteAfterPersisting = false;
   Completer<void>? payloadWriteStarted;
   Completer<void>? payloadWriteGate;
+  int payloadWritesToBlock = 0;
 
   @override
   Future<void> delete(String key) async {
@@ -24,7 +25,9 @@ class _MemorySecureStorage implements SecureKeyValueStorage {
   @override
   Future<void> write(String key, String value) async {
     values[key] = value;
-    if (key.startsWith('iam.platform-session.v2.payload.')) {
+    if (key.startsWith('iam.platform-session.v2.payload.') &&
+        payloadWritesToBlock > 0) {
+      payloadWritesToBlock--;
       if (payloadWriteStarted case final started? when !started.isCompleted) {
         started.complete();
       }
@@ -36,9 +39,13 @@ class _MemorySecureStorage implements SecureKeyValueStorage {
 
 class _MemoryMarkerStorage implements ApplicationMarkerStorage {
   final values = <String, String>{};
+  bool failDelete = false;
 
   @override
-  Future<void> delete(String key) async => values.remove(key);
+  Future<void> delete(String key) async {
+    if (failDelete) throw StateError('marker delete failed');
+    values.remove(key);
+  }
 
   @override
   Future<String?> read(String key) async => values[key];
@@ -158,7 +165,8 @@ void main() {
       );
       secure
         ..payloadWriteStarted = Completer<void>()
-        ..payloadWriteGate = Completer<void>();
+        ..payloadWriteGate = Completer<void>()
+        ..payloadWritesToBlock = 1;
 
       final firstLease = await store.beginActivation();
       final firstWrite = store.commit(
@@ -180,6 +188,120 @@ void main() {
       );
       expect((await store.read())?.organizationMembershipId, 'membership-b');
     });
+
+    test('iki başarılı aktivasyon eski v2 payloadı bırakmaz', () async {
+      final secure = _MemorySecureStorage();
+      final markers = _MemoryMarkerStorage();
+      final store = FlutterSecureSessionStore(
+        storage: secure,
+        markerStorage: markers,
+      );
+      await _commit(store, _organizationSession(membershipId: 'membership-a'));
+      await _commit(store, _organizationSession(membershipId: 'membership-b'));
+
+      final payloadKeys = secure.values.keys
+          .where((key) => key.startsWith('iam.platform-session.v2.payload.'))
+          .toList();
+      expect(payloadKeys, hasLength(1));
+      expect((await store.read())?.organizationMembershipId, 'membership-b');
+    });
+
+    test('clear v1 ve aktif v2 değerlerini temizler', () async {
+      final secure = _MemorySecureStorage();
+      final markers = _MemoryMarkerStorage();
+      final store = FlutterSecureSessionStore(
+        storage: secure,
+        markerStorage: markers,
+      );
+      secure.values['iam.platform-session.v1'] = 'legacy-token-payload';
+      await _commit(store, _organizationSession());
+
+      await store.clear();
+
+      expect(secure.values['iam.platform-session.v1'], isNull);
+      expect(
+        secure.values.keys.where(
+          (key) => key.startsWith('iam.platform-session.v2.payload.'),
+        ),
+        isEmpty,
+      );
+      expect(await store.read(), isNull);
+    });
+
+    test('marker veya payload temizleme hatası eski oturumu açmaz', () async {
+      final secure = _MemorySecureStorage();
+      final markers = _MemoryMarkerStorage();
+      final store = FlutterSecureSessionStore(
+        storage: secure,
+        markerStorage: markers,
+      );
+      await _commit(store, _organizationSession());
+      markers.failDelete = true;
+      secure.failDelete = true;
+
+      await expectLater(
+        store.clear(),
+        throwsA(isA<SecureSessionStoreFailure>()),
+      );
+      await expectLater(
+        store.read(),
+        throwsA(
+          isA<SecureSessionStoreFailure>().having(
+            (failure) => failure.reason,
+            'reason',
+            SecureSessionStoreFailureReason.corrupted,
+          ),
+        ),
+      );
+    });
+
+    test(
+      'iki gerçek store eski A yazısını B oturumunu ezmeden reddeder',
+      () async {
+        final secure = _MemorySecureStorage()
+          ..payloadWriteStarted = Completer<void>()
+          ..payloadWriteGate = Completer<void>()
+          ..payloadWritesToBlock = 1;
+        final markers = _MemoryMarkerStorage();
+        final oldStore = FlutterSecureSessionStore(
+          storage: secure,
+          markerStorage: markers,
+        );
+        final newStore = FlutterSecureSessionStore(
+          storage: secure,
+          markerStorage: markers,
+        );
+
+        final oldLease = await oldStore.beginActivation();
+        final oldCommit = oldStore.commit(
+          oldLease,
+          _organizationSession(membershipId: 'membership-a'),
+        );
+        await secure.payloadWriteStarted!.future;
+
+        final newLease = await newStore.beginActivation();
+        expect(
+          await newStore.commit(
+            newLease,
+            _organizationSession(membershipId: 'membership-b'),
+          ),
+          isTrue,
+        );
+        secure.payloadWriteGate!.complete();
+
+        expect(await oldCommit, isFalse);
+        expect(
+          (await newStore.read())?.organizationMembershipId,
+          'membership-b',
+        );
+        expect(
+          secure.values.keys.where(
+            (key) => key.startsWith('iam.platform-session.v2.payload.'),
+          ),
+          hasLength(1),
+        );
+      },
+    );
 
     test(
       'corrupted payload shapes and unknown schema versions fail closed',

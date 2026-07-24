@@ -64,11 +64,16 @@ class SignInController extends ChangeNotifier {
     }
   }
 
-  Future<ActivatedSession?> activateOrganization(String membershipId) =>
-      _activate(
-        () => repository.activateOrganization(membershipId),
-        requestedOrganizationMembershipId: membershipId,
-      );
+  Future<ActivatedSession?> activateOrganization(String membershipId) {
+    final selected = _choices?.memberships
+        .where((membership) => membership.id == membershipId)
+        .firstOrNull;
+    return _activate(
+      () => repository.activateOrganization(membershipId),
+      requestedOrganizationMembershipId: membershipId,
+      requestedOrganizationId: selected?.organizationId,
+    );
+  }
 
   Future<ActivatedSession?> activatePlatformAdministrator() =>
       _activate(repository.activatePlatformAdministrator);
@@ -76,6 +81,7 @@ class SignInController extends ChangeNotifier {
   Future<ActivatedSession?> _activate(
     Future<AuthenticatedSessionActivation> Function() action, {
     String? requestedOrganizationMembershipId,
+    String? requestedOrganizationId,
   }) async {
     if (_disposed || isBusy) return null;
     final attempt = ++_activationAttempt;
@@ -95,6 +101,13 @@ class SignInController extends ChangeNotifier {
       if (requestedOrganizationMembershipId != null &&
           activation.session.organizationMembership?.id !=
               requestedOrganizationMembershipId) {
+        _abandonActiveLease();
+        _returnToContextChoice();
+        return null;
+      }
+      if (requestedOrganizationId != null &&
+          activation.session.organizationMembership?.organizationId !=
+              requestedOrganizationId) {
         _abandonActiveLease();
         _returnToContextChoice();
         return null;
