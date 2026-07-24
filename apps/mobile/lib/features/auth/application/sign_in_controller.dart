@@ -65,13 +65,22 @@ class SignInController extends ChangeNotifier {
   }
 
   Future<ActivatedSession?> activateOrganization(String membershipId) {
-    final selected = _choices?.memberships
-        .where((membership) => membership.id == membershipId)
-        .firstOrNull;
+    final choices = _choices;
+    if (choices == null || membershipId.trim().isEmpty) return Future.value();
+    final matches = choices.memberships
+        .where(
+          (membership) =>
+              membership.id == membershipId &&
+              membership.id.trim().isNotEmpty &&
+              membership.organizationId.trim().isNotEmpty,
+        )
+        .toList();
+    if (matches.length != 1) return Future.value();
+    final selected = matches.single;
     return _activate(
       () => repository.activateOrganization(membershipId),
       requestedOrganizationMembershipId: membershipId,
-      requestedOrganizationId: selected?.organizationId,
+      requestedOrganizationId: selected.organizationId,
     );
   }
 

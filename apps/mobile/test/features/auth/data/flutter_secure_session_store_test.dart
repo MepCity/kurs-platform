@@ -54,6 +54,28 @@ class _MemoryMarkerStorage implements ApplicationMarkerStorage {
   Future<void> write(String key, String value) async => values[key] = value;
 }
 
+class _SecureStorageWrapper implements SecureKeyValueStorage {
+  _SecureStorageWrapper(this.delegate);
+  final _MemorySecureStorage delegate;
+  @override
+  Future<void> delete(String key) => delegate.delete(key);
+  @override
+  Future<String?> read(String key) => delegate.read(key);
+  @override
+  Future<void> write(String key, String value) => delegate.write(key, value);
+}
+
+class _MarkerStorageWrapper implements ApplicationMarkerStorage {
+  _MarkerStorageWrapper(this.delegate);
+  final _MemoryMarkerStorage delegate;
+  @override
+  Future<void> delete(String key) => delegate.delete(key);
+  @override
+  Future<String?> read(String key) => delegate.read(key);
+  @override
+  Future<void> write(String key, String value) => delegate.write(key, value);
+}
+
 SecureSession _organizationSession({
   String membershipId = 'membership-1',
   String organizationId = 'organization-1',
@@ -256,7 +278,7 @@ void main() {
     });
 
     test(
-      'iki gerçek store eski A yazısını B oturumunu ezmeden reddeder',
+      'ayrı wrapper gerçek store yarışı yalnız B payloadını bırakır',
       () async {
         final secure = _MemorySecureStorage()
           ..payloadWriteStarted = Completer<void>()
@@ -264,12 +286,12 @@ void main() {
           ..payloadWritesToBlock = 1;
         final markers = _MemoryMarkerStorage();
         final oldStore = FlutterSecureSessionStore(
-          storage: secure,
-          markerStorage: markers,
+          storage: _SecureStorageWrapper(secure),
+          markerStorage: _MarkerStorageWrapper(markers),
         );
         final newStore = FlutterSecureSessionStore(
-          storage: secure,
-          markerStorage: markers,
+          storage: _SecureStorageWrapper(secure),
+          markerStorage: _MarkerStorageWrapper(markers),
         );
 
         final oldLease = await oldStore.beginActivation();

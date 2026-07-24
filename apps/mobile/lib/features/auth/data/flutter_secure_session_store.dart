@@ -90,14 +90,15 @@ class FlutterSecureSessionStore implements SecureSessionStore {
   static const _installationKey = 'iam.installation.v1';
   static const _commitKey = 'iam.platform-session.v2.commit';
   static const _payloadPrefix = 'iam.platform-session.v2.payload.';
-  static final Expando<_PhysicalStoreCoordinator> _coordinators =
-      Expando<_PhysicalStoreCoordinator>('secure-session-coordinator');
+  // IAM-008 has one fixed platform-session namespace per process. Keeping this
+  // coordinator process-wide binds different adapter wrappers to that same
+  // physical Keychain/Keystore namespace without admitting user-provided keys.
+  static final _PhysicalStoreCoordinator _coordinator =
+      _PhysicalStoreCoordinator();
 
   final SecureKeyValueStorage _storage;
   final ApplicationMarkerStorage _markerStorage;
   Future<void> _tail = Future<void>.value();
-  late final _PhysicalStoreCoordinator _coordinator =
-      _coordinators[_storage] ??= _PhysicalStoreCoordinator();
 
   @override
   Future<SecureSessionWriteLease> beginActivation() async {
@@ -118,11 +119,12 @@ class FlutterSecureSessionStore implements SecureSessionStore {
   @override
   void abandonActivation(SecureSessionWriteLease lease) {
     if (!_isLatest(lease)) return;
-    _coordinator.latestAttempt = ++_coordinator.nextAttempt;
+    final abandonGeneration = ++_coordinator.nextAttempt;
+    _coordinator.latestAttempt = abandonGeneration;
     unawaited(
       _serialize<void>(() async {
-        if (!_isLatest(lease)) return;
-        await _makeMarkerUnreadable(expectedLease: lease.value);
+        if (_coordinator.latestAttempt != abandonGeneration) return;
+        await _makeMarkerUnreadable();
       }).catchError((Object _) {}),
     );
   }
