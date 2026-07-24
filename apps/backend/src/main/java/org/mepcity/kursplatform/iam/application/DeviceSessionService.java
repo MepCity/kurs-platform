@@ -40,9 +40,16 @@ public final class DeviceSessionService {
                                 ActiveSessionResolver credentials, SessionInfoService sessionInfo, TokenHasher tokenHasher,
                                 IamAuditWriter audits, IamServiceSettings settings, Clock clock, IamDeviceRateLimiter rateLimiter,
                                 DeviceSessionSnapshotSerializer snapshots) {
-        this.repository = repository; this.transactions = transactions; this.credentials = credentials;
-        this.sessionInfo = sessionInfo; this.tokenHasher = tokenHasher; this.audits = audits;
-        this.settings = settings; this.clock = clock; this.rateLimiter = rateLimiter; this.snapshots = snapshots;
+        this.repository = repository;
+        this.transactions = transactions;
+        this.credentials = credentials;
+        this.sessionInfo = sessionInfo;
+        this.tokenHasher = tokenHasher;
+        this.audits = audits;
+        this.settings = settings;
+        this.clock = clock;
+        this.rateLimiter = rateLimiter;
+        this.snapshots = snapshots;
     }
 
     public DevicePage list(String bearer, String cursor, int limit) {
@@ -97,7 +104,7 @@ public final class DeviceSessionService {
                     if (replay.isPresent()) return membershipSnapshot(replay.get());
                     rateLimiter.consume(actor.userId(), org.mepcity.kursplatform.iam.domain.OperationScope.ORGANIZATION, organizationId, OperationCode.DEVICE_SESSION_REVOKE);
                     List<RefreshTokenFamily> families = repository.findActiveRefreshTokenFamiliesByOrganizationMembershipId(targetMembershipId);
-                    for (RefreshTokenFamily family : families) { repository.lockActiveRefreshTokensInFamily(family.id()); repository.revokeRefreshTokensInFamily(family.id(), clock.instant()); repository.revokeRefreshTokenFamily(family.id(), clock.instant()); }
+                    revokeFamilies(families);
                     if (!families.isEmpty()) {
                         repository.advanceMembershipSessionBarrier(targetMembershipId);
                         target = repository.findOrganizationMembershipById(targetMembershipId).orElseThrow(this::notFound);
@@ -141,7 +148,7 @@ public final class DeviceSessionService {
         TrustedDevice terminal = locked;
         if (locked.isActive()) {
             terminal = repository.revokeTrustedDeviceIfActiveReturning(targetUser, deviceId).orElseThrow(this::notFound);
-            for (RefreshTokenFamily family : families) { repository.lockActiveRefreshTokensInFamily(family.id()); repository.revokeRefreshTokensInFamily(family.id(), clock.instant()); repository.revokeRefreshTokenFamily(family.id(), clock.instant()); }
+            revokeFamilies(families);
         }
         DeviceRevokeResult result = new DeviceRevokeResult(terminal, families.size(), currentDevice != null && currentDevice.equals(deviceId), false);
         audit(platform ? "PLATFORM_DEVICE_REVOKED" : "DEVICE_SELF_REVOKED", IamAuditEvent.EventScope.GLOBAL, null, actor, targetUser,
@@ -157,6 +164,16 @@ public final class DeviceSessionService {
         boolean delegatedTeacher = repository.findActiveRolesByMembershipId(membership.id()).stream().anyMatch(r -> r.role() == MembershipRole.TEACHER)
                 && repository.findActivePermissionsByMembershipId(membership.id()).stream().anyMatch(p -> "DEVICE_SESSION_REVOKE".equals(p.permissionCode()));
         if (!admin && !delegatedTeacher) throw forbidden();
+    }
+
+    /** Family rows are locked before their tokens; every revoke path uses this single lock order. */
+    private void revokeFamilies(List<RefreshTokenFamily> families) {
+        Instant revokedAt = clock.instant();
+        for (RefreshTokenFamily family : families) {
+            repository.lockActiveRefreshTokensInFamily(family.id());
+            repository.revokeRefreshTokensInFamily(family.id(), revokedAt);
+            repository.revokeRefreshTokenFamily(family.id(), revokedAt);
+        }
     }
 
     private Optional<IdempotencyKey> replay(UUID actor, String key, IdempotencyScope scope, UUID org, OperationCode op, String fingerprint) {
