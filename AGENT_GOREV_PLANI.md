@@ -2,12 +2,12 @@
 
 | Alan | Değer |
 |---|---|
-| Belge sürümü | 1.2 |
+| Belge sürümü | 1.3 |
 | Ana sözleşme | `URUN_VE_UYGULAMA_PLANI.md` |
 | Amaç | Ürünü küçük, bağımsız, doğrulanabilir ve agentlara atanabilir işlere bölmek |
 | Görev üst sınırı | Bir görev tercihen 2–6 saat, en fazla bir iş günü |
 | Mimari yaklaşım | Modüler monolit; mikroservis değil |
-| Son güncelleme | 15 Temmuz 2026 |
+| Son güncelleme | 24 Temmuz 2026 |
 
 ---
 
@@ -198,6 +198,91 @@ değildir; `PLAN-*` kimliğiyle izlenir:
 | PLAN-003 | S | Repo agent çalışma kurallarını oluştur | PLAN-001, PLAN-002 |
 | PLAN-004 | M | Faz/Dalga ve çapraz sözleşme tutarlılık düzeltmelerini uygula | P-014, harici dokümantasyon incelemesi |
 | PLAN-005 | M | Başlangıç maliyeti, sağlayıcı kapıları ve kademeli ortam sözleşmesini uygula | A-001–A-010, ürün sahibi maliyet kararı |
+| PLAN-006 | M | Belge ve sözleşme senkronizasyonunu tamamla | A-004R3, UI-002, IAM-004, harici repo bütünlük incelemesi |
+
+### PLAN-006 — Belge ve sözleşme senkronizasyonunu tamamla
+
+```text
+Kimlik: PLAN-006
+Başlık: Belge ve sözleşme senkronizasyonunu tamamla
+Durum: Güncel durum için GOREV_DURUMU.md esas alınır
+Boyut: M
+Amaç:
+Kabul edilmiş teknoloji ve ürün kararlarıyla ana başvuru belgeleri arasındaki bakım borcunu,
+yeni ürün davranışı veya uygulama kodu eklemeden kapatmak.
+
+Kapsam içi:
+- VERI_MODELI.md içindeki etkin Keycloak anlatımlarını, A-004R3 ve güncel IAM
+  sözleşmelerindeki Cognito kararına semantik olarak uyarlamak.
+- Sağlayıcıdan bağımsız issuer/subject, platform user_id, üyelik/rol/izin, opaque platform
+  tokenı, session_generation, kurum kapsamlı iptal, idempotency ve fail-closed provisioning
+  değişmezlerini korumak.
+- URUN_VE_UYGULAMA_PLANI.md karar günlüğüne kabul edilmiş Dalga 1 teknoloji kararlarını ADR
+  referanslarıyla eklemek ve belge sürüm/tarih bilgisini içerikle hizalamak.
+- AGENT_GOREV_PLANI.md sürüm/tarih bilgisini güncellemek ve görev bölme eşiğini
+  ölçülebilir hâle getirmek.
+- AGENTS.md çalışma kurallarını aynı görev bölme eşiğiyle hizalamak.
+- EKRAN_ENVANTERI.md içindeki CTX-01 aday/açık karar anlatımını UI-002'nin kesinleşmiş
+  bağlam seçimi sözleşmesiyle değiştirmek.
+- VERI_MODELI.md içinde program durumu için PASSIVE yerine ortak INACTIVE adını kullanmak;
+  tarihsel AWS/Cognito deletion-protection değerlerine dokunmamak.
+- experiments/a005_local_queue/README.md dosyasına amaç, çalıştırma, kabul kanıtı ve
+  sınırlamaları eklemek.
+
+Kapsam dışı:
+- Uygulama kodu, migration, API davranışı veya ürün kapsamı değiştirmek.
+- Backend format/lint aracı veya CI kalite kapısı eklemek; bu ayrı teknik görevdir.
+- Bulut bağımlı Cognito deneylerini sürekli CI işine çevirmek.
+- Yeni sağlayıcı veya framework kararı vermek.
+
+Bağımlılıklar:
+A-004R3, UI-002 ve IAM-004 tamamlanmış olmalıdır.
+
+Sahip olunan modül/dosyalar:
+VERI_MODELI.md, URUN_VE_UYGULAMA_PLANI.md, AGENT_GOREV_PLANI.md, AGENTS.md,
+EKRAN_ENVANTERI.md, experiments/a005_local_queue/README.md
+
+Beklenen çıktılar:
+- Cognito kararıyla uyumlu ve sağlayıcı sınırları doğru veri modeli.
+- Güncel ana plan karar günlüğü ve belge metaverileri.
+- UI-002 ile uyumlu CTX-01 ekran envanteri.
+- Tekilleştirilmiş INACTIVE durum adı.
+- Ölçülebilir görev bölme kuralı.
+- Tekrar üretilebilir A-005 deney README'si.
+
+Kabul ölçütleri:
+- VERI_MODELI.md'nin normatif alan ve akışlarında etkin Keycloak davranışı kalmaz; kalan
+  Keycloak referansları varsa yalnız açıkça tarihsel/fallback bağlamındadır.
+- Cognito dönüşümü mekanik ad değişimi değildir; create/provisioning, issuer/subject,
+  auth_time, token değişimi ve olay uzlaştırma açıklamaları A-004R3/IAM sözleşmeleriyle
+  semantik olarak uyumludur.
+- Ana plan karar günlüğü en az Flutter, Java 21 + Spring Boot modüler monolit, PostgreSQL
+  hosting ve Cognito Essentials nihai kararlarını ilgili ADR/kanıt belgelerine bağlar.
+- Dokunulan ana belgelerin sürüm ve son güncelleme alanları içerikleriyle tutarlıdır.
+- EKRAN_ENVANTERI.md CTX-01'i açık karar olarak göstermez ve UI-002'nin seçilebilir bağlam
+  kurallarına ters düşmez.
+- programs.status ACTIVE/INACTIVE/ARCHIVED olarak tekilleştirilir; PASSIVE katalog kalıntısı
+  bulunmaz.
+- Görev bölme kuralı yaklaşık 4.000 net satır, 30 dosya veya birden fazla bağımsız kullanım
+  senaryosundan herhangi biri aşıldığında bölme ya da koordinatör onaylı gerekçeli istisna
+  gerektirir; üretilmiş dosya ve lockfile etkisi ayrıca değerlendirilir.
+- A-005 README deneyin çalıştırılmasını, 17 testlik kabul kanıtını ve üretim kapasite kanıtı
+  olmadığını açıklar.
+- Yeni ürün/mimari kararı, uygulama kodu, migration veya CI değişikliği yoktur.
+
+Test/doğrulama:
+- git diff --check
+- Markdown yerel bağlantı ve tablo bütünlüğü kontrolü
+- Keycloak/Cognito, CTX-01 ve PASSIVE/INACTIVE kalıntı taraması
+- A-004R3, ADR-004, IAM sözleşmeleri ve UI-002 ile manuel çapraz kontrol
+- tooling/check_repo_boundaries.sh
+- tooling/check_no_secrets.sh
+
+Teslim notu:
+Agent GOREV_DURUMU.md dosyasını değiştirmez. Bulgular önem sırasına göre raporlanır; commit
+geçmişi amend/force-push ile yeniden yazılmaz. İnceleme düzeltmeleri yeni normal commitlerle
+eklenir.
+```
 
 ### Dalga 0 — Ürün ve sözleşme görevleri
 
