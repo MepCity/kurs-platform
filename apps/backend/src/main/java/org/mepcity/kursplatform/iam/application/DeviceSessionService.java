@@ -15,7 +15,6 @@ import org.mepcity.kursplatform.iam.domain.IamException;
 import org.mepcity.kursplatform.iam.domain.IdempotencyKey;
 import org.mepcity.kursplatform.iam.domain.IdempotencyScope;
 import org.mepcity.kursplatform.iam.domain.IdempotencyStatus;
-import org.mepcity.kursplatform.iam.domain.MembershipRole;
 import org.mepcity.kursplatform.iam.domain.OperationCode;
 import org.mepcity.kursplatform.iam.domain.OrganizationMembership;
 import org.mepcity.kursplatform.iam.domain.RefreshTokenFamily;
@@ -158,12 +157,9 @@ public final class DeviceSessionService {
     }
 
     private void authorizeOrganizationActor(UUID actor, UUID organization) {
-        OrganizationMembership membership = repository.findActiveOrganizationMembershipsByUserId(actor).stream()
-                .filter(m -> organization.equals(m.organizationId())).findFirst().orElseThrow(this::forbidden);
-        boolean admin = repository.findActiveRolesByMembershipId(membership.id()).stream().anyMatch(r -> r.role() == MembershipRole.ORG_ADMIN);
-        boolean delegatedTeacher = repository.findActiveRolesByMembershipId(membership.id()).stream().anyMatch(r -> r.role() == MembershipRole.TEACHER)
-                && repository.findActivePermissionsByMembershipId(membership.id()).stream().anyMatch(p -> "DEVICE_SESSION_REVOKE".equals(p.permissionCode()));
-        if (!admin && !delegatedTeacher) throw forbidden();
+        if (!repository.isDeviceSessionRevokeAuthorized(actor, organization)) {
+            throw forbidden();
+        }
     }
 
     /** Family rows are locked before their tokens; every revoke path uses this single lock order. */

@@ -317,6 +317,13 @@ public class JdbcIamAuthRepository implements IamAuthRepository {
     }
 
     @Override
+    public boolean isDeviceSessionRevokeAuthorized(UUID actorUserId, UUID organizationId) {
+        return Boolean.TRUE.equals(jdbcTemplate.queryForObject(
+                "SELECT iam_device_session_revoke_authorized(?, ?)",
+                Boolean.class, actorUserId, organizationId));
+    }
+
+    @Override
     public Optional<OrganizationMembership> findOrganizationMembershipByIdAndUserId(UUID membershipId, UUID userId) {
         List<OrganizationMembership> results = jdbcTemplate.query(
                 "SELECT id, organization_id, user_id, person_id, status, session_generation, reauthentication_required_after, granted_by_user_id, granted_at FROM organization_memberships WHERE id = ? AND user_id = ?",
