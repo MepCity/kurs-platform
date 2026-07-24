@@ -40,12 +40,21 @@ class _Repository implements AuthenticationRepository {
   _Repository(
     this.organizationActivation, {
     this.platformActivation,
-    this.choices,
-  });
+    AuthContextChoices? choices,
+  }) : choices =
+           choices ??
+           AuthContextChoices(
+             displayName: 'Yasir',
+             memberships: <AuthOrganizationMembership>[
+               _membership('A'),
+               _membership('B'),
+             ],
+             canActivatePlatformAdministrator: false,
+           );
   final Future<AuthenticatedSessionActivation> Function()
   organizationActivation;
   final Future<AuthenticatedSessionActivation> Function()? platformActivation;
-  final AuthContextChoices? choices;
+  final AuthContextChoices choices;
   int organizationCalls = 0;
 
   @override
@@ -62,9 +71,7 @@ class _Repository implements AuthenticationRepository {
       Future<AuthenticatedSessionActivation>.error(UnimplementedError());
 
   @override
-  Future<AuthContextChoices> beginSignIn() => choices == null
-      ? Future<AuthContextChoices>.error(UnimplementedError())
-      : Future<AuthContextChoices>.value(choices);
+  Future<AuthContextChoices> beginSignIn() => Future.value(choices);
 }
 
 class _CountingStore implements SecureSessionStore {
@@ -139,6 +146,51 @@ void main() {
     },
   );
 
+  test('choices yoksa repository ve secure write çağrılmaz', () async {
+    final repository = _Repository(() async => _organizationActivation('A'));
+    final store = _CountingStore();
+    final controller = SignInController(
+      repository: repository,
+      secureSessionStore: store,
+    );
+    expect(await controller.activateOrganization('A'), isNull);
+    expect(repository.organizationCalls, 0);
+    expect(store.commits, 0);
+  });
+
+  test('çelişkili aynı membership seçimleri fail closed reddedilir', () async {
+    final repository = _Repository(
+      () async => _organizationActivation('A'),
+      choices: const AuthContextChoices(
+        displayName: 'Yasir',
+        memberships: <AuthOrganizationMembership>[
+          AuthOrganizationMembership(
+            id: 'A',
+            organizationId: 'org-1',
+            organizationName: 'Bir',
+            roleCodes: <String>[],
+          ),
+          AuthOrganizationMembership(
+            id: 'A',
+            organizationId: 'org-2',
+            organizationName: 'İki',
+            roleCodes: <String>[],
+          ),
+        ],
+        canActivatePlatformAdministrator: false,
+      ),
+    );
+    final store = _CountingStore();
+    final controller = SignInController(
+      repository: repository,
+      secureSessionStore: store,
+    );
+    await controller.begin();
+    expect(await controller.activateOrganization('A'), isNull);
+    expect(repository.organizationCalls, 0);
+    expect(store.commits, 0);
+  });
+
   test('repository beklerken controller dispose edilir: write sıfır', () async {
     final result = Completer<AuthenticatedSessionActivation>();
     final repository = _Repository(() => result.future);
@@ -180,6 +232,7 @@ void main() {
       repository: repository,
       secureSessionStore: store,
     );
+    await controller.begin();
 
     final first = controller.activateOrganization('A');
     final second = controller.activateOrganization('A');
@@ -202,6 +255,8 @@ void main() {
       repository: _Repository(() async => _organizationActivation('B')),
       secureSessionStore: sharedStore,
     );
+    await oldController.begin();
+    await newController.begin();
 
     final oldActivation = oldController.activateOrganization('A');
     final newActivation = await newController.activateOrganization('B');
