@@ -58,9 +58,9 @@ class OrganizationBrandController extends ChangeNotifier {
       // Aynı organizations.rowVersion üç kaynak için ortak snapshot olmalıdır.
       if (brand.rowVersion != colors.rowVersion ||
           brand.rowVersion != modules.rowVersion) {
-        await load(
-          conflictMessage: 'Ayarlar yenilendi; güncel sürüm tekrar yükleniyor.',
-        );
+        _message = 'Ayarların sürümü tutarsız; lütfen yeniden deneyin.';
+        _status = OrganizationBrandStatus.error;
+        _notify();
         return;
       }
       _brand = brand;

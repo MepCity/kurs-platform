@@ -19,6 +19,20 @@ enum OrganizationsMockScope { globalPlatformAdmin }
 /// and (b) bind a minted cursor to "the actor and scope it was minted for"
 /// so a cursor cannot be replayed by a different session (§5.3).
 class OrganizationsMockSession {
+  const OrganizationsMockSession.organizationMember({
+    required String actorUserId,
+    required String organizationId,
+    bool canManageBrand = false,
+    bool canManageModules = false,
+    bool revoked = false,
+  }) : this._(
+         actorUserId: actorUserId,
+         authState: _MockAuthState.organizationMember,
+         organizationId: organizationId,
+         canManageBrand: canManageBrand,
+         canManageModules: canManageModules,
+         revoked: revoked,
+       );
   const OrganizationsMockSession.authenticatedPlatformAdmin({
     required String actorUserId,
   }) : this._(
@@ -54,6 +68,10 @@ class OrganizationsMockSession {
     required this.actorUserId,
     required this._authState,
     this.hasOrganizationContextToken = false,
+    this.organizationId,
+    this.canManageBrand = false,
+    this.canManageModules = false,
+    this.revoked = false,
   });
 
   /// `null` only when [isAuthenticated] is `false`.
@@ -64,11 +82,15 @@ class OrganizationsMockSession {
   /// plain `GLOBAL_PLATFORM_ADMIN` token. See
   /// [OrganizationsMockSession.platformAdminWithOrganizationContext].
   final bool hasOrganizationContextToken;
+  final String? organizationId;
+  final bool canManageBrand, canManageModules, revoked;
 
   bool get isAuthenticated => _authState != _MockAuthState.unauthenticated;
 
   bool get hasGlobalPlatformAdminScope =>
       _authState == _MockAuthState.platformAdmin;
+  bool get isOrganizationMember =>
+      _authState == _MockAuthState.organizationMember;
 
   /// The scope this session would operate under once authorized. PLAT-01
   /// only ever uses [OrganizationsMockScope.globalPlatformAdmin].
@@ -76,4 +98,9 @@ class OrganizationsMockSession {
       OrganizationsMockScope.globalPlatformAdmin;
 }
 
-enum _MockAuthState { platformAdmin, forbidden, unauthenticated }
+enum _MockAuthState {
+  platformAdmin,
+  organizationMember,
+  forbidden,
+  unauthenticated,
+}

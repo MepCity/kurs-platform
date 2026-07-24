@@ -25,6 +25,7 @@ enum OrganizationsFailureCode {
   rateLimited,
   versionConflict,
   stateConflict,
+  resourceNotFound,
 }
 
 /// Domain-level failure raised by [OrganizationsRepository.listOrganizations]

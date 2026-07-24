@@ -93,6 +93,8 @@ class OrganizationsMockRepository
       <String, OrganizationBrandColors>{};
   final Map<String, OrganizationModules> _modules =
       <String, OrganizationModules>{};
+  final Map<String, _BrandIdempotencyEntry> _brandIdempotency =
+      <String, _BrandIdempotencyEntry>{};
 
   static const int _maxCursorRegistrySize = 500;
   static const int _maxLimit = 100;
@@ -283,14 +285,23 @@ class OrganizationsMockRepository
     return created;
   }
 
-  void _assertBrandAccess() {
+  void _assertBrandAccess(
+    String organizationId, {
+    required bool write,
+    required bool module,
+  }) {
     if (!session.isAuthenticated) {
       throw const OrganizationsFailure(
         OrganizationsFailureCode.unauthenticated,
         'Oturum geçersiz veya süresi dolmuş.',
       );
     }
-    if (!session.hasGlobalPlatformAdminScope) {
+    if (session.hasGlobalPlatformAdminScope) return;
+    if (!session.isOrganizationMember ||
+        session.revoked ||
+        session.organizationId != organizationId ||
+        (write &&
+            (module ? !session.canManageModules : !session.canManageBrand))) {
       throw const OrganizationsFailure(
         OrganizationsFailureCode.forbidden,
         'Bu kurum ayarını değiştirme yetkiniz yok.',
@@ -301,10 +312,12 @@ class OrganizationsMockRepository
   @override
   Future<OrganizationBrand> getBrand(String organizationId) async {
     await Future<void>.delayed(latency);
-    _assertBrandAccess();
+    _assertBrandAccess(organizationId, write: false, module: false);
     if (!_organizations.any((o) => o.id == organizationId)) {
-      throw const OrganizationsFailure(
-        OrganizationsFailureCode.forbidden,
+      throw OrganizationsFailure(
+        session.hasGlobalPlatformAdminScope
+            ? OrganizationsFailureCode.resourceNotFound
+            : OrganizationsFailureCode.forbidden,
         'Kurum bulunamadı veya erişim izniniz yok.',
       );
     }
@@ -325,7 +338,18 @@ class OrganizationsMockRepository
     String clientMutationId,
   ) async {
     await Future<void>.delayed(latency);
-    _assertBrandAccess();
+    _assertBrandAccess(organizationId, write: true, module: false);
+    final fingerprint =
+        '${brand.primaryColor}|${brand.secondaryColor}|${brand.rowVersion}';
+    final idKey = '${session.actorUserId}:brand:$clientMutationId';
+    final replay = _brandIdempotency[idKey];
+    if (replay != null) {
+      if (replay.fingerprint == fingerprint) return replay.brand;
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.idempotencyKeyReused,
+        'Bu istek anahtarı farklı içerikle kullanıldı.',
+      );
+    }
     final current = await getBrand(organizationId);
     if (current.rowVersion != brand.rowVersion) {
       throw const OrganizationsFailure(
@@ -351,6 +375,7 @@ class OrganizationsMockRepository
       rowVersion: current.rowVersion + 1,
     );
     _brands[organizationId] = updated;
+    _brandIdempotency[idKey] = _BrandIdempotencyEntry(fingerprint, updated);
     if (existingColors != null) {
       _brandColors[organizationId] = OrganizationBrandColors(
         rowVersion: updated.rowVersion,
@@ -370,7 +395,7 @@ class OrganizationsMockRepository
   @override
   Future<OrganizationBrandColors> getBrandColors(String organizationId) async {
     await Future<void>.delayed(latency);
-    _assertBrandAccess();
+    _assertBrandAccess(organizationId, write: false, module: false);
     await getBrand(organizationId);
     return _brandColors.putIfAbsent(
       organizationId,
@@ -385,7 +410,7 @@ class OrganizationsMockRepository
     String clientMutationId,
   ) async {
     await Future<void>.delayed(latency);
-    _assertBrandAccess();
+    _assertBrandAccess(organizationId, write: true, module: false);
     final current = await getBrandColors(organizationId);
     if (current.rowVersion != colors.rowVersion) {
       throw const OrganizationsFailure(
@@ -447,7 +472,7 @@ class OrganizationsMockRepository
   @override
   Future<OrganizationModules> getModules(String organizationId) async {
     await Future<void>.delayed(latency);
-    _assertBrandAccess();
+    _assertBrandAccess(organizationId, write: false, module: true);
     return _modules.putIfAbsent(
       organizationId,
       () => OrganizationModules(
@@ -472,7 +497,7 @@ class OrganizationsMockRepository
     String clientMutationId,
   ) async {
     await Future<void>.delayed(latency);
-    _assertBrandAccess();
+    _assertBrandAccess(organizationId, write: true, module: true);
     final current = await getModules(organizationId);
     if (current.rowVersion != modules.rowVersion) {
       throw const OrganizationsFailure(
@@ -699,6 +724,12 @@ class OrganizationsMockRepository
       );
     });
   }
+}
+
+class _BrandIdempotencyEntry {
+  const _BrandIdempotencyEntry(this.fingerprint, this.brand);
+  final String fingerprint;
+  final OrganizationBrand brand;
 }
 
 /// Server-side idempotency record for one `createOrganization` attempt. See
