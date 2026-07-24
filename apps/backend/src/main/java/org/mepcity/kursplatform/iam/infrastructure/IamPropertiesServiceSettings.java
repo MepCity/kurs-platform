@@ -29,6 +29,11 @@ public class IamPropertiesServiceSettings implements IamServiceSettings {
     }
 
     @Override
+    public java.time.Duration deviceCursorTtl() {
+        return properties.getTokens().getDeviceCursorTtl();
+    }
+
+    @Override
     public java.time.Duration activationEscrowTtl() {
         return properties.getEscrow().getActivationTtl();
     }

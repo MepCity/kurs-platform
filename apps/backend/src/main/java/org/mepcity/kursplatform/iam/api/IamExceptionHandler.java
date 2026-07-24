@@ -105,7 +105,7 @@ public class IamExceptionHandler {
             case "FORBIDDEN", "ORGANIZATION_CONTEXT_REQUIRED", "ACCOUNT_NOT_READY", "REAUTHENTICATION_REQUIRED" -> HttpStatus.FORBIDDEN;
             case "RESOURCE_NOT_FOUND" -> HttpStatus.NOT_FOUND;
             case "IDEMPOTENCY_KEY_REUSED", "STATE_CONFLICT", "VERSION_CONFLICT" -> HttpStatus.CONFLICT;
-            case "INVALID_REQUEST" -> HttpStatus.BAD_REQUEST;
+            case "INVALID_REQUEST", "INVALID_CURSOR" -> HttpStatus.BAD_REQUEST;
             case "VALIDATION_FAILED", "BUSINESS_RULE_VIOLATION" -> HttpStatus.UNPROCESSABLE_ENTITY;
             case "RATE_LIMITED" -> HttpStatus.TOO_MANY_REQUESTS;
             case "PROVIDER_UNAVAILABLE" -> HttpStatus.SERVICE_UNAVAILABLE;

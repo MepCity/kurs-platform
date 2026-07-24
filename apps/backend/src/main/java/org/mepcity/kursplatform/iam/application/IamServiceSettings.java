@@ -14,6 +14,11 @@ public interface IamServiceSettings {
 
     Duration idempotencyRetention();
 
+    /** Maximum lifetime of an encrypted, actor/query-bound device listing cursor. */
+    default Duration deviceCursorTtl() {
+        return Duration.ofMinutes(15);
+    }
+
     // --- Provider-command worker / scheduler (IAM-004) ---
 
     boolean providerCommandWorkerEnabled();
