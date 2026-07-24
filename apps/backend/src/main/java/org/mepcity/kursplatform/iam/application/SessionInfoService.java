@@ -62,8 +62,10 @@ public class SessionInfoService {
     private SessionInfoResult resolveSessionHash(String accessTokenHash) {
         Instant now = clock.instant();
         RefreshToken token = repository.findRefreshTokenByAccessTokenHash(accessTokenHash)
-                .filter(t -> !t.isRevoked() && !t.isUsed())
                 .orElseThrow(() -> new IamException("UNAUTHENTICATED", "Access token geçersiz."));
+        if (token.isRevoked() || token.isUsed()) {
+            throw new IamException("SESSION_REVOKED", "Access token oturumu iptal edilmiş.");
+        }
         if (token.isExpired(now)) {
             throw new IamException("UNAUTHENTICATED", "Access token süresi dolmuş.");
         }
@@ -71,8 +73,10 @@ public class SessionInfoService {
         transactionExecutor.refreshIamAuthScope(IamAuthScopeContext.bootstrapFamily(token.familyId()));
 
         RefreshTokenFamily family = repository.findRefreshTokenFamilyById(token.familyId())
-                .filter(f -> !f.isRevoked())
                 .orElseThrow(() -> new IamException("UNAUTHENTICATED", "Oturum bulunamadı."));
+        if (family.isRevoked()) {
+            throw new IamException("SESSION_REVOKED", "Oturum ailesi iptal edilmiş.");
+        }
 
         transactionExecutor.refreshIamAuthScope(
                 IamAuthScopeContext.actorAndDevice(family.userId(), family.trustedDeviceId()));

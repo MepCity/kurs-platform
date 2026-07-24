@@ -21,30 +21,33 @@ final class JacksonDeviceSessionSnapshotSerializer implements DeviceSessionSnaps
     @Override public String serialize(DeviceRevokeResult value) {
         TrustedDevice d = value.device();
         return write(new DeviceSnapshot(VERSION, "device-revoke", d.id(), d.userId(), d.deviceIdentifier(), d.deviceName(),
-                d.platform(), d.trustedAt().toEpochMilli(), d.lastSeenAt().toEpochMilli(),
-                d.revokedAt() == null ? null : d.revokedAt().toEpochMilli(), value.revokedRefreshTokenFamilyCount(), value.currentDevice()));
+                d.platform(), d.trustedAt().toString(), d.lastSeenAt().toString(),
+                d.revokedAt() == null ? null : d.revokedAt().toString(),
+                value.revokedRefreshTokenFamilyCount(), value.currentDevice()));
     }
 
     @Override public String serialize(MembershipRevokeResult value) {
         return write(new MembershipSnapshot(VERSION, "membership-revoke", value.organizationMembershipId(), value.organizationId(),
-                value.sessionGeneration(), value.reauthenticationRequiredAfter().toEpochMilli(), value.revokedRefreshTokenFamilyCount()));
+                value.sessionGeneration(), value.reauthenticationRequiredAfter().toString(),
+                value.revokedRefreshTokenFamilyCount()));
     }
 
     @Override public DeviceRevokeResult readDeviceRevoke(String payload) {
         DeviceSnapshot s = read(payload, DeviceSnapshot.class);
         if (s.version != VERSION || !"device-revoke".equals(s.kind) || s.id == null || s.userId == null || s.deviceIdentifier == null
-                || s.deviceName == null || s.platform == null || s.trustedAtEpochMillis <= 0 || s.lastSeenAtEpochMillis <= 0 || s.familyCount < 0) throw invalid();
+                || s.deviceName == null || s.platform == null || s.trustedAt == null
+                || s.lastSeenAt == null || s.familyCount < 0) throw invalid();
         return new DeviceRevokeResult(new TrustedDevice(s.id, s.userId, s.deviceIdentifier, s.deviceName, s.platform,
-                java.time.Instant.ofEpochMilli(s.trustedAtEpochMillis), java.time.Instant.ofEpochMilli(s.lastSeenAtEpochMillis),
-                s.revokedAtEpochMillis == null ? null : java.time.Instant.ofEpochMilli(s.revokedAtEpochMillis)), s.familyCount, s.currentDevice, true);
+                instant(s.trustedAt), instant(s.lastSeenAt),
+                s.revokedAt == null ? null : instant(s.revokedAt)), s.familyCount, s.currentDevice, true);
     }
 
     @Override public MembershipRevokeResult readMembershipRevoke(String payload) {
         MembershipSnapshot s = read(payload, MembershipSnapshot.class);
         if (s.version != VERSION || !"membership-revoke".equals(s.kind) || s.membershipId == null || s.organizationId == null
-                || s.sessionGeneration < 0 || s.reauthenticationRequiredAfterEpochMillis <= 0 || s.familyCount < 0) throw invalid();
+                || s.sessionGeneration < 0 || s.reauthenticationRequiredAfter == null || s.familyCount < 0) throw invalid();
         return new MembershipRevokeResult(s.membershipId, s.organizationId, s.sessionGeneration,
-                java.time.Instant.ofEpochMilli(s.reauthenticationRequiredAfterEpochMillis), s.familyCount);
+                instant(s.reauthenticationRequiredAfter), s.familyCount);
     }
 
     private String write(Object value) {
@@ -55,11 +58,15 @@ final class JacksonDeviceSessionSnapshotSerializer implements DeviceSessionSnaps
         try { return mapper.readValue(payload, type); }
         catch (Exception exception) { throw invalid(); }
     }
+    private java.time.Instant instant(String value) {
+        try { return java.time.Instant.parse(value); }
+        catch (Exception exception) { throw invalid(); }
+    }
     private IllegalArgumentException invalid() { return new IllegalArgumentException("Geçersiz snapshot."); }
 
     private record DeviceSnapshot(int version, String kind, UUID id, UUID userId, UUID deviceIdentifier, String deviceName,
-                                  DevicePlatform platform, long trustedAtEpochMillis, long lastSeenAtEpochMillis, Long revokedAtEpochMillis,
+                                  DevicePlatform platform, String trustedAt, String lastSeenAt, String revokedAt,
                                   int familyCount, boolean currentDevice) { }
     private record MembershipSnapshot(int version, String kind, UUID membershipId, UUID organizationId, int sessionGeneration,
-                                      long reauthenticationRequiredAfterEpochMillis, int familyCount) { }
+                                      String reauthenticationRequiredAfter, int familyCount) { }
 }

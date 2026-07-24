@@ -19,7 +19,9 @@ class JacksonDeviceSessionSnapshotSerializerTests {
     @Test
     void roundTripsTypedDeviceResultAndMarksReplay() {
         TrustedDevice device = new TrustedDevice(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "Pixel", DevicePlatform.ANDROID,
-                Instant.parse("2026-07-24T12:00:00Z"), Instant.parse("2026-07-24T12:01:00Z"), Instant.parse("2026-07-24T12:02:00Z"));
+                Instant.parse("2026-07-24T12:00:00.123456Z"),
+                Instant.parse("2026-07-24T12:01:00.654321Z"),
+                Instant.parse("2026-07-24T12:02:00.987654Z"));
 
         DeviceRevokeResult replay = serializer.readDeviceRevoke(serializer.serialize(new DeviceRevokeResult(device, 2, true, false)));
 
@@ -42,9 +44,12 @@ class JacksonDeviceSessionSnapshotSerializerTests {
         String user = UUID.randomUUID().toString();
         String identifier = UUID.randomUUID().toString();
         String base = "{\"version\":1,\"kind\":\"device-revoke\",\"id\":\"" + id + "\",\"userId\":\"" + user
-                + "\",\"deviceIdentifier\":\"" + identifier + "\",\"deviceName\":\"x\",\"platform\":\"ANDROID\",\"trustedAtEpochMillis\":1,\"lastSeenAtEpochMillis\":1,\"familyCount\":0,\"currentDevice\":false";
+                + "\",\"deviceIdentifier\":\"" + identifier + "\",\"deviceName\":\"x\",\"platform\":\"ANDROID\","
+                + "\"trustedAt\":\"2026-07-24T12:00:00.123456Z\",\"lastSeenAt\":\"2026-07-24T12:01:00.654321Z\","
+                + "\"familyCount\":0,\"currentDevice\":false";
         String[] invalid = {"{\"version\":1,\"kind\":\"device-revoke\"}", base + ",\"familyCount\":-1}",
-                base + ",\"unknown\":true}", base.replace(id, "not-a-uuid") + "}", base.replace("\"trustedAtEpochMillis\":1", "\"trustedAtEpochMillis\":0") + "}"};
+                base + ",\"unknown\":true}", base.replace(id, "not-a-uuid") + "}",
+                base.replace("2026-07-24T12:00:00.123456Z", "not-an-instant") + "}"};
         for (String payload : invalid) {
             assertThatThrownBy(() -> serializer.readDeviceRevoke(payload)).isInstanceOf(IllegalArgumentException.class);
         }
@@ -53,7 +58,7 @@ class JacksonDeviceSessionSnapshotSerializerTests {
     @Test
     void roundTripsMembershipSnapshotAndRejectsMalformedPayloadsFailClosed() {
         MembershipRevokeResult value = new MembershipRevokeResult(UUID.randomUUID(), UUID.randomUUID(), 3,
-                Instant.parse("2026-07-24T12:02:00Z"), 2);
+                Instant.parse("2026-07-24T12:02:00.987654Z"), 2);
         assertThat(serializer.readMembershipRevoke(serializer.serialize(value))).isEqualTo(value);
 
         String[] invalid = {
