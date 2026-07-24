@@ -42,11 +42,21 @@ public final class DeviceSessionService {
         this.settings = settings; this.clock = clock;
     }
 
-    public List<TrustedDevice> list(String bearer, int limit) {
+    public DevicePage list(String bearer, String cursor, int limit) {
+        if (limit < 1 || limit > 100) throw new IamException("INVALID_REQUEST", "limit 1 ile 100 arasında olmalıdır.");
         ActiveSession actor = requirePlatformAccess(bearer);
+        UUID currentDeviceId = sessionInfo.resolveSession(bearer).device().id();
+        DeviceCursorCodec.Cursor position = cursor == null || cursor.isBlank() ? null : new DeviceCursorCodec(tokenHasher).decode(actor.userId(), cursor);
         return transactions.executeInIamAuthScope(OperationCode.DEVICE_LIST,
                 IamTransactionExecutor.IamAuthScopeContext.actorOnly(actor.userId()),
-                () -> repository.findActiveTrustedDevicesByUserId(actor.userId(), Math.min(Math.max(limit, 1), 100)));
+                () -> {
+                    List<TrustedDevice> rows = repository.findActiveTrustedDevicesPage(actor.userId(),
+                            position == null ? null : position.trustedAt(), position == null ? null : position.id(), limit + 1);
+                    boolean hasNext = rows.size() > limit;
+                    List<TrustedDevice> page = hasNext ? rows.subList(0, limit) : rows;
+                    String next = hasNext ? new DeviceCursorCodec(tokenHasher).encode(actor.userId(), page.getLast().trustedAt(), page.getLast().id()) : null;
+                    return new DevicePage(page.stream().map(device -> new DeviceListItem(device, device.id().equals(currentDeviceId))).toList(), next, hasNext);
+                });
     }
 
     public DeviceRevokeResult revokeOwnDevice(String bearer, UUID deviceId, String key) {
@@ -78,17 +88,20 @@ public final class DeviceSessionService {
                             .filter(m -> organizationId.equals(m.organizationId())).orElseThrow(this::notFound);
                     String fingerprint = "DS|" + organizationId + "|" + actor.userId() + "|" + targetMembershipId;
                     if (replay(actor.userId(), key, IdempotencyScope.ORGANIZATION, organizationId,
-                            OperationCode.DEVICE_SESSION_REVOKE, fingerprint)) return new MembershipRevokeResult(targetMembershipId, 0, true);
+                            OperationCode.DEVICE_SESSION_REVOKE, fingerprint)) return MembershipRevokeResult.from(target, 0);
                     List<RefreshTokenFamily> families = repository.findActiveRefreshTokenFamiliesByOrganizationMembershipId(targetMembershipId);
                     for (RefreshTokenFamily family : families) { repository.revokeRefreshTokensInFamily(family.id(), clock.instant()); repository.revokeRefreshTokenFamily(family.id(), clock.instant()); }
-                    repository.advanceMembershipSessionBarrier(targetMembershipId);
+                    if (!families.isEmpty()) {
+                        repository.advanceMembershipSessionBarrier(targetMembershipId);
+                        target = repository.findOrganizationMembershipById(targetMembershipId).orElseThrow(this::notFound);
+                    }
                     complete(actor.userId(), key, IdempotencyScope.ORGANIZATION, organizationId, OperationCode.DEVICE_SESSION_REVOKE, fingerprint, targetMembershipId);
                     audit("DEVICE_SESSION_REVOKED", IamAuditEvent.EventScope.ORGANIZATION, organizationId, actor.userId(), target.userId(),
                             Map.of("operationCode", OperationCode.DEVICE_SESSION_REVOKE.name(), "organizationMembershipId", targetMembershipId.toString(), "revokedRefreshTokenFamilyCount", families.size()));
                     if (support) audits.write(new IamAuditEvent(UUID.randomUUID(), organizationId, actor.userId(), MDC.get("requestId"),
                             "PLATFORM_ADMIN_ORG_ACCESS", IamAuditEvent.EventScope.ORGANIZATION, "ORGANIZATION", IamAuditEvent.EventKind.ACCESS,
                             organizationId, Map.of(), Map.of("operationCode", OperationCode.DEVICE_SESSION_REVOKE.name(), "outcome", "SUCCESS")));
-                    return new MembershipRevokeResult(targetMembershipId, families.size(), false);
+                    return MembershipRevokeResult.from(target, families.size());
                 });
     }
 
@@ -166,5 +179,13 @@ public final class DeviceSessionService {
     private IamException notFound() { return new IamException("RESOURCE_NOT_FOUND", "Kaynak bulunamadı."); }
 
     public record DeviceRevokeResult(TrustedDevice device, int revokedRefreshTokenFamilyCount, boolean currentDevice, boolean replayed) { }
-    public record MembershipRevokeResult(UUID organizationMembershipId, int revokedRefreshTokenFamilyCount, boolean replayed) { }
+    public record MembershipRevokeResult(UUID organizationMembershipId, UUID organizationId, int sessionGeneration,
+                                         Instant reauthenticationRequiredAfter, int revokedRefreshTokenFamilyCount) {
+        static MembershipRevokeResult from(OrganizationMembership membership, int count) {
+            return new MembershipRevokeResult(membership.id(), membership.organizationId(), membership.sessionGeneration(),
+                    membership.reauthenticationRequiredAfter(), count);
+        }
+    }
+    public record DeviceListItem(TrustedDevice device, boolean currentDevice) { }
+    public record DevicePage(List<DeviceListItem> items, String nextCursor, boolean hasNextPage) { }
 }

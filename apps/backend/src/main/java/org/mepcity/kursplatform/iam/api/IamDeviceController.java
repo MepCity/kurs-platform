@@ -25,8 +25,12 @@ public final class IamDeviceController {
 
     @GetMapping("/devices")
     public ResponseEntity<DeviceListResponse> list(@RequestHeader("Authorization") String authorization,
+                                                   @RequestParam(required = false) String cursor,
                                                    @RequestParam(defaultValue = "50") int limit) {
-        return ResponseEntity.ok(new DeviceListResponse(devices.list(token(authorization), limit).stream().map(DeviceResponse::from).toList()));
+        var result = devices.list(token(authorization), cursor, limit);
+        return ResponseEntity.ok(new DeviceListResponse(result.items().stream()
+                .map(item -> DeviceResponse.from(item.device(), item.currentDevice())).toList(),
+                new PageResponse(result.nextCursor(), result.hasNextPage())));
     }
 
     @PostMapping("/devices/{deviceId}/revoke")
@@ -35,7 +39,7 @@ public final class IamDeviceController {
                                                            @PathVariable UUID deviceId) {
         IdempotencyKeyValidator.requireValid(key);
         var result = devices.revokeOwnDevice(token(authorization), deviceId, key);
-        return ResponseEntity.ok(new DeviceRevokeResponse(DeviceResponse.from(result.device()), result.currentDevice(), result.revokedRefreshTokenFamilyCount(), result.replayed()));
+        return ResponseEntity.ok(new DeviceRevokeResponse(DeviceResponse.from(result.device(), result.currentDevice()), result.currentDevice(), result.revokedRefreshTokenFamilyCount()));
     }
 
     @PostMapping("/organizations/{organizationId}/memberships/{membershipId}/session-revoke")
@@ -44,7 +48,8 @@ public final class IamDeviceController {
                                                                        @PathVariable UUID organizationId, @PathVariable UUID membershipId) {
         IdempotencyKeyValidator.requireValid(key);
         var result = devices.revokeOrganizationSessions(token(authorization), organizationId, membershipId, key);
-        return ResponseEntity.ok(new MembershipRevokeResponse(result.organizationMembershipId(), result.revokedRefreshTokenFamilyCount(), result.replayed()));
+        return ResponseEntity.ok(new MembershipRevokeResponse(result.organizationMembershipId(), result.organizationId(),
+                result.sessionGeneration(), result.reauthenticationRequiredAfter(), result.revokedRefreshTokenFamilyCount()));
     }
 
     @PostMapping("/platform-admin/users/{userId}/devices/{deviceId}/revoke")
@@ -53,17 +58,20 @@ public final class IamDeviceController {
                                                                 @PathVariable UUID userId, @PathVariable UUID deviceId) {
         IdempotencyKeyValidator.requireValid(key);
         var result = devices.revokePlatformDevice(token(authorization), userId, deviceId, key);
-        return ResponseEntity.ok(new DeviceRevokeResponse(DeviceResponse.from(result.device()), false, result.revokedRefreshTokenFamilyCount(), result.replayed()));
+        return ResponseEntity.ok(new DeviceRevokeResponse(DeviceResponse.from(result.device(), false), false, result.revokedRefreshTokenFamilyCount()));
     }
 
     private String token(String authorization) {
         if (authorization == null || !authorization.startsWith("Bearer ")) throw new IamException("UNAUTHENTICATED", "Authorization başlığı geçersiz.");
         return authorization.substring(7);
     }
-    public record DeviceListResponse(List<DeviceResponse> items) { }
-    public record DeviceResponse(UUID id, UUID deviceIdentifier, String platform, String deviceName, java.time.Instant trustedAt, java.time.Instant lastSeenAt) {
-        static DeviceResponse from(org.mepcity.kursplatform.iam.domain.TrustedDevice d) { return new DeviceResponse(d.id(), d.deviceIdentifier(), d.platform().name(), d.deviceName(), d.trustedAt(), d.lastSeenAt()); }
+    public record DeviceListResponse(List<DeviceResponse> items, PageResponse page) { }
+    public record PageResponse(String nextCursor, boolean hasNextPage) { }
+    public record DeviceResponse(UUID id, UUID deviceIdentifier, String platform, String deviceName, java.time.Instant trustedAt, java.time.Instant lastSeenAt, java.time.Instant revokedAt, boolean isCurrentDevice) {
+        static DeviceResponse from(org.mepcity.kursplatform.iam.domain.TrustedDevice d) { return from(d, false); }
+        static DeviceResponse from(org.mepcity.kursplatform.iam.domain.TrustedDevice d, boolean current) { return new DeviceResponse(d.id(), d.deviceIdentifier(), d.platform().name(), d.deviceName(), d.trustedAt(), d.lastSeenAt(), d.revokedAt(), current); }
     }
-    public record DeviceRevokeResponse(DeviceResponse device, boolean isCurrentDevice, int revokedRefreshTokenFamilyCount, boolean replayed) { }
-    public record MembershipRevokeResponse(UUID organizationMembershipId, int revokedRefreshTokenFamilyCount, boolean replayed) { }
+    public record DeviceRevokeResponse(DeviceResponse device, boolean isCurrentDevice, int revokedRefreshTokenFamilyCount) { }
+    public record MembershipRevokeResponse(UUID organizationMembershipId, UUID organizationId, int sessionGeneration,
+                                           java.time.Instant reauthenticationRequiredAfter, int revokedRefreshTokenFamilyCount) { }
 }
