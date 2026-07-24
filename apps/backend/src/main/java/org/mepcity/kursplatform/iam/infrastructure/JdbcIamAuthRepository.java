@@ -441,16 +441,22 @@ public class JdbcIamAuthRepository implements IamAuthRepository {
     }
 
     @Override
+    public void lockActiveRefreshTokensInFamily(UUID familyId) {
+        jdbcTemplate.query("SELECT id FROM refresh_tokens WHERE family_id = ? AND revoked_at IS NULL ORDER BY id FOR UPDATE",
+                (rs, rowNum) -> rs.getObject(1, UUID.class), familyId);
+    }
+
+    @Override
     public List<RefreshTokenFamily> findActiveRefreshTokenFamiliesByTrustedDeviceId(UUID trustedDeviceId) {
         return jdbcTemplate.query("SELECT id, user_id, trusted_device_id, organization_membership_id, authenticated_at, issued_at_session_generation, revoked_at, created_at "
-                        + "FROM refresh_token_families WHERE trusted_device_id = ? AND revoked_at IS NULL FOR UPDATE",
+                        + "FROM refresh_token_families WHERE trusted_device_id = ? AND revoked_at IS NULL ORDER BY id FOR UPDATE",
                 (rs, rowNum) -> mapRefreshTokenFamily(rs), trustedDeviceId);
     }
 
     @Override
     public List<RefreshTokenFamily> findActiveRefreshTokenFamiliesByOrganizationMembershipId(UUID membershipId) {
         return jdbcTemplate.query("SELECT id, user_id, trusted_device_id, organization_membership_id, authenticated_at, issued_at_session_generation, revoked_at, created_at "
-                        + "FROM refresh_token_families WHERE organization_membership_id = ? AND revoked_at IS NULL FOR UPDATE",
+                        + "FROM refresh_token_families WHERE organization_membership_id = ? AND revoked_at IS NULL ORDER BY id FOR UPDATE",
                 (rs, rowNum) -> mapRefreshTokenFamily(rs), membershipId);
     }
 
@@ -458,6 +464,14 @@ public class JdbcIamAuthRepository implements IamAuthRepository {
     public Optional<OrganizationMembership> findOrganizationMembershipById(UUID membershipId) {
         List<OrganizationMembership> results = jdbcTemplate.query("SELECT id, organization_id, user_id, person_id, status, session_generation, reauthentication_required_after, granted_by_user_id, granted_at "
                         + "FROM organization_memberships WHERE id = ?",
+                (rs, rowNum) -> mapOrganizationMembership(rs), membershipId);
+        return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+    }
+
+    @Override
+    public Optional<OrganizationMembership> findOrganizationMembershipByIdForUpdate(UUID membershipId) {
+        List<OrganizationMembership> results = jdbcTemplate.query("SELECT id, organization_id, user_id, person_id, status, session_generation, reauthentication_required_after, granted_by_user_id, granted_at "
+                        + "FROM organization_memberships WHERE id = ? FOR UPDATE",
                 (rs, rowNum) -> mapOrganizationMembership(rs), membershipId);
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
