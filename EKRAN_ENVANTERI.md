@@ -3,14 +3,14 @@
 | Alan | Değer |
 |---|---|
 | Görev | P-007 — İlk sürüm ekran envanterini çıkar |
-| Belge sürümü | 1.2 |
+| Belge sürümü | 1.3 |
 | Ana sözleşme | `URUN_VE_UYGULAMA_PLANI.md` |
 | Terim kaynağı | `TERIMLER_SOZLUGU.md` |
 | Bilgi mimarisi kaynakları | `YONETICI_BILGI_MIMARISI.md` (P-005), `HOCA_MOBIL_BILGI_MIMARISI.md` (P-006) |
 | Yetki kaynağı | `YETKI_MATRISI.md` |
 | Aktör/senaryo kaynağı | `AKTORLER_VE_KULLANIM_SENARYOLARI.md` |
 | Veri modeli kaynağı | `VERI_MODELI.md` |
-| Son güncelleme | 14 Temmuz 2026 |
+| Son güncelleme | 24 Temmuz 2026 |
 
 ---
 
@@ -105,7 +105,7 @@ gösterilir.
 
 | Kimlik | Ekran adı | Açıklama | Durumlar | Senaryo |
 |---|---|---|---|---|
-| CTX-01 | Bağlam Seçimi / Değiştir | Birden fazla rol/kurum ataması olan kullanıcının aktif bağlamını seçmesi veya değiştirmesi. Bu ekran adaydır; gösterilme koşulu ve kesin davranışı `UI-002` sözleşmesinin açık kararıdır. | Y, B, H, Z | — |
+| CTX-01 | Bağlam Seçimi / Değiştir | Seçilebilir bağlamları (etkin kurum üyelikleri ve varsa `GLOBAL_PLATFORM_ADMIN`) seçtirir veya değiştirir. Toplam bağlam sayısı birden fazlaysa zorunlu görünür; tek bağlamda görsel ekran atlanabilir, ancak sunucu aktivasyonu zorunludur. Kurum seçimi sonrası çoklu rol seçimi bu ekranın alt durumudur. | Y, B, H, Z | IAM-001, UI-002 §7 |
 
 ### Rol bazlı görünürlük
 
@@ -113,9 +113,13 @@ gösterilir.
 |---|---|---|---|
 | CTX-01 | Koşullu (birden fazla bağlam varsa) | Koşullu (birden fazla bağlam varsa) | Koşullu (birden fazla bağlam varsa) |
 
-**Not:** `YONETICI_BILGI_MIMARISI.md` bölüm 8'de bu ekran açık nokta olarak kaydedilmiştir.
-Kesin koşul (yalnızca girişte mi, sürekli erişilebilir mi) `UI-002`'ye bırakılmıştır. Bu belge
-ekranın varlığını kaydeder.
+**Kesin davranış:** CTX-01, `provider-token-exchange` sonrasında toplam seçilebilir bağlam
+sayısı birden fazlaysa gösterilir ve Profil menüsündeki “Kurum/Bağlam Değiştir” girişiyle aynı
+koşulda yeniden açılır. Bağlam değişimi yeni `provider-token-exchange` ve tek-kullanımlı
+context-selection tokenıyla sunucuda aktivasyon gerektirir; istemci kurum kimliğini değiştirerek
+oturum kapsamını değiştiremez. `GLOBAL_PLATFORM_ADMIN` sentetik kurum üyeliği değildir. Aynı
+kurumda birden fazla rol varsa rol seçimi, kurum aktivasyonundan sonra CTX-01'in alt durumunda
+gösterilir; rol değişimi token kapsamını genişletmeden yalnız navigasyon kabuğunu değiştirir.
 
 ---
 
@@ -180,10 +184,9 @@ Bu ekranlar seçili sınıf bağlamında çalışır; bir sınıf seçilmeden op
 | CLS-01 | Evet (destek modunda) | Evet | Evet (yalnızca atanmış sınıflar) |
 | CLS-02 | Evet (destek modunda) | Evet | Evet (yalnızca atanmış sınıf) |
 
-**Not — Tek sınıflı hoca optimizasyonu:** Hoca yalnızca bir sınıfa atanmışsa CLS-01 atlanarak
-doğrudan CLS-02 gösterilebilir; ancak aktif sınıf bağlamı arayüzde görünür kalmalı ve
-kullanıcı sınıf değiştirme ekranına her zaman ulaşabilmelidir. Bu kesin davranış `UI-002`'de
-netleşecektir.
+**Not — Sınıf seçimi davranışı:** `UI-002` kararıyla geçerli sınıf sayısı 0 ise boş durum
+gösterilir ve CLS-01 açılmaz; sayı 1 ise sınıf otomatik seçilir ve CLS-01 görsel olarak atlanır;
+sayı 2 veya daha fazlaysa CLS-01 zorunlu açılır. Seçili sınıf bağlamı arayüzde görünür kalır.
 
 ---
 
@@ -580,8 +583,8 @@ gösterilmemeli, tanımlı ve beklenen durumlar olarak ele alınmalıdır.
 
 | Durum | Sınıf İşlemleri | Yönetim | Rapor ve Denetim |
 |---|---|---|---|
-| Hiç sınıfa atanmamış, kurum kapsamlı yönetim izni var | CLS-01: boş durum ("Henüz atanmış bir sınıfın yok") | Normal çalışır | Normal çalışır (iznine göre) |
-| Hiç sınıfa atanmamış, hiç kurum kapsamlı yönetim izni yok | CLS-01: boş durum | Gizli (hiç gösterilmez) | Gizli (hiç gösterilmez) |
+| Hiç sınıfa atanmamış, kurum kapsamlı yönetim izni var | CLS-01 açılmaz; boş durum ("Henüz atanmış bir sınıfın yok") | Normal çalışır | Normal çalışır (iznine göre) |
+| Hiç sınıfa atanmamış, hiç kurum kapsamlı yönetim izni yok | CLS-01 açılmaz; boş durum | Gizli (hiç gösterilmez) | Gizli (hiç gösterilmez) |
 | Sınıfa atanmış, hiç yönetim izni yok | Normal çalışır | Gizli (hiç gösterilmez) | Gizli (hiç gösterilmez) |
 
 İkinci durumda kullanıcıya kurum yöneticisiyle iletişime geçmesini öneren açıklayıcı bir
@@ -654,10 +657,11 @@ boş durum gösterilmelidir.
   birleştirebilir; bu kararın kesinleşmesi mobil uygulama tasarımı sırasında (`UI-*` görevleri)
   yapılacaktır. Bu envanter ayrı kimliklendirme yapmıştır; birleştirilmesi halinde kimlikler
   arası eşleme korunmalıdır.
-- CTX-01 (bağlam seçimi) aday ekrandır; gösterilme koşulu ve kesin davranışı `UI-002`'ye
-  bırakılmıştır (`YONETICI_BILGI_MIMARISI.md` bölüm 8).
-- Tek sınıflı hoca optimizasyonu (CLS-01 atlama) kullanılabilirlik varsayımıdır; kesinleşmesi
-  `UI-002`'ye bırakılmıştır (`HOCA_MOBIL_BILGI_MIMARISI.md` bölüm 9).
+- CTX-01'in kesin bağlam seçme/değiştirme davranışı `UI_002_NAVIGASYON_VE_ROL_BAZLI_MENU_SOZLESMESI.md`
+  §7 ile uyumludur; bu envanter aynı davranışı ekran düzeyinde kaydeder.
+- Tek sınıflı hoca için geçerli sınıf sayısı 1 olduğunda sınıf otomatik seçilir ve CLS-01 görsel
+  olarak atlanır; 0 sınıfta boş durumla CLS-01 açılmaz, 2+ sınıfta CLS-01 zorunlu açılır. Bu
+  kesin davranış `UI_002_NAVIGASYON_VE_ROL_BAZLI_MENU_SOZLESMESI.md` §8 ile uyumludur.
 
 ### 19.1. Revizyon notu — v1.1
 
@@ -674,6 +678,11 @@ boş durum gösterilmelidir.
   dönüştürüldü ve ekran KURUM-06 senaryosuna bağlandı.
 - HOCA-01 giriş/oturum senaryosu AUTH-01–AUTH-03 ekranlarında doğrudan izlenebilir yapıldı.
 
+### 19.3. Revizyon notu — v1.3
+
+- CTX-01, UI-002/IAM-001 ile kesinleşen seçilebilir bağlam, zorunlu aktivasyon, bağlam
+  değiştirme ve çoklu rol alt durumu kurallarıyla senkronize edildi.
+
 ---
 
 ## 20. Bilinen sınırlamalar
@@ -682,8 +691,6 @@ boş durum gösterilmelidir.
   içermez.
 - Kesin navigasyon bileşeni (sekme sayısı, simge tasarımı, geçiş animasyonları) `UI-002`
   kapsamıdır.
-- Çoklu rol/bağlam geçişinin kesin ürün davranışı `UI-002`'ye bırakılmış bir açık noktadır;
-  bu belge yalnızca CTX-01 aday ekranını kaydeder.
 - Özel öğrenci alanı yönetimi V1'de bağlayıcı olarak hocaya kapalıdır; gelecekte devredilmesi
   yeni ürün kararı ve izin kataloğu girdisi gerektirir.
 - Eski sistem (Excel/HTML/Apps Script) bu repoda bulunmadığından, ekran envanterinin eski

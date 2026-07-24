@@ -4,14 +4,14 @@
 
 | Alan | Değer |
 |---|---|
-| Belge sürümü | 1.2 |
+| Belge sürümü | 1.3 |
 | Durum | Onaylanmış başlangıç sözleşmesi |
 | İlk yayın hedefi | Yaklaşık 2–3 ay; kalite zaman baskısından önceliklidir |
 | İlk sürüm kullanıcıları | Platform yöneticisi, kurum yöneticisi ve hocalar |
 | İlk istemciler | iOS ve Android mobil uygulama |
 | Sonraki istemciler | Web yönetim paneli, veli ve öğrenci uygulama deneyimi |
 | Veri başlangıcı | Temiz başlangıç; eski Excel ve Google Sheets verileri yalnızca referanstır |
-| Son güncelleme | 15 Temmuz 2026 |
+| Son güncelleme | 24 Temmuz 2026 |
 
 ---
 
@@ -659,13 +659,14 @@ Mobil uygulama şu sorumluluklara ayrılmalıdır:
 - **Data:** API, yerel veritabanı, önbellek ve senkronizasyon
 - **Core:** Kimlik, tema, yönlendirme, hata işleme, loglama ve ortak altyapı
 
-Ön teknoloji adayı Flutter'dır. Kesin karar, Faz 0'da yapılacak küçük dikey teknik deneme
-sonrasında verilecektir. Deneme iOS ve Android üzerinde giriş, öğrenci listesi, yoklama,
-yerel kayıt ve eşitleme akışını doğrulamalıdır.
+Flutter, `ADR/ADR-001-mobil-framework.md` ve A-001 dikey denemesiyle iOS/Android için kabul
+edilmiş mobil framework'tür. Deney; giriş, öğrenci listesi, yoklama, yerel kayıt ve eşitleme
+akışını iki platformda doğrulamıştır.
 
 ### 11.3. Backend yaklaşımı
 
-- Backend modüler monolit olarak başlamalıdır.
+- Backend, `ADR/ADR-002_BACKEND_DILI_VE_FRAMEWORK.md` ile kabul edilen Java 21 + Spring Boot
+  modüler monolit olarak başlayacaktır.
 - Her modül kendi uygulama servislerine ve veri erişim sınırlarına sahip olmalıdır.
 - Dış istemciler yalnızca sürümlenmiş API üzerinden işlem yapmalıdır.
 - İş kuralları mobil uygulamada veya veritabanı tetikleyicilerinde dağınık hâlde
@@ -674,7 +675,9 @@ yerel kayıt ve eşitleme akışını doğrulamalıdır.
 
 ### 11.4. Veritabanı
 
-- Ana veri kaynağı PostgreSQL gibi ilişkisel bir veritabanı olmalıdır.
+- Ana veri kaynağı, `ADR/ADR-003-postgresql-ve-hosting.md` ile kabul edilen PostgreSQL'dir.
+  Başlangıç hosting yaklaşımı ölçülmüş ihtiyaçla kademeli açılır; production için erişim,
+  yedek/geri yükleme ve bütçe kapıları sağlanmadan yalnız ücretsiz kota gerekçesiyle açılmaz.
 - Her kuruma bağlı tabloda `organization_id` benzeri açık kurum ilişkisi bulunmalıdır.
 - Yabancı anahtarlar ve benzersiz kısıtlar veri bütünlüğünü korumalıdır.
 - Sık kullanılan kurum, sınıf, öğrenci ve tarih sorguları indekslenmelidir.
@@ -1293,6 +1296,36 @@ Dalga 0 belgeleri tamamlanmadan ilgili alanda büyük ölçekli geliştirmeye ba
 - Sürekli staging, PITR, Render Pro ve yüksek erişilebilirlik başlangıç zorunluluğu olmaktan
   çıkarılmış; ölçülmüş kullanım veya kabul edilmiş RPO/RTO tetiklerine bağlanmıştır.
 
+### 15 Temmuz 2026 — Kabul edilen teknoloji kararları
+
+- **A-001:** iOS ve Android mobil framework'ü Flutter'dır
+  (`ADR/ADR-001-mobil-framework.md`, `experiments/a001_flutter_spike`).
+- **A-002:** Backend, Java 21 LTS + Spring Boot 4.1.x + Spring MVC ile modüler monolit olarak
+  uygulanacaktır (`ADR/ADR-002_BACKEND_DILI_VE_FRAMEWORK.md`).
+- **A-003:** Kademeli maliyet profiliyle yönetilen PostgreSQL için Supabase seçilmiştir;
+  tercih edilen bölge Frankfurt / `eu-central-1`dir. Bu karar Supabase Auth, Storage, Realtime
+  veya Data API'nin seçildiği anlamına gelmez (`ADR/ADR-003-postgresql-ve-hosting.md`).
+- **A-004R3:** V1'in nihai kimlik sağlayıcısı Amazon Cognito Essentials'tır
+  (`ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md`,
+  `A004R3_COGNITO_MALIYET_OPERASYON_VE_TEARDOWN_KANITI.md`).
+
+### 16 Temmuz 2026 — A-004R3 nihai kimlik kararı
+
+- PLAN-005'teki "Cognito deneyleri tamamlanana kadar" ifadesi tarihsel geçiş kararı olarak
+  korunur. Yerine geçen nihai karar: V1 global son kullanıcı kimlik sağlayıcısı Amazon Cognito
+  Essentials User Pool'dur (`ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md`,
+  `A004R3_COGNITO_MALIYET_OPERASYON_VE_TEARDOWN_KANITI.md`). Keycloak yalnız açık fallback
+  seçeneği olarak kalır.
+- Cognito yalnız global kimliği doğrular; `(issuer, subject)` → platform `user_id` eşlemesi,
+  kurum üyeliği/rol/izin ve kurum kapsamlı opaque platform oturumları IAM'de kalır.
+- Dalga 1 karar dizini: A-005 yerel mobil veritabanı/kuyruk
+  (`ADR/ADR-005-yerel-mobil-veritabani-ve-kuyruk.md`), A-006 gerçek zamanlı kanal
+  (`ADR/ADR-006-gercek-zamanli-kanal.md`), A-007 dosya depolama
+  (`ADR/ADR-007-pdf-dosya-depolama.md`), A-008 Excel üretimi
+  (`ADR/ADR-008-excel-uretim-yaklasimi.md`), A-009 monorepo
+  (`ADR/ADR-009-monorepo-ve-repo-yapisi.md`) ve A-010 ortam/maliyet sözleşmesi
+  (`ORTAM_SOZLESMESI.md`) ayrıntıları kendi kabul kayıtlarında bağlayıcıdır.
+
 ### 20 Temmuz 2026 — Erken audit çekirdeği ve migration sırası
 
 - Kurum yaşam döngüsü audit kaydı olmadan production çağrı yüzeyi açmayacağı için audit
@@ -1314,9 +1347,13 @@ Dalga 0 belgeleri tamamlanmadan ilgili alanda büyük ölçekli geliştirmeye ba
 
 ---
 
-## 27. Bir sonraki adım
+## 27. Tarihsel başlangıç sırası
 
-Bu belge onaylandıktan sonra ilk çalışma **Faz 0** olacaktır. İlk alt adımlar:
+Bu bölüm, belgenin ilk onayındaki başlangıç sırasını tarihsel kayıt olarak korur. Aşağıdaki
+P-001, P-008 ve A-001 gibi başlangıç adımları tamamlanmıştır; güncel aktif dalga ve sıradaki iş
+yalnız `GOREV_DURUMU.md` dosyasından takip edilir.
+
+İlk planlanan alt adımlar:
 
 1. Terimler sözlüğünü hazırlamak,
 2. Ayrıntılı yetki matrisini oluşturmak,
@@ -1324,8 +1361,7 @@ Bu belge onaylandıktan sonra ilk çalışma **Faz 0** olacaktır. İlk alt adı
 4. Çekirdek veri modelini kesinleştirmek,
 5. Mobil teknoloji ve eşzamanlı yoklama için dikey teknik deneme planı hazırlamak.
 
-Kodlama, bu beş alt adımın kapsamı ve kabul ölçütleri netleşmeden ana geliştirme olarak
-başlatılmamalıdır.
+Bu tarihsel sıralama, güncel çalışma önceliğini veya yeni bir görev adını sabitlemez.
 
 Günlük çalışma sırası, paralel agent kullanımı, görev bağımlılıkları ve modül bazlı atomik
 iş paketleri `AGENT_GOREV_PLANI.md` belgesinde tanımlanmıştır. Repo üzerinde çalışan bütün
