@@ -14,6 +14,12 @@ public interface IamTransactionExecutor {
 
     <T> T executeInGlobalScope(OperationCode operationCode, IamAuthScopeContext context, Supplier<T> action);
 
+    /** Organization-scoped IAM command. The support gate is deliberately server-only. */
+    default <T> T executeInOrganizationScope(OperationCode operationCode, IamAuthScopeContext context,
+                                             boolean platformAdminSupportAccess, Supplier<T> action) {
+        throw new UnsupportedOperationException("ORGANIZATION IAM scope desteklenmiyor.");
+    }
+
     /** IAM_PROVISIONING scope: TEACHER_ACCOUNT_CREATE / TEACHER_ACCOUNT_FINALIZE provider commands. */
     <T> T executeInProvisioningScope(OperationCode operationCode, IamAuthScopeContext context, Supplier<T> action);
 
@@ -31,6 +37,11 @@ public interface IamTransactionExecutor {
     /** Server-only fail-closed security revoke gate; never sourced from an HTTP request. */
     default void requireSecurityRevoke() {
         throw new IllegalStateException("Security revoke gate bu transaction executor tarafından desteklenmiyor.");
+    }
+
+    /** Opens the support-only RLS branch after the active administrator row was rechecked. */
+    default void enablePlatformAdminSupportAccess() {
+        throw new IllegalStateException("Platform yönetici destek kapısı desteklenmiyor.");
     }
 
     record IamAuthScopeContext(
@@ -95,6 +106,18 @@ public interface IamTransactionExecutor {
         public IamAuthScopeContext withMembership(UUID membershipId, UUID organizationId) {
             return new IamAuthScopeContext(actorUserId, currentTrustedDeviceId, currentFamilyId,
                     membershipId, organizationId, targetDeviceId, targetUserId,
+                    targetIdentityId, providerDeviceIdentifier, verifiedAuthTime, contextTokenHash, accessTokenHash, refreshTokenHash);
+        }
+
+        public IamAuthScopeContext withTargetDevice(UUID deviceId) {
+            return new IamAuthScopeContext(actorUserId, currentTrustedDeviceId, currentFamilyId,
+                    targetMembershipId, targetOrganizationId, deviceId, targetUserId,
+                    targetIdentityId, providerDeviceIdentifier, verifiedAuthTime, contextTokenHash, accessTokenHash, refreshTokenHash);
+        }
+
+        public IamAuthScopeContext withTargetUser(UUID userId) {
+            return new IamAuthScopeContext(actorUserId, currentTrustedDeviceId, currentFamilyId,
+                    targetMembershipId, targetOrganizationId, targetDeviceId, userId,
                     targetIdentityId, providerDeviceIdentifier, verifiedAuthTime, contextTokenHash, accessTokenHash, refreshTokenHash);
         }
 

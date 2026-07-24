@@ -4,6 +4,7 @@ import org.mepcity.kursplatform.iam.application.AeadEscrowService;
 import org.mepcity.kursplatform.iam.application.CognitoTokenVerifier;
 import org.mepcity.kursplatform.iam.application.CognitoUserStatusChecker;
 import org.mepcity.kursplatform.iam.application.ContextSelectionService;
+import org.mepcity.kursplatform.iam.application.DeviceSessionService;
 import org.mepcity.kursplatform.iam.application.IamAuditWriter;
 import org.mepcity.kursplatform.iam.application.IamAuthRepository;
 import org.mepcity.kursplatform.iam.application.IamServiceSettings;
@@ -154,6 +155,15 @@ public class IamInfrastructureConfiguration {
                 }
             }
         };
+    }
+
+    @Bean
+    DeviceSessionService deviceSessionService(IamAuthRepository repository, IamTransactionExecutor transactions,
+                                              ActiveSessionResolver credentials, SessionInfoService sessionInfoService,
+                                              TokenHasher tokenHasher, IamAuditWriter auditWriter,
+                                              IamServiceSettings settings, Clock clock) {
+        return new DeviceSessionService(repository, transactions, credentials, sessionInfoService, tokenHasher,
+                auditWriter, settings, clock);
     }
 
     @Bean

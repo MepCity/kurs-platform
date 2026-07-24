@@ -8,6 +8,7 @@ import org.mepcity.kursplatform.iam.domain.IdempotencyScope;
 import org.mepcity.kursplatform.iam.domain.OperationCode;
 import org.mepcity.kursplatform.iam.domain.OrganizationMembership;
 import org.mepcity.kursplatform.iam.domain.OrganizationMembershipRole;
+import org.mepcity.kursplatform.iam.domain.OrganizationMembershipPermission;
 import org.mepcity.kursplatform.iam.domain.PlatformAdministrator;
 import org.mepcity.kursplatform.iam.domain.ProviderCommand;
 import org.mepcity.kursplatform.iam.domain.RefreshToken;
@@ -37,6 +38,12 @@ public interface IamAuthRepository {
     Optional<TrustedDevice> findActiveTrustedDevice(UUID userId, UUID deviceIdentifier);
 
     Optional<TrustedDevice> findTrustedDeviceById(UUID userId, UUID deviceId);
+
+    List<TrustedDevice> findActiveTrustedDevicesByUserId(UUID userId, int limit);
+
+    Optional<TrustedDevice> findTrustedDeviceByIdForUpdate(UUID userId, UUID deviceId);
+
+    boolean revokeTrustedDeviceIfActive(UUID userId, UUID deviceId);
 
     Optional<Instant> getMaxRevokedAtForDevicePair(UUID userId, UUID deviceIdentifier);
 
@@ -88,6 +95,16 @@ public interface IamAuthRepository {
     void revokeRefreshTokenFamily(UUID familyId, Instant revokedAt);
 
     void revokeRefreshTokensInFamily(UUID familyId, Instant revokedAt);
+
+    List<RefreshTokenFamily> findActiveRefreshTokenFamiliesByTrustedDeviceId(UUID trustedDeviceId);
+
+    List<RefreshTokenFamily> findActiveRefreshTokenFamiliesByOrganizationMembershipId(UUID membershipId);
+
+    Optional<OrganizationMembership> findOrganizationMembershipById(UUID membershipId);
+
+    List<OrganizationMembershipPermission> findActivePermissionsByMembershipId(UUID membershipId);
+
+    void advanceMembershipSessionBarrier(UUID membershipId);
 
     Optional<AuthSession> findAuthSessionByAccessTokenHash(String accessTokenHash);
 
