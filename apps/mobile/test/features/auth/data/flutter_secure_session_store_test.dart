@@ -301,7 +301,10 @@ void main() {
         );
         await secure.payloadWriteStarted!.future;
 
-        final newLease = await newStore.beginActivation();
+        final newLeaseFuture = newStore.beginActivation();
+        secure.payloadWriteGate!.complete();
+        expect(await oldCommit, isFalse);
+        final newLease = await newLeaseFuture;
         expect(
           await newStore.commit(
             newLease,
@@ -309,9 +312,6 @@ void main() {
           ),
           isTrue,
         );
-        secure.payloadWriteGate!.complete();
-
-        expect(await oldCommit, isFalse);
         expect(
           (await newStore.read())?.organizationMembershipId,
           'membership-b',
