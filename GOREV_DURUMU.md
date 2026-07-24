@@ -5,7 +5,7 @@
 | Son güncelleme | 24 Temmuz 2026 |
 | Aktif dalga | Dalga 2 — Kimlik, kurum ve mobil kabuk |
 | Aktif görev | Yok |
-| Sıradaki görev | IAM-008 — Mobil güvenli oturum saklamayı uygula |
+| Sıradaki görev | ORG-008 — Kurum adı ve renk ayarı mobil akışı (dosyasız) |
 
 Bu dosya projenin kaldığı yeri gösteren kısa operasyon panosudur. Her çalışma oturumunun
 başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev tanımları
@@ -15,8 +15,6 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 
 | Kimlik | Görev | Boyut | Not |
 |---|---|---:|---|
-| IAM-008 | Mobil güvenli oturum saklamayı uygula | M | IAM-002 ve A-005 tamamlandı; mobil alanda IAM-003 backend migration çalışmasıyla paralel ilerleyebilir |
-| IAM-006 | Cihaz kaydı, DEVICE_SESSION_REVOKE ve yeniden doğrulamayı uygula | M | IAM-002 ve IAM-005 tamamlandı; IAM backend oturum alanında başlanabilir |
 | ORG-008 | Kurum adı ve renk ayarı mobil akışı (dosyasız) | M | ORG-002, ORG-005, UI-001, UI-003 ve UI-004 tamamlandı; sıradaki ORG mobil görevi |
 
 ## IN_PROGRESS
@@ -25,7 +23,9 @@ Aktif görev yok.
 
 ## REVIEW
 
-İncelemede görev yok.
+| Kimlik | Görev | Pull Request | Not |
+|---|---|---|---|
+| IAM-006 | Cihaz kaydı, DEVICE_SESSION_REVOKE ve yeniden doğrulamayı uygula | PR #57 | Cursor bütünlüğü ile gerçek PostgreSQL/HTTP güvenlik kanıtlarına ilişkin inceleme düzeltmeleri sürüyor |
 
 ## BLOCKED
 
@@ -35,6 +35,7 @@ Bloke görev yok.
 
 | Kimlik | Görev | Tamamlanma tarihi | Teslim |
 |---|---|---|---|
+| IAM-008 | Mobil güvenli oturum saklamayı uygula | 24 Temmuz 2026 | Keychain/Android Keystore tabanlı güvenli oturum saklama, fail-closed bütünlük/kurulum işaretçisi, ortak fiziksel işlem kuyruğu ve 483 mobil test; Android/iOS kalite kapıları PASS — PR #56 |
 | PLAN-006 | Belge ve sözleşme senkronizasyonunu tamamla | 24 Temmuz 2026 | Cognito veri modeli, karar günlüğü/metaveri, CTX-01, program durumu, görev bölme kuralı ve A-005 deney belgesi senkronizasyonu — PR #55 |
 | PLAN-001 | Ana ürün ve mimari planını oluştur | 13 Temmuz 2026 | `URUN_VE_UYGULAMA_PLANI.md` |
 | PLAN-002 | Agent odaklı görev planını oluştur | 13 Temmuz 2026 | `AGENT_GOREV_PLANI.md` |
