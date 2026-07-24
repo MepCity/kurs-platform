@@ -2,6 +2,8 @@ import 'dart:math';
 
 import '../domain/organization.dart';
 import '../domain/organization_create_request.dart';
+import '../domain/organization_brand.dart';
+import '../domain/organization_brand_repository.dart';
 import '../domain/organization_list_query.dart';
 import '../domain/organization_list_result.dart';
 import '../domain/organization_search_normalization.dart';
@@ -40,7 +42,8 @@ import 'organizations_mock_session.dart';
 ///   in the registry).
 /// - Resuming by keyset (not offset) means a record inserted or removed
 ///   ahead of the cursor's position cannot cause a skipped or repeated row.
-class OrganizationsMockRepository implements OrganizationsRepository {
+class OrganizationsMockRepository
+    implements OrganizationsRepository, OrganizationBrandRepository {
   OrganizationsMockRepository({
     List<Organization>? seed,
     this.latency = const Duration(milliseconds: 400),
@@ -85,6 +88,9 @@ class OrganizationsMockRepository implements OrganizationsRepository {
   /// matter.
   final Map<String, _CreateIdempotencyEntry> _createIdempotencyRegistry =
       <String, _CreateIdempotencyEntry>{};
+  final Map<String, OrganizationBrand> _brands = <String, OrganizationBrand>{};
+  final Map<String, OrganizationModules> _modules =
+      <String, OrganizationModules>{};
 
   static const int _maxCursorRegistrySize = 500;
   static const int _maxLimit = 100;
@@ -273,6 +279,167 @@ class OrganizationsMockRepository implements OrganizationsRepository {
       organization: created,
     );
     return created;
+  }
+
+  void _assertBrandAccess() {
+    if (!session.isAuthenticated) {
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.unauthenticated,
+        'Oturum geçersiz veya süresi dolmuş.',
+      );
+    }
+    if (!session.hasGlobalPlatformAdminScope) {
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.forbidden,
+        'Bu kurum ayarını değiştirme yetkiniz yok.',
+      );
+    }
+  }
+
+  @override
+  Future<OrganizationBrand> getBrand(String organizationId) async {
+    await Future<void>.delayed(latency);
+    _assertBrandAccess();
+    if (!_organizations.any((o) => o.id == organizationId)) {
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.forbidden,
+        'Kurum bulunamadı veya erişim izniniz yok.',
+      );
+    }
+    return _brands.putIfAbsent(
+      organizationId,
+      () => const OrganizationBrand(
+        primaryColor: '#2E7D32',
+        secondaryColor: '#E65100',
+        rowVersion: 1,
+      ),
+    );
+  }
+
+  @override
+  Future<OrganizationBrand> updateBrand(
+    String organizationId,
+    OrganizationBrand brand,
+    String clientMutationId,
+  ) async {
+    await Future<void>.delayed(latency);
+    _assertBrandAccess();
+    final current = await getBrand(organizationId);
+    if (current.rowVersion != brand.rowVersion) {
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.versionConflict,
+        'Ayarlar başka bir kullanıcı tarafından güncellendi.',
+      );
+    }
+    final primaryError = validateBrandHex('Ana renk', brand.primaryColor);
+    final secondaryError = validateBrandHex(
+      'Yardımcı renk',
+      brand.secondaryColor,
+    );
+    if (primaryError != null || secondaryError != null) {
+      throw OrganizationsFailure(
+        OrganizationsFailureCode.validationFailed,
+        primaryError ?? secondaryError!,
+      );
+    }
+    final colors = brand.colors
+        .map(
+          (e) => OrganizationBrandColor(
+            colorHex: normalizeBrandHex(e.colorHex),
+            sortOrder: e.sortOrder,
+          ),
+        )
+        .toList();
+    if (colors.length > 20 ||
+        colors.any(
+          (e) =>
+              !RegExp(r'^#[0-9A-F]{6}$').hasMatch(e.colorHex) ||
+              e.sortOrder < 0 ||
+              e.sortOrder > 999,
+        ) ||
+        colors.map((e) => e.colorHex).toSet().length != colors.length) {
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.validationFailed,
+        'Yardımcı renk paleti geçersiz.',
+      );
+    }
+    final updated = OrganizationBrand(
+      primaryColor: normalizeBrandHex(brand.primaryColor),
+      secondaryColor: normalizeBrandHex(brand.secondaryColor),
+      rowVersion: current.rowVersion + 1,
+      colors: List.unmodifiable(colors),
+    );
+    _brands[organizationId] = updated;
+    final existingModules = _modules[organizationId];
+    if (existingModules != null) {
+      _modules[organizationId] = OrganizationModules(
+        rowVersion: updated.rowVersion,
+        items: existingModules.items,
+      );
+    }
+    return updated;
+  }
+
+  @override
+  Future<OrganizationModules> getModules(String organizationId) async {
+    await Future<void>.delayed(latency);
+    _assertBrandAccess();
+    return _modules.putIfAbsent(
+      organizationId,
+      () => OrganizationModules(
+        rowVersion: 1,
+        items: OrganizationModuleCode.values.indexed
+            .map(
+              (e) => OrganizationModule(
+                code: e.$2,
+                isEnabled: true,
+                sortOrder: e.$1,
+              ),
+            )
+            .toList(),
+      ),
+    );
+  }
+
+  @override
+  Future<OrganizationModules> updateModules(
+    String organizationId,
+    OrganizationModules modules,
+    String clientMutationId,
+  ) async {
+    await Future<void>.delayed(latency);
+    _assertBrandAccess();
+    final current = await getModules(organizationId);
+    if (current.rowVersion != modules.rowVersion) {
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.versionConflict,
+        'Modüller başka bir kullanıcı tarafından güncellendi.',
+      );
+    }
+    if (modules.items.length != OrganizationModuleCode.values.length ||
+        modules.items.map((e) => e.code).toSet().length !=
+            OrganizationModuleCode.values.length ||
+        modules.items.any((e) => e.sortOrder < 0 || e.sortOrder > 999)) {
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.validationFailed,
+        'Modül ayarları geçersiz.',
+      );
+    }
+    final updated = OrganizationModules(
+      rowVersion: current.rowVersion + 1,
+      items: List.unmodifiable(modules.items),
+    );
+    _modules[organizationId] = updated;
+    final existingBrand = _brands[organizationId];
+    if (existingBrand != null) {
+      _brands[organizationId] = OrganizationBrand(
+        primaryColor: existingBrand.primaryColor,
+        secondaryColor: existingBrand.secondaryColor,
+        rowVersion: updated.rowVersion,
+        colors: existingBrand.colors,
+      );
+    }
+    return updated;
   }
 
   static String _generateOrganizationId() {

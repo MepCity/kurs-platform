@@ -23,6 +23,8 @@ enum OrganizationsFailureCode {
   idempotencyKeyReused,
   internalError,
   rateLimited,
+  versionConflict,
+  stateConflict,
 }
 
 /// Domain-level failure raised by [OrganizationsRepository.listOrganizations]
