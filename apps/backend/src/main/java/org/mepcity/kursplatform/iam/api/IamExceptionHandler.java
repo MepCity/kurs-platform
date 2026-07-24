@@ -1,6 +1,7 @@
 package org.mepcity.kursplatform.iam.api;
 
 import org.mepcity.kursplatform.iam.domain.IamException;
+import org.mepcity.kursplatform.iam.application.IamRateLimitExceededException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -38,7 +39,11 @@ public class IamExceptionHandler {
         if (httpStatus == HttpStatus.INTERNAL_SERVER_ERROR) {
             LOG.error("Unmapped IAM error code {}", ex.errorCode(), ex);
         }
-        return respond(httpStatus, code, message);
+        ResponseEntity<Map<String, Object>> response = respond(httpStatus, code, message);
+        if (ex instanceof IamRateLimitExceededException rateLimit) {
+            return ResponseEntity.status(httpStatus).header("Retry-After", Long.toString(rateLimit.retryAfterSeconds())).body(response.getBody());
+        }
+        return response;
     }
 
     /** Malformed JSON body, or the body stream was empty where one was required. */
