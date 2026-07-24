@@ -75,7 +75,7 @@ class ProviderCommandSchedulerRegistrationTests {
     }
 
     @Test
-    void noSchedulerBeanExistsWithoutADataSource() {
+    void iamInfrastructureFailsFastWithoutItsRequiredDataSource() {
         ApplicationContextRunner runnerWithoutDataSource = new ApplicationContextRunner()
                 .withUserConfiguration(IamCoreConfiguration.class, IamInfrastructureConfiguration.class,
                         PackageScanProbe.class, IamPropertiesServiceSettings.class)
@@ -89,9 +89,6 @@ class ProviderCommandSchedulerRegistrationTests {
                         "iam.cognito.management-api.secret-access-key=real-secret-key",
                         "iam.provider-command.worker.enabled=true");
 
-        runnerWithoutDataSource.run(context -> {
-            assertThat(context).hasNotFailed();
-            assertThat(context.getBeansOfType(ProviderCommandScheduler.class)).isEmpty();
-        });
+        runnerWithoutDataSource.run(context -> assertThat(context).hasFailed());
     }
 }

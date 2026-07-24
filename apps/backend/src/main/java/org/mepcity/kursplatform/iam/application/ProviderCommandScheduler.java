@@ -39,8 +39,8 @@ import java.util.UUID;
  * </ul>
  *
  * <p><b>Single owner:</b> this class is deliberately a plain object, NOT a Spring stereotype
- * ({@code @Configuration}/{@code @Component}) — the {@code @ConditionalOnBean(DataSource.class)} /
- * {@code @ConditionalOnProperty(...)} gate lives solely on {@code
+ * ({@code @Configuration}/{@code @Component}) — the {@code @ConditionalOnProperty(...)} gate lives
+ * solely on {@code
  * IamInfrastructureConfiguration.providerCommandScheduler(...)}. Annotating this class itself with
  * {@code @Configuration} in addition to that {@code @Bean} method previously made classpath
  * component scan (rooted at the application's root package) register a SECOND bean definition

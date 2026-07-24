@@ -10,10 +10,8 @@ import java.time.Clock;
 
 /**
  * Beans the IAM module needs that do NOT require a DataSource — split out from
- * {@link IamInfrastructureConfiguration} (which is {@code @ConditionalOnBean(DataSource.class)})
- * so that {@link IamLocalStubConfiguration}'s local-stub/test beans (which also need {@link
- * IamProperties} and {@link HmacSha256TokenHasher} but never a real database) don't depend on a
- * DataSource existing either. Always active, in every profile.
+ * {@link IamInfrastructureConfiguration} so local-stub/test adapters can reuse them independently.
+ * Always active, in every profile.
  */
 @Configuration
 @EnableConfigurationProperties(IamProperties.class)
