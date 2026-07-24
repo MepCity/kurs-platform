@@ -1,35 +1,94 @@
 package org.mepcity.kursplatform.iam.application;
 
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.UUID;
+import javax.crypto.Cipher;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import org.mepcity.kursplatform.iam.domain.IamException;
 import org.mepcity.kursplatform.iam.domain.TokenHasher;
 
-/** Opaque, actor-bound and MAC-protected pagination cursor; clients cannot manufacture a valid value. */
+/**
+ * AEAD-protected, query-bound device-list cursor.  The key is derived from the configured token
+ * pepper through the existing {@link TokenHasher} port; neither the position nor the actor is
+ * visible to a client and a cursor cannot be moved between actors or page sizes.
+ */
 final class DeviceCursorCodec {
     private static final String PURPOSE = "iam-device-list-cursor-v1";
-    private final TokenHasher hasher;
-    DeviceCursorCodec(TokenHasher hasher) { this.hasher = hasher; }
+    private static final int NONCE_BYTES = 12;
+    private static final int TAG_BITS = 128;
+    private final SecretKeySpec key;
+    private final SecureRandom random;
+    private final Instant now;
+    private final Duration ttl;
 
-    String encode(UUID actor, Instant trustedAt, UUID id) {
-        String payload = actor + "|" + trustedAt + "|" + id;
-        String signed = payload + "|" + hasher.hashWithPepper(payload, PURPOSE);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(signed.getBytes(StandardCharsets.UTF_8));
+    DeviceCursorCodec(TokenHasher hasher, Instant now, Duration ttl) {
+        this(hasher, now, ttl, new SecureRandom());
     }
 
-    Cursor decode(UUID actor, String cursor) {
+    DeviceCursorCodec(TokenHasher hasher, Instant now, Duration ttl, SecureRandom random) {
+        if (ttl == null || ttl.isZero() || ttl.isNegative()) {
+            throw new IllegalArgumentException("Cursor TTL pozitif olmalıdır.");
+        }
+        this.key = new SecretKeySpec(Base64.getDecoder().decode(hasher.hashWithPepper(PURPOSE, PURPOSE)), "AES");
+        this.now = now;
+        this.ttl = ttl;
+        this.random = random;
+    }
+
+    String encode(UUID actor, int limit, Instant trustedAt, UUID id) {
         try {
-            String signed = new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8);
-            String[] parts = signed.split("\\|", -1);
-            if (parts.length != 4 || !actor.toString().equals(parts[0])) throw invalid();
-            String payload = String.join("|", parts[0], parts[1], parts[2]);
-            if (!java.security.MessageDigest.isEqual(hasher.hashWithPepper(payload, PURPOSE).getBytes(StandardCharsets.UTF_8),
-                    parts[3].getBytes(StandardCharsets.UTF_8))) throw invalid();
-            return new Cursor(Instant.parse(parts[1]), UUID.fromString(parts[2]));
-        } catch (IllegalArgumentException exception) { throw invalid(); }
+            byte[] nonce = new byte[NONCE_BYTES];
+            random.nextBytes(nonce);
+            ByteBuffer plaintext = ByteBuffer.allocate(8 + 16);
+            plaintext.putLong(trustedAt.toEpochMilli()).putLong(id.getMostSignificantBits()).putLong(id.getLeastSignificantBits());
+            Cipher cipher = cipher(Cipher.ENCRYPT_MODE, nonce, actor, limit);
+            byte[] encrypted = cipher.doFinal(plaintext.array());
+            ByteBuffer token = ByteBuffer.allocate(8 + NONCE_BYTES + encrypted.length);
+            token.putLong(now.plus(ttl).toEpochMilli()).put(nonce).put(encrypted);
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(token.array());
+        } catch (Exception exception) {
+            throw new IllegalStateException("Cursor oluşturulamadı.", exception);
+        }
     }
-    private IamException invalid() { return new IamException("INVALID_REQUEST", "Cursor geçersiz."); }
+
+    Cursor decode(UUID actor, int limit, String cursor) {
+        try {
+            byte[] token = Base64.getUrlDecoder().decode(cursor);
+            if (token.length <= 8 + NONCE_BYTES) throw invalid();
+            ByteBuffer buffer = ByteBuffer.wrap(token);
+            long expiresAt = buffer.getLong();
+            if (Instant.ofEpochMilli(expiresAt).isBefore(now)) throw invalid();
+            byte[] nonce = new byte[NONCE_BYTES];
+            buffer.get(nonce);
+            byte[] encrypted = new byte[buffer.remaining()];
+            buffer.get(encrypted);
+            byte[] plaintext = cipher(Cipher.DECRYPT_MODE, nonce, actor, limit).doFinal(encrypted);
+            if (plaintext.length != 24) throw invalid();
+            ByteBuffer position = ByteBuffer.wrap(plaintext);
+            return new Cursor(Instant.ofEpochMilli(position.getLong()), new UUID(position.getLong(), position.getLong()));
+        } catch (IamException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw invalid();
+        }
+    }
+
+    private Cipher cipher(int mode, byte[] nonce, UUID actor, int limit) throws Exception {
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        cipher.init(mode, key, new GCMParameterSpec(TAG_BITS, nonce));
+        cipher.updateAAD((PURPOSE + "|" + actor + "|" + limit).getBytes(StandardCharsets.UTF_8));
+        return cipher;
+    }
+
+    private IamException invalid() {
+        return new IamException("INVALID_CURSOR", "Cursor geçersiz veya süresi dolmuş.");
+    }
+
     record Cursor(Instant trustedAt, UUID id) { }
 }

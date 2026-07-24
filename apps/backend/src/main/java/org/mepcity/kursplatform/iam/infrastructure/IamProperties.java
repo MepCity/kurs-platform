@@ -125,6 +125,7 @@ public class IamProperties {
         private Duration accessTokenTtl = Duration.ofMinutes(10);
         private Duration refreshTokenTtl = Duration.ofDays(30);
         private Duration contextSelectionTokenTtl = Duration.ofMinutes(5);
+        private Duration deviceCursorTtl = Duration.ofMinutes(15);
 
         public Duration getAccessTokenTtl() { return accessTokenTtl; }
         public void setAccessTokenTtl(Duration accessTokenTtl) { this.accessTokenTtl = accessTokenTtl; }
@@ -132,6 +133,8 @@ public class IamProperties {
         public void setRefreshTokenTtl(Duration refreshTokenTtl) { this.refreshTokenTtl = refreshTokenTtl; }
         public Duration getContextSelectionTokenTtl() { return contextSelectionTokenTtl; }
         public void setContextSelectionTokenTtl(Duration contextSelectionTokenTtl) { this.contextSelectionTokenTtl = contextSelectionTokenTtl; }
+        public Duration getDeviceCursorTtl() { return deviceCursorTtl; }
+        public void setDeviceCursorTtl(Duration deviceCursorTtl) { this.deviceCursorTtl = deviceCursorTtl; }
     }
 
     public static class Escrow {

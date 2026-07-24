@@ -53,7 +53,8 @@ class DeviceSessionServiceTests {
                 .executeInIamAuthScope(any(), any(), any());
         service = new DeviceSessionService(repository, transactions, credentials, mock(SessionInfoService.class),
                 new org.mepcity.kursplatform.iam.domain.TokenHasher() { public String hash(String v) { return "h:" + v; } public String hashWithPepper(String a, String b) { return hash(a); } },
-                audits, settings(), Clock.fixed(Instant.parse("2026-07-24T12:00:00Z"), ZoneOffset.UTC));
+                audits, settings(), Clock.fixed(Instant.parse("2026-07-24T12:00:00Z"), ZoneOffset.UTC),
+                mock(IamDeviceRateLimiter.class), mock(DeviceSessionSnapshotSerializer.class));
     }
 
     @Test

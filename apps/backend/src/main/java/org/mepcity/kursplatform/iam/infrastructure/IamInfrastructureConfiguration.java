@@ -5,6 +5,7 @@ import org.mepcity.kursplatform.iam.application.CognitoTokenVerifier;
 import org.mepcity.kursplatform.iam.application.CognitoUserStatusChecker;
 import org.mepcity.kursplatform.iam.application.ContextSelectionService;
 import org.mepcity.kursplatform.iam.application.DeviceSessionService;
+import org.mepcity.kursplatform.iam.application.DeviceSessionSnapshotSerializer;
 import org.mepcity.kursplatform.iam.application.IamAuditWriter;
 import org.mepcity.kursplatform.iam.application.IamDeviceRateLimiter;
 import org.mepcity.kursplatform.iam.application.IamAuthRepository;
@@ -30,6 +31,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.JdbcTemplate;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import javax.sql.DataSource;
@@ -70,6 +72,11 @@ public class IamInfrastructureConfiguration {
     @Bean
     IamDeviceRateLimiter iamDeviceRateLimiter(DataSource dataSource) {
         return new JdbcIamDeviceRateLimiter(dataSource);
+    }
+
+    @Bean
+    DeviceSessionSnapshotSerializer deviceSessionSnapshotSerializer() {
+        return new JacksonDeviceSessionSnapshotSerializer(new ObjectMapper().findAndRegisterModules());
     }
 
     @Bean
@@ -167,9 +174,10 @@ public class IamInfrastructureConfiguration {
     DeviceSessionService deviceSessionService(IamAuthRepository repository, IamTransactionExecutor transactions,
                                               ActiveSessionResolver credentials, SessionInfoService sessionInfoService,
                                               TokenHasher tokenHasher, IamAuditWriter auditWriter,
-                                              IamServiceSettings settings, Clock clock, IamDeviceRateLimiter rateLimiter) {
+                                              IamServiceSettings settings, Clock clock, IamDeviceRateLimiter rateLimiter,
+                                              DeviceSessionSnapshotSerializer snapshots) {
         return new DeviceSessionService(repository, transactions, credentials, sessionInfoService, tokenHasher,
-                auditWriter, settings, clock, rateLimiter);
+                auditWriter, settings, clock, rateLimiter, snapshots);
     }
 
     @Bean

@@ -6,9 +6,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.mepcity.kursplatform.iam.application.contract.ActiveSession;
 import org.mepcity.kursplatform.iam.application.contract.ActiveSessionResolver;
 import org.mepcity.kursplatform.iam.application.contract.CredentialResolution;
@@ -28,7 +25,6 @@ import org.slf4j.MDC;
 
 /** IAM-006 device and organization-session revocation boundary. All mutation/audit pairs share one transaction. */
 public final class DeviceSessionService {
-    private static final ObjectMapper SNAPSHOTS = new ObjectMapper();
     private final IamAuthRepository repository;
     private final IamTransactionExecutor transactions;
     private final ActiveSessionResolver credentials;
@@ -38,26 +34,23 @@ public final class DeviceSessionService {
     private final IamServiceSettings settings;
     private final Clock clock;
     private final IamDeviceRateLimiter rateLimiter;
+    private final DeviceSessionSnapshotSerializer snapshots;
 
     public DeviceSessionService(IamAuthRepository repository, IamTransactionExecutor transactions,
                                 ActiveSessionResolver credentials, SessionInfoService sessionInfo, TokenHasher tokenHasher,
-                                IamAuditWriter audits, IamServiceSettings settings, Clock clock) {
-        this(repository, transactions, credentials, sessionInfo, tokenHasher, audits, settings, clock, (actor, scope, context, operation) -> { });
-    }
-
-    public DeviceSessionService(IamAuthRepository repository, IamTransactionExecutor transactions,
-                                ActiveSessionResolver credentials, SessionInfoService sessionInfo, TokenHasher tokenHasher,
-                                IamAuditWriter audits, IamServiceSettings settings, Clock clock, IamDeviceRateLimiter rateLimiter) {
+                                IamAuditWriter audits, IamServiceSettings settings, Clock clock, IamDeviceRateLimiter rateLimiter,
+                                DeviceSessionSnapshotSerializer snapshots) {
         this.repository = repository; this.transactions = transactions; this.credentials = credentials;
         this.sessionInfo = sessionInfo; this.tokenHasher = tokenHasher; this.audits = audits;
-        this.settings = settings; this.clock = clock; this.rateLimiter = rateLimiter;
+        this.settings = settings; this.clock = clock; this.rateLimiter = rateLimiter; this.snapshots = snapshots;
     }
 
     public DevicePage list(String bearer, String cursor, int limit) {
         if (limit < 1 || limit > 100) throw new IamException("INVALID_REQUEST", "limit 1 ile 100 arasında olmalıdır.");
         ActiveSession actor = requirePlatformAccess(bearer);
         UUID currentDeviceId = sessionInfo.resolveSession(bearer).device().id();
-        DeviceCursorCodec.Cursor position = cursor == null || cursor.isBlank() ? null : new DeviceCursorCodec(tokenHasher).decode(actor.userId(), cursor);
+        DeviceCursorCodec codec = new DeviceCursorCodec(tokenHasher, clock.instant(), settings.deviceCursorTtl());
+        DeviceCursorCodec.Cursor position = cursor == null || cursor.isBlank() ? null : codec.decode(actor.userId(), limit, cursor);
         return transactions.executeInIamAuthScope(OperationCode.DEVICE_LIST,
                 IamTransactionExecutor.IamAuthScopeContext.actorOnly(actor.userId()),
                 () -> {
@@ -66,7 +59,7 @@ public final class DeviceSessionService {
                             position == null ? null : position.trustedAt(), position == null ? null : position.id(), limit + 1);
                     boolean hasNext = rows.size() > limit;
                     List<TrustedDevice> page = hasNext ? rows.subList(0, limit) : rows;
-                    String next = hasNext ? new DeviceCursorCodec(tokenHasher).encode(actor.userId(), page.getLast().trustedAt(), page.getLast().id()) : null;
+                    String next = hasNext ? codec.encode(actor.userId(), limit, page.getLast().trustedAt(), page.getLast().id()) : null;
                     return new DevicePage(page.stream().map(device -> new DeviceListItem(device, device.id().equals(currentDeviceId))).toList(), next, hasNext);
                 });
     }
@@ -183,32 +176,20 @@ public final class DeviceSessionService {
         if (repository.insertIdempotencyKeyOrFindExisting(record).isPresent()) throw new IamException("IDEMPOTENCY_KEY_REUSED", "Anahtar çakıştı.");
     }
 
-    private String deviceSnapshot(DeviceRevokeResult value) {
-        TrustedDevice d = value.device();
-        try { return SNAPSHOTS.writeValueAsString(Map.ofEntries(Map.entry("version", 1), Map.entry("kind", "device-revoke"), Map.entry("id", d.id().toString()), Map.entry("userId", d.userId().toString()), Map.entry("deviceIdentifier", d.deviceIdentifier().toString()), Map.entry("deviceName", d.deviceName()), Map.entry("platform", d.platform().name()), Map.entry("trustedAt", d.trustedAt().toString()), Map.entry("lastSeenAt", d.lastSeenAt().toString()), Map.entry("revokedAt", d.revokedAt() == null ? "" : d.revokedAt().toString()), Map.entry("familyCount", value.revokedRefreshTokenFamilyCount()), Map.entry("currentDevice", value.currentDevice()))); }
-        catch (JsonProcessingException e) { throw new IllegalStateException("Idempotency sonucu yazılamadı.", e); }
-    }
+    private String deviceSnapshot(DeviceRevokeResult value) { return snapshots.serialize(value); }
 
-    private String membershipSnapshot(MembershipRevokeResult value) {
-        try { return SNAPSHOTS.writeValueAsString(Map.of("version", 1, "kind", "membership-revoke", "membershipId", value.organizationMembershipId().toString(), "organizationId", value.organizationId().toString(), "sessionGeneration", value.sessionGeneration(), "reauthenticationRequiredAfter", value.reauthenticationRequiredAfter().toString(), "familyCount", value.revokedRefreshTokenFamilyCount())); }
-        catch (JsonProcessingException e) { throw new IllegalStateException("Idempotency sonucu yazılamadı.", e); }
-    }
+    private String membershipSnapshot(MembershipRevokeResult value) { return snapshots.serialize(value); }
 
     private DeviceRevokeResult deviceSnapshot(IdempotencyKey replay) {
         try {
-            JsonNode n = SNAPSHOTS.readTree(replay.resultPayload());
-            if (n.path("version").asInt() != 1 || !"device-revoke".equals(n.path("kind").asText())) throw new IllegalArgumentException();
-            TrustedDevice device = new TrustedDevice(UUID.fromString(n.path("id").asText()), UUID.fromString(n.path("userId").asText()), UUID.fromString(n.path("deviceIdentifier").asText()), n.path("deviceName").asText(), org.mepcity.kursplatform.iam.domain.DevicePlatform.valueOf(n.path("platform").asText()), Instant.parse(n.path("trustedAt").asText()), Instant.parse(n.path("lastSeenAt").asText()), n.path("revokedAt").asText().isEmpty() ? null : Instant.parse(n.path("revokedAt").asText()));
-            return new DeviceRevokeResult(device, n.path("familyCount").asInt(), n.path("currentDevice").asBoolean(), true);
+            return snapshots.readDeviceRevoke(replay.resultPayload());
         }
         catch (Exception e) { throw new IamException("IDEMPOTENCY_KEY_REUSED", "İşlem sonucu okunamadı."); }
     }
 
     private MembershipRevokeResult membershipSnapshot(IdempotencyKey replay) {
         try {
-            JsonNode n = SNAPSHOTS.readTree(replay.resultPayload());
-            if (n.path("version").asInt() != 1 || !"membership-revoke".equals(n.path("kind").asText())) throw new IllegalArgumentException();
-            return new MembershipRevokeResult(UUID.fromString(n.path("membershipId").asText()), UUID.fromString(n.path("organizationId").asText()), n.path("sessionGeneration").asInt(), Instant.parse(n.path("reauthenticationRequiredAfter").asText()), n.path("familyCount").asInt());
+            return snapshots.readMembershipRevoke(replay.resultPayload());
         } catch (Exception e) { throw new IamException("IDEMPOTENCY_KEY_REUSED", "İşlem sonucu okunamadı."); }
     }
 
