@@ -293,12 +293,12 @@ class AuditCoreMigrationTests {
                 """
                 {"oldValue":{"allowed":[],"requiredNull":true},"newValue":{"allowed":["deviceIdentifier","refreshTokenFamilyId"]},"eventMetadata":{"allowed":["operationCode"]},"reasonCodes":[],"rejectUnknown":true}
                 """));
-        expected.put("PLATFORM_DEVICE_REVOKED", new CatalogExpectation("GLOBAL", "SECURITY", "USER", true, false, false, false, deviceAuditPayload));
         expected.put("PLATFORM_ADMIN_ORG_ACCESS", new CatalogExpectation(
                 "ORGANIZATION", "ACCESS", "ORGANIZATION", true, false, false, false,
                 """
                 {"oldValue":{"allowed":[],"requiredNull":true},"newValue":{"allowed":[],"requiredNull":true},"eventMetadata":{"allowed":["operationCode","outcome"]},"reasonCodes":["FORBIDDEN"],"rejectUnknown":true}
                 """));
+        expected.put("PLATFORM_DEVICE_REVOKED", new CatalogExpectation("GLOBAL", "SECURITY", "USER", true, false, false, false, deviceAuditPayload));
         expected.put("PROVIDER_COMMAND_COMPLETED", new CatalogExpectation(
                 "GLOBAL", "SECURITY", "PROVIDER_COMMAND", true, false, false, false,
                 """
