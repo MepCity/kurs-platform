@@ -6,13 +6,21 @@ class OrganizationBrand {
     required this.primaryColor,
     required this.secondaryColor,
     required this.rowVersion,
-    this.colors = const <OrganizationBrandColor>[],
   });
 
   final String primaryColor;
   final String secondaryColor;
   final int rowVersion;
-  final List<OrganizationBrandColor> colors;
+}
+
+/// `GET`/`PUT /brand-colors` bağımsız yanıtı; brand içine gömülmez.
+class OrganizationBrandColors {
+  const OrganizationBrandColors({
+    required this.rowVersion,
+    required this.items,
+  });
+  final int rowVersion;
+  final List<OrganizationBrandColor> items;
 }
 
 class OrganizationBrandColor {

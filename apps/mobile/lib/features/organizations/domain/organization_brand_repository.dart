@@ -8,6 +8,12 @@ abstract class OrganizationBrandRepository {
     OrganizationBrand brand,
     String clientMutationId,
   );
+  Future<OrganizationBrandColors> getBrandColors(String organizationId);
+  Future<OrganizationBrandColors> replaceBrandColors(
+    String organizationId,
+    OrganizationBrandColors colors,
+    String clientMutationId,
+  );
   Future<OrganizationModules> getModules(String organizationId);
   Future<OrganizationModules> updateModules(
     String organizationId,

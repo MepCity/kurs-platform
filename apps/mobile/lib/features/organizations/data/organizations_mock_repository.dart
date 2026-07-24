@@ -89,6 +89,8 @@ class OrganizationsMockRepository
   final Map<String, _CreateIdempotencyEntry> _createIdempotencyRegistry =
       <String, _CreateIdempotencyEntry>{};
   final Map<String, OrganizationBrand> _brands = <String, OrganizationBrand>{};
+  final Map<String, OrganizationBrandColors> _brandColors =
+      <String, OrganizationBrandColors>{};
   final Map<String, OrganizationModules> _modules =
       <String, OrganizationModules>{};
 
@@ -342,39 +344,101 @@ class OrganizationsMockRepository
         primaryError ?? secondaryError!,
       );
     }
-    final colors = brand.colors
-        .map(
-          (e) => OrganizationBrandColor(
-            colorHex: normalizeBrandHex(e.colorHex),
-            sortOrder: e.sortOrder,
-          ),
-        )
-        .toList();
-    if (colors.length > 20 ||
-        colors.any(
-          (e) =>
-              !RegExp(r'^#[0-9A-F]{6}$').hasMatch(e.colorHex) ||
-              e.sortOrder < 0 ||
-              e.sortOrder > 999,
-        ) ||
-        colors.map((e) => e.colorHex).toSet().length != colors.length) {
-      throw const OrganizationsFailure(
-        OrganizationsFailureCode.validationFailed,
-        'Yardımcı renk paleti geçersiz.',
-      );
-    }
+    final existingColors = _brandColors[organizationId];
     final updated = OrganizationBrand(
       primaryColor: normalizeBrandHex(brand.primaryColor),
       secondaryColor: normalizeBrandHex(brand.secondaryColor),
       rowVersion: current.rowVersion + 1,
-      colors: List.unmodifiable(colors),
     );
     _brands[organizationId] = updated;
+    if (existingColors != null) {
+      _brandColors[organizationId] = OrganizationBrandColors(
+        rowVersion: updated.rowVersion,
+        items: existingColors.items,
+      );
+    }
     final existingModules = _modules[organizationId];
     if (existingModules != null) {
       _modules[organizationId] = OrganizationModules(
         rowVersion: updated.rowVersion,
         items: existingModules.items,
+      );
+    }
+    return updated;
+  }
+
+  @override
+  Future<OrganizationBrandColors> getBrandColors(String organizationId) async {
+    await Future<void>.delayed(latency);
+    _assertBrandAccess();
+    await getBrand(organizationId);
+    return _brandColors.putIfAbsent(
+      organizationId,
+      () => const OrganizationBrandColors(rowVersion: 1, items: []),
+    );
+  }
+
+  @override
+  Future<OrganizationBrandColors> replaceBrandColors(
+    String organizationId,
+    OrganizationBrandColors colors,
+    String clientMutationId,
+  ) async {
+    await Future<void>.delayed(latency);
+    _assertBrandAccess();
+    final current = await getBrandColors(organizationId);
+    if (current.rowVersion != colors.rowVersion) {
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.versionConflict,
+        'Yardımcı palet başka bir kullanıcı tarafından güncellendi.',
+      );
+    }
+    final normalized =
+        colors.items
+            .map(
+              (item) => OrganizationBrandColor(
+                colorHex: normalizeBrandHex(item.colorHex),
+                sortOrder: item.sortOrder,
+              ),
+            )
+            .toList()
+          ..sort(
+            (a, b) => a.sortOrder != b.sortOrder
+                ? a.sortOrder.compareTo(b.sortOrder)
+                : a.colorHex.compareTo(b.colorHex),
+          );
+    if (normalized.length > 20 ||
+        normalized.any(
+          (item) =>
+              !RegExp(r'^#[0-9A-F]{6}$').hasMatch(item.colorHex) ||
+              item.sortOrder < 0 ||
+              item.sortOrder > 999,
+        ) ||
+        normalized.map((item) => item.colorHex).toSet().length !=
+            normalized.length) {
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.validationFailed,
+        'Yardımcı renk paleti geçersiz.',
+      );
+    }
+    final updated = OrganizationBrandColors(
+      rowVersion: current.rowVersion + 1,
+      items: List.unmodifiable(normalized),
+    );
+    _brandColors[organizationId] = updated;
+    final brand = _brands[organizationId];
+    if (brand != null) {
+      _brands[organizationId] = OrganizationBrand(
+        primaryColor: brand.primaryColor,
+        secondaryColor: brand.secondaryColor,
+        rowVersion: updated.rowVersion,
+      );
+    }
+    final modules = _modules[organizationId];
+    if (modules != null) {
+      _modules[organizationId] = OrganizationModules(
+        rowVersion: updated.rowVersion,
+        items: modules.items,
       );
     }
     return updated;
@@ -436,7 +500,6 @@ class OrganizationsMockRepository
         primaryColor: existingBrand.primaryColor,
         secondaryColor: existingBrand.secondaryColor,
         rowVersion: updated.rowVersion,
-        colors: existingBrand.colors,
       );
     }
     return updated;
