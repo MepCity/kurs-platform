@@ -13,6 +13,7 @@ import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -26,6 +27,19 @@ import java.util.function.Supplier;
  * same transaction, silently defeating RLS, and (b) leak a pooled connection per call.
  */
 public class SpringIamTransactionExecutor implements IamTransactionExecutor {
+
+    private static final List<String> UUID_SESSION_VARS = List.of(
+            "app.iam_actor_user_id",
+            "app.iam_current_family_id",
+            "app.iam_current_trusted_device_id",
+            "app.iam_provider_device_identifier",
+            "app.iam_target_device_id",
+            "app.iam_target_identity_id",
+            "app.iam_target_membership_id",
+            "app.iam_target_organization_id",
+            "app.iam_target_provider_command_id",
+            "app.iam_target_user_id",
+            "app.organization_id");
 
     private final PlatformTransactionManager transactionManager;
     private final DataSource dataSource;
@@ -185,7 +199,15 @@ public class SpringIamTransactionExecutor implements IamTransactionExecutor {
     private <T> T executeWithVars(TransactionTemplate template, Map<String, String> vars, Supplier<T> action,
                                    boolean isMutationScope) {
         return template.execute(status -> {
-            applySessionVarsToBoundConnection(vars);
+            Map<String, String> safeVars = new HashMap<>();
+            // SET LOCAL leaves an empty custom GUC value after transaction end. PostgreSQL may
+            // evaluate every permissive RLS policy regardless of boolean clause order, so an
+            // unrelated policy's "::uuid" cast must still receive syntactically valid input.
+            // Fresh, unguessable sentinels cannot authorize a real row and are overwritten by
+            // every operation-specific value below.
+            UUID_SESSION_VARS.forEach(key -> safeVars.put(key, UUID.randomUUID().toString()));
+            safeVars.putAll(vars);
+            applySessionVarsToBoundConnection(safeVars);
             if (isMutationScope) {
                 mutationScopeActive.set(true);
             }
