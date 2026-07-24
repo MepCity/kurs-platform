@@ -33,13 +33,20 @@ public final class DeviceSessionService {
     private final IamAuditWriter audits;
     private final IamServiceSettings settings;
     private final Clock clock;
+    private final IamDeviceRateLimiter rateLimiter;
 
     public DeviceSessionService(IamAuthRepository repository, IamTransactionExecutor transactions,
                                 ActiveSessionResolver credentials, SessionInfoService sessionInfo, TokenHasher tokenHasher,
                                 IamAuditWriter audits, IamServiceSettings settings, Clock clock) {
+        this(repository, transactions, credentials, sessionInfo, tokenHasher, audits, settings, clock, (actor, scope, context, operation) -> { });
+    }
+
+    public DeviceSessionService(IamAuthRepository repository, IamTransactionExecutor transactions,
+                                ActiveSessionResolver credentials, SessionInfoService sessionInfo, TokenHasher tokenHasher,
+                                IamAuditWriter audits, IamServiceSettings settings, Clock clock, IamDeviceRateLimiter rateLimiter) {
         this.repository = repository; this.transactions = transactions; this.credentials = credentials;
         this.sessionInfo = sessionInfo; this.tokenHasher = tokenHasher; this.audits = audits;
-        this.settings = settings; this.clock = clock;
+        this.settings = settings; this.clock = clock; this.rateLimiter = rateLimiter;
     }
 
     public DevicePage list(String bearer, String cursor, int limit) {
@@ -50,6 +57,7 @@ public final class DeviceSessionService {
         return transactions.executeInIamAuthScope(OperationCode.DEVICE_LIST,
                 IamTransactionExecutor.IamAuthScopeContext.actorOnly(actor.userId()),
                 () -> {
+                    rateLimiter.consume(actor.userId(), org.mepcity.kursplatform.iam.domain.OperationScope.IAM_AUTH, actor.userId(), OperationCode.DEVICE_LIST);
                     List<TrustedDevice> rows = repository.findActiveTrustedDevicesPage(actor.userId(),
                             position == null ? null : position.trustedAt(), position == null ? null : position.id(), limit + 1);
                     boolean hasNext = rows.size() > limit;
@@ -89,6 +97,7 @@ public final class DeviceSessionService {
                     String fingerprint = "DS|" + organizationId + "|" + actor.userId() + "|" + targetMembershipId;
                     if (replay(actor.userId(), key, IdempotencyScope.ORGANIZATION, organizationId,
                             OperationCode.DEVICE_SESSION_REVOKE, fingerprint)) return MembershipRevokeResult.from(target, 0);
+                    rateLimiter.consume(actor.userId(), org.mepcity.kursplatform.iam.domain.OperationScope.ORGANIZATION, organizationId, OperationCode.DEVICE_SESSION_REVOKE);
                     List<RefreshTokenFamily> families = repository.findActiveRefreshTokenFamiliesByOrganizationMembershipId(targetMembershipId);
                     for (RefreshTokenFamily family : families) { repository.revokeRefreshTokensInFamily(family.id(), clock.instant()); repository.revokeRefreshTokenFamily(family.id(), clock.instant()); }
                     if (!families.isEmpty()) {
@@ -124,6 +133,8 @@ public final class DeviceSessionService {
             TrustedDevice device = repository.findTrustedDeviceById(targetUser, deviceId).orElseThrow(this::notFound);
             return new DeviceRevokeResult(device, 0, currentDevice != null && currentDevice.equals(deviceId), true);
         }
+        rateLimiter.consume(actor, scope == IdempotencyScope.GLOBAL ? org.mepcity.kursplatform.iam.domain.OperationScope.GLOBAL : org.mepcity.kursplatform.iam.domain.OperationScope.IAM_AUTH,
+                organizationId == null ? actor : organizationId, operation);
         TrustedDevice discovered = repository.findTrustedDeviceById(targetUser, deviceId).orElseThrow(this::notFound);
         repository.acquireDeviceAdvisoryLock(targetUser, discovered.deviceIdentifier());
         TrustedDevice locked = repository.findTrustedDeviceByIdForUpdate(targetUser, deviceId).orElseThrow(this::notFound);

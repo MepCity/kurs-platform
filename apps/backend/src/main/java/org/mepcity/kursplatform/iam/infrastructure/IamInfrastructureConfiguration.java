@@ -6,6 +6,7 @@ import org.mepcity.kursplatform.iam.application.CognitoUserStatusChecker;
 import org.mepcity.kursplatform.iam.application.ContextSelectionService;
 import org.mepcity.kursplatform.iam.application.DeviceSessionService;
 import org.mepcity.kursplatform.iam.application.IamAuditWriter;
+import org.mepcity.kursplatform.iam.application.IamDeviceRateLimiter;
 import org.mepcity.kursplatform.iam.application.IamAuthRepository;
 import org.mepcity.kursplatform.iam.application.IamServiceSettings;
 import org.mepcity.kursplatform.iam.application.IamTransactionExecutor;
@@ -64,6 +65,11 @@ public class IamInfrastructureConfiguration {
     @Bean
     IamAuditWriter iamAuditWriter(DataSource dataSource) {
         return new JdbcIamAuditWriter(dataSource);
+    }
+
+    @Bean
+    IamDeviceRateLimiter iamDeviceRateLimiter(DataSource dataSource) {
+        return new JdbcIamDeviceRateLimiter(dataSource);
     }
 
     @Bean
@@ -161,9 +167,9 @@ public class IamInfrastructureConfiguration {
     DeviceSessionService deviceSessionService(IamAuthRepository repository, IamTransactionExecutor transactions,
                                               ActiveSessionResolver credentials, SessionInfoService sessionInfoService,
                                               TokenHasher tokenHasher, IamAuditWriter auditWriter,
-                                              IamServiceSettings settings, Clock clock) {
+                                              IamServiceSettings settings, Clock clock, IamDeviceRateLimiter rateLimiter) {
         return new DeviceSessionService(repository, transactions, credentials, sessionInfoService, tokenHasher,
-                auditWriter, settings, clock);
+                auditWriter, settings, clock, rateLimiter);
     }
 
     @Bean
