@@ -8,9 +8,7 @@ INSERT INTO audit_action_catalog (code, payload_schema_version, target_entity_ty
 ('DEVICE_SESSION_REVOKED', 1, 'USER', 'ORGANIZATION', 'SECURITY', true, false, false, false,
  '{"oldValue":{"allowed":[],"requiredNull":true},"newValue":{"allowed":[],"requiredNull":true},"eventMetadata":{"allowed":["operationCode","organizationMembershipId","revokedRefreshTokenFamilyCount"]},"reasonCodes":[],"rejectUnknown":true}'::jsonb),
 ('PLATFORM_DEVICE_REVOKED', 1, 'USER', 'GLOBAL', 'SECURITY', true, false, false, false,
- '{"oldValue":{"allowed":[],"requiredNull":true},"newValue":{"allowed":[],"requiredNull":true},"eventMetadata":{"allowed":["operationCode","trustedDeviceId","revokedRefreshTokenFamilyCount"]},"reasonCodes":[],"rejectUnknown":true}'::jsonb),
-('PLATFORM_ADMIN_ORG_ACCESS', 1, 'USER', 'ORGANIZATION', 'SECURITY', true, false, false, false,
- '{"oldValue":{"allowed":[],"requiredNull":true},"newValue":{"allowed":[],"requiredNull":true},"eventMetadata":{"allowed":["operationCode","organizationMembershipId"]},"reasonCodes":[],"rejectUnknown":true}'::jsonb)
+ '{"oldValue":{"allowed":[],"requiredNull":true},"newValue":{"allowed":[],"requiredNull":true},"eventMetadata":{"allowed":["operationCode","trustedDeviceId","revokedRefreshTokenFamilyCount"]},"reasonCodes":[],"rejectUnknown":true}'::jsonb)
 ON CONFLICT (code, payload_schema_version) DO NOTHING;
 
 CREATE POLICY platform_administrators_select_device_support ON platform_administrators FOR SELECT TO iam_runtime USING (
@@ -105,14 +103,18 @@ CREATE POLICY refresh_tokens_update_device_self_revoke ON refresh_tokens FOR UPD
 
 CREATE POLICY audit_logs_insert_iam_device_revoke ON audit_logs FOR INSERT TO iam_runtime WITH CHECK (
  current_user='iam_runtime' AND action_type IN ('DEVICE_SELF_REVOKED','PLATFORM_DEVICE_REVOKED','DEVICE_SESSION_REVOKED','PLATFORM_ADMIN_ORG_ACCESS')
- AND actor_user_id=current_setting('app.iam_actor_user_id',true)::uuid AND target_entity_type='USER' AND requires_target_entity
+ AND actor_user_id=current_setting('app.iam_actor_user_id',true)::uuid AND requires_target_entity
  AND NOT requires_class_scope AND scope_class_id IS NULL AND NOT requires_operation_group AND operation_group_id IS NULL AND NOT is_undo AND undo_of_audit_log_id IS NULL
  AND ((action_type='DEVICE_SELF_REVOKED' AND event_scope='GLOBAL' AND organization_id IS NULL AND target_entity_id=current_setting('app.iam_actor_user_id',true)::uuid
        AND current_setting('app.iam_operation_scope',true)='IAM_AUTH' AND current_setting('app.iam_operation_code',true)='DEVICE_SELF_REVOKE')
   OR (action_type='PLATFORM_DEVICE_REVOKED' AND event_scope='GLOBAL' AND organization_id IS NULL
        AND current_setting('app.iam_operation_scope',true)='GLOBAL' AND current_setting('app.iam_operation_code',true)='PLATFORM_DEVICE_REVOKE')
-  OR (action_type IN ('DEVICE_SESSION_REVOKED','PLATFORM_ADMIN_ORG_ACCESS') AND event_scope='ORGANIZATION'
+  OR (action_type='DEVICE_SESSION_REVOKED' AND event_scope='ORGANIZATION' AND target_entity_type='USER'
        AND organization_id=current_setting('app.iam_target_organization_id',true)::uuid
        AND current_setting('app.iam_operation_scope',true)='ORGANIZATION' AND current_setting('app.iam_operation_code',true)='DEVICE_SESSION_REVOKE'
-       AND (action_type='DEVICE_SESSION_REVOKED' OR current_setting('app.iam_platform_admin_support_access',true)='true')))
+       )
+  OR (action_type='PLATFORM_ADMIN_ORG_ACCESS' AND event_scope='ORGANIZATION' AND target_entity_type='ORGANIZATION'
+       AND target_entity_id=organization_id AND organization_id=current_setting('app.iam_target_organization_id',true)::uuid
+       AND current_setting('app.iam_operation_scope',true)='ORGANIZATION' AND current_setting('app.iam_operation_code',true)='DEVICE_SESSION_REVOKE'
+       AND current_setting('app.iam_platform_admin_support_access',true)='true'))
 );
