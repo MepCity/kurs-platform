@@ -35,11 +35,13 @@ class AuthContextChoices {
 class AuthOrganizationMembership {
   const AuthOrganizationMembership({
     required this.id,
+    required this.organizationId,
     required this.organizationName,
     required this.roleCodes,
   });
 
   final String id;
+  final String organizationId;
   final String organizationName;
   final List<String> roleCodes;
 }
@@ -69,8 +71,10 @@ class AuthenticatedSessionActivation {
       final membership = session.organizationMembership;
       if (membership == null ||
           membership.id.trim().isEmpty ||
+          membership.organizationId.trim().isEmpty ||
           secureSession.scope != SecureSessionScope.organization ||
-          membership.id != secureSession.organizationMembershipId) {
+          membership.id != secureSession.organizationMembershipId ||
+          membership.organizationId != secureSession.organizationId) {
         throw ArgumentError('Kurum aktivasyon bağlamı uyuşmuyor.');
       }
     } else if (session.organizationMembership != null ||

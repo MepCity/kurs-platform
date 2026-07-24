@@ -162,6 +162,7 @@ void main() {
         memberships: <AuthOrganizationMembership>[
           AuthOrganizationMembership(
             id: 'membership-1',
+            organizationId: 'organization-1',
             organizationName: 'Fındıklı Kur’an Kursu',
             roleCodes: <String>['ORG_ADMIN'],
           ),
@@ -226,6 +227,7 @@ void main() {
         memberships: <AuthOrganizationMembership>[
           AuthOrganizationMembership(
             id: 'membership-1',
+            organizationId: 'organization-1',
             organizationName: 'Fındıklı Kur’an Kursu',
             roleCodes: <String>['ORG_ADMIN'],
           ),
