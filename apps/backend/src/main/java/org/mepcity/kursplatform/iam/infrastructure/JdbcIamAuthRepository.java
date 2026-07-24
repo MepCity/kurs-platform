@@ -151,6 +151,17 @@ public class JdbcIamAuthRepository implements IamAuthRepository {
     }
 
     @Override
+    public List<TrustedDevice> findActiveTrustedDevicesPage(UUID userId, Instant beforeTrustedAt, UUID afterId, int limit) {
+        if (beforeTrustedAt == null) {
+            return findActiveTrustedDevicesByUserId(userId, limit);
+        }
+        return jdbcTemplate.query("SELECT id, user_id, device_identifier, device_name, platform, trusted_at, last_seen_at, revoked_at "
+                        + "FROM trusted_devices WHERE user_id=? AND revoked_at IS NULL "
+                        + "AND (trusted_at < ? OR (trusted_at = ? AND id > ?)) ORDER BY trusted_at DESC, id ASC LIMIT ?",
+                (rs, rowNum) -> mapTrustedDevice(rs), userId, Timestamp.from(beforeTrustedAt), Timestamp.from(beforeTrustedAt), afterId, limit);
+    }
+
+    @Override
     public Optional<TrustedDevice> findTrustedDeviceByIdForUpdate(UUID userId, UUID deviceId) {
         List<TrustedDevice> results = jdbcTemplate.query("SELECT id, user_id, device_identifier, device_name, platform, trusted_at, last_seen_at, revoked_at "
                         + "FROM trusted_devices WHERE user_id = ? AND id = ? FOR UPDATE",

@@ -41,6 +41,8 @@ public interface IamAuthRepository {
 
     List<TrustedDevice> findActiveTrustedDevicesByUserId(UUID userId, int limit);
 
+    List<TrustedDevice> findActiveTrustedDevicesPage(UUID userId, Instant beforeTrustedAt, UUID afterId, int limit);
+
     Optional<TrustedDevice> findTrustedDeviceByIdForUpdate(UUID userId, UUID deviceId);
 
     boolean revokeTrustedDeviceIfActive(UUID userId, UUID deviceId);
