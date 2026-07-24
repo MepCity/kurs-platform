@@ -39,6 +39,18 @@ class DeviceCursorCodecTests {
         assertInvalid(() -> new DeviceCursorCodec(hasher, NOW.plusSeconds(2), Duration.ofMinutes(1)).decode(actor, 10, cursor));
     }
 
+    @Test
+    void rejectsAnyPrefixTamperingAndMalformedLengthsBecauseExpiryIsAuthenticated() {
+        UUID actor = UUID.randomUUID();
+        DeviceCursorCodec codec = new DeviceCursorCodec(hasher, NOW, Duration.ofMinutes(5));
+        byte[] raw = java.util.Base64.getUrlDecoder().decode(codec.encode(actor, 10, NOW, UUID.randomUUID()));
+
+        raw[0] ^= 1; // the first byte is now nonce, never an unauthenticated expiry prefix
+        assertInvalid(() -> codec.decode(actor, 10, java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(raw)));
+        assertInvalid(() -> codec.decode(actor, 10, java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(new byte[12])));
+        assertInvalid(() -> codec.decode(actor, 10, java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(new byte[13])));
+    }
+
     private static void assertInvalid(org.assertj.core.api.ThrowableAssert.ThrowingCallable call) {
         assertThatThrownBy(call).isInstanceOf(IamException.class).extracting("errorCode").isEqualTo("INVALID_CURSOR");
     }

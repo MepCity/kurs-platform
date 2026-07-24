@@ -45,12 +45,13 @@ final class DeviceCursorCodec {
         try {
             byte[] nonce = new byte[NONCE_BYTES];
             random.nextBytes(nonce);
-            ByteBuffer plaintext = ByteBuffer.allocate(8 + 16);
-            plaintext.putLong(trustedAt.toEpochMilli()).putLong(id.getMostSignificantBits()).putLong(id.getLeastSignificantBits());
+            ByteBuffer plaintext = ByteBuffer.allocate(8 + 8 + 16);
+            plaintext.putLong(now.plus(ttl).toEpochMilli()).putLong(trustedAt.toEpochMilli())
+                    .putLong(id.getMostSignificantBits()).putLong(id.getLeastSignificantBits());
             Cipher cipher = cipher(Cipher.ENCRYPT_MODE, nonce, actor, limit);
             byte[] encrypted = cipher.doFinal(plaintext.array());
-            ByteBuffer token = ByteBuffer.allocate(8 + NONCE_BYTES + encrypted.length);
-            token.putLong(now.plus(ttl).toEpochMilli()).put(nonce).put(encrypted);
+            ByteBuffer token = ByteBuffer.allocate(NONCE_BYTES + encrypted.length);
+            token.put(nonce).put(encrypted);
             return Base64.getUrlEncoder().withoutPadding().encodeToString(token.array());
         } catch (Exception exception) {
             throw new IllegalStateException("Cursor oluşturulamadı.", exception);
@@ -60,17 +61,17 @@ final class DeviceCursorCodec {
     Cursor decode(UUID actor, int limit, String cursor) {
         try {
             byte[] token = Base64.getUrlDecoder().decode(cursor);
-            if (token.length <= 8 + NONCE_BYTES) throw invalid();
+            if (token.length <= NONCE_BYTES) throw invalid();
             ByteBuffer buffer = ByteBuffer.wrap(token);
-            long expiresAt = buffer.getLong();
-            if (Instant.ofEpochMilli(expiresAt).isBefore(now)) throw invalid();
             byte[] nonce = new byte[NONCE_BYTES];
             buffer.get(nonce);
             byte[] encrypted = new byte[buffer.remaining()];
             buffer.get(encrypted);
             byte[] plaintext = cipher(Cipher.DECRYPT_MODE, nonce, actor, limit).doFinal(encrypted);
-            if (plaintext.length != 24) throw invalid();
+            if (plaintext.length != 32) throw invalid();
             ByteBuffer position = ByteBuffer.wrap(plaintext);
+            Instant expiresAt = Instant.ofEpochMilli(position.getLong());
+            if (!expiresAt.isAfter(now)) throw invalid();
             return new Cursor(Instant.ofEpochMilli(position.getLong()), new UUID(position.getLong(), position.getLong()));
         } catch (IamException exception) {
             throw exception;
