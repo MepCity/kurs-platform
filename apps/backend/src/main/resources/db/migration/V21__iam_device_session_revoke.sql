@@ -17,20 +17,43 @@ CREATE POLICY platform_administrators_select_device_support ON platform_administ
  AND user_id=current_setting('app.iam_actor_user_id',true)::uuid AND revoked_at IS NULL
 );
 
+-- The policy cannot self-join organization_memberships without recursive RLS evaluation.  This
+-- narrowly scoped, non-mutating predicate is the sole SECURITY DEFINER exception: it has a fixed
+-- search_path, no PUBLIC execute grant, and returns only an authorization boolean.
+CREATE FUNCTION iam_device_session_revoke_authorized(p_actor UUID, p_organization UUID)
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+ SELECT EXISTS (
+   SELECT 1 FROM public.organization_memberships m
+   JOIN public.organization_membership_roles r ON r.organization_membership_id=m.id AND r.revoked_at IS NULL
+   WHERE m.user_id=p_actor AND m.organization_id=p_organization AND m.status='ACTIVE' AND r.role='ORG_ADMIN'
+ ) OR EXISTS (
+   SELECT 1 FROM public.organization_memberships m
+   JOIN public.organization_membership_roles r ON r.organization_membership_id=m.id AND r.revoked_at IS NULL AND r.role='TEACHER'
+   JOIN public.organization_membership_permissions p ON p.target_membership_role_id=r.id AND p.revoked_at IS NULL AND p.permission_code='DEVICE_SESSION_REVOKE'
+   WHERE m.user_id=p_actor AND m.organization_id=p_organization AND m.status='ACTIVE'
+ );
+$$;
+REVOKE ALL ON FUNCTION iam_device_session_revoke_authorized(UUID, UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION iam_device_session_revoke_authorized(UUID, UUID) TO iam_runtime;
+
 DROP POLICY organization_memberships_select_org ON organization_memberships;
 DROP POLICY organization_memberships_update_org ON organization_memberships;
 CREATE POLICY organization_memberships_select_device_revoke ON organization_memberships FOR SELECT TO iam_runtime USING (
  current_user='iam_runtime' AND current_setting('app.iam_operation_scope',true)='ORGANIZATION'
  AND current_setting('app.iam_operation_code',true)='DEVICE_SESSION_REVOKE'
  AND organization_id=current_setting('app.iam_target_organization_id',true)::uuid
- AND (user_id=current_setting('app.iam_actor_user_id',true)::uuid OR id=current_setting('app.iam_target_membership_id',true)::uuid
-      OR current_setting('app.iam_platform_admin_support_access',true)='true')
+ AND (iam_device_session_revoke_authorized(current_setting('app.iam_actor_user_id',true)::uuid, organization_id)
+      OR (current_setting('app.iam_platform_admin_support_access',true)='true' AND EXISTS (SELECT 1 FROM platform_administrators pa
+          WHERE pa.user_id=current_setting('app.iam_actor_user_id',true)::uuid AND pa.revoked_at IS NULL)))
 );
 CREATE POLICY organization_memberships_update_device_revoke ON organization_memberships FOR UPDATE TO iam_runtime USING (
  current_user='iam_runtime' AND current_setting('app.iam_operation_scope',true)='ORGANIZATION'
  AND current_setting('app.iam_operation_code',true)='DEVICE_SESSION_REVOKE'
  AND organization_id=current_setting('app.iam_target_organization_id',true)::uuid
  AND id=current_setting('app.iam_target_membership_id',true)::uuid
+ AND (iam_device_session_revoke_authorized(current_setting('app.iam_actor_user_id',true)::uuid, organization_id)
+      OR (current_setting('app.iam_platform_admin_support_access',true)='true' AND EXISTS (SELECT 1 FROM platform_administrators pa
+          WHERE pa.user_id=current_setting('app.iam_actor_user_id',true)::uuid AND pa.revoked_at IS NULL)))
 ) WITH CHECK (session_generation > 0 AND reauthentication_required_after = transaction_timestamp());
 
 DROP POLICY organization_membership_roles_select_org ON organization_membership_roles;
@@ -38,15 +61,19 @@ CREATE POLICY organization_membership_roles_select_device_revoke ON organization
  current_user='iam_runtime' AND current_setting('app.iam_operation_scope',true)='ORGANIZATION'
  AND current_setting('app.iam_operation_code',true)='DEVICE_SESSION_REVOKE'
  AND organization_id=current_setting('app.iam_target_organization_id',true)::uuid
- AND EXISTS (SELECT 1 FROM organization_memberships om WHERE om.id=organization_membership_id
-     AND (om.user_id=current_setting('app.iam_actor_user_id',true)::uuid OR om.id=current_setting('app.iam_target_membership_id',true)::uuid
-          OR current_setting('app.iam_platform_admin_support_access',true)='true'))
+ AND organization_membership_id IN (current_setting('app.iam_target_membership_id',true)::uuid)
+ AND (iam_device_session_revoke_authorized(current_setting('app.iam_actor_user_id',true)::uuid, organization_id)
+      OR (current_setting('app.iam_platform_admin_support_access',true)='true' AND EXISTS (SELECT 1 FROM platform_administrators pa
+          WHERE pa.user_id=current_setting('app.iam_actor_user_id',true)::uuid AND pa.revoked_at IS NULL)))
 );
 DROP POLICY organization_membership_permissions_select_org ON organization_membership_permissions;
 CREATE POLICY organization_membership_permissions_select_device_revoke ON organization_membership_permissions FOR SELECT TO iam_runtime USING (
  current_user='iam_runtime' AND current_setting('app.iam_operation_scope',true)='ORGANIZATION'
  AND current_setting('app.iam_operation_code',true)='DEVICE_SESSION_REVOKE'
  AND organization_id=current_setting('app.iam_target_organization_id',true)::uuid
+ AND (iam_device_session_revoke_authorized(current_setting('app.iam_actor_user_id',true)::uuid, organization_id)
+      OR (current_setting('app.iam_platform_admin_support_access',true)='true' AND EXISTS (SELECT 1 FROM platform_administrators pa
+          WHERE pa.user_id=current_setting('app.iam_actor_user_id',true)::uuid AND pa.revoked_at IS NULL)))
 );
 
 DROP POLICY refresh_token_families_select_org ON refresh_token_families;
