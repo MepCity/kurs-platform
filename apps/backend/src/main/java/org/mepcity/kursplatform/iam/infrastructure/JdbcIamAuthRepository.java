@@ -176,6 +176,15 @@ public class JdbcIamAuthRepository implements IamAuthRepository {
     }
 
     @Override
+    public Optional<TrustedDevice> revokeTrustedDeviceIfActiveReturning(UUID userId, UUID deviceId) {
+        List<TrustedDevice> rows = jdbcTemplate.query("UPDATE trusted_devices SET revoked_at = transaction_timestamp() "
+                        + "WHERE user_id = ? AND id = ? AND revoked_at IS NULL "
+                        + "RETURNING id, user_id, device_identifier, device_name, platform, trusted_at, last_seen_at, revoked_at",
+                (rs, rowNum) -> mapTrustedDevice(rs), userId, deviceId);
+        return rows.isEmpty() ? Optional.empty() : Optional.of(rows.getFirst());
+    }
+
+    @Override
     public Optional<Instant> getMaxRevokedAtForDevicePair(UUID userId, UUID deviceIdentifier) {
         List<Instant> results = jdbcTemplate.query(
                 "SELECT MAX(revoked_at) AS max_revoked FROM trusted_devices WHERE user_id = ? AND device_identifier = ? AND revoked_at IS NOT NULL",

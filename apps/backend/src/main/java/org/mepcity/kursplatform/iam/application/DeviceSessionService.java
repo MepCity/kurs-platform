@@ -145,11 +145,12 @@ public final class DeviceSessionService {
         if (!locked.deviceIdentifier().equals(discovered.deviceIdentifier())) throw notFound();
         List<RefreshTokenFamily> families = locked.isActive()
                 ? repository.findActiveRefreshTokenFamiliesByTrustedDeviceId(deviceId) : List.of();
+        TrustedDevice terminal = locked;
         if (locked.isActive()) {
-            repository.revokeTrustedDeviceIfActive(targetUser, deviceId);
+            terminal = repository.revokeTrustedDeviceIfActiveReturning(targetUser, deviceId).orElseThrow(this::notFound);
             for (RefreshTokenFamily family : families) { repository.lockActiveRefreshTokensInFamily(family.id()); repository.revokeRefreshTokensInFamily(family.id(), clock.instant()); repository.revokeRefreshTokenFamily(family.id(), clock.instant()); }
         }
-        DeviceRevokeResult result = new DeviceRevokeResult(locked, families.size(), currentDevice != null && currentDevice.equals(deviceId), false);
+        DeviceRevokeResult result = new DeviceRevokeResult(terminal, families.size(), currentDevice != null && currentDevice.equals(deviceId), false);
         audit(platform ? "PLATFORM_DEVICE_REVOKED" : "DEVICE_SELF_REVOKED", IamAuditEvent.EventScope.GLOBAL, null, actor, targetUser,
                 Map.of("operationCode", operation.name(), "trustedDeviceId", deviceId.toString(), "revokedRefreshTokenFamilyCount", families.size()));
         complete(actor, key, scope, organizationId, operation, fingerprint, deviceId, deviceSnapshot(result));

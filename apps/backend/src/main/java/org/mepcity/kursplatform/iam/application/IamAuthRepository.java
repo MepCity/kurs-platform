@@ -47,6 +47,9 @@ public interface IamAuthRepository {
 
     boolean revokeTrustedDeviceIfActive(UUID userId, UUID deviceId);
 
+    /** Atomically stamps revocation with PostgreSQL transaction time and returns the terminal row. */
+    Optional<TrustedDevice> revokeTrustedDeviceIfActiveReturning(UUID userId, UUID deviceId);
+
     Optional<Instant> getMaxRevokedAtForDevicePair(UUID userId, UUID deviceIdentifier);
 
     TrustedDevice saveTrustedDevice(TrustedDevice device);
