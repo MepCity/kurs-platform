@@ -14,6 +14,7 @@ import org.mepcity.kursplatform.iam.domain.EscrowStatus;
 import org.mepcity.kursplatform.iam.domain.IdempotencyKey;
 import org.mepcity.kursplatform.iam.domain.IdempotencyScope;
 import org.mepcity.kursplatform.iam.domain.IdempotencyStatus;
+import org.mepcity.kursplatform.iam.domain.IamException;
 import org.mepcity.kursplatform.iam.domain.OperationCode;
 import org.mepcity.kursplatform.iam.domain.ProviderCommand;
 import org.mepcity.kursplatform.iam.domain.ProviderCommandStatus;
@@ -312,6 +313,29 @@ class IamAuthRepositoryIntegrationTests {
 
             assertThat(found).isPresent();
             assertThat(found.get().clientMutationId()).isEqualTo("mutation-3");
+        }
+
+        @Test
+        void scopeUniqueKeyReusedByAnotherOperationFailsWithStableDomainConflict() {
+            UUID userId = seedUser(UserStatus.ACTIVE);
+            Instant now = Instant.now();
+            repository.insertIdempotencyKeyOrFindExisting(new IdempotencyKey(
+                    UUID.randomUUID(), IdempotencyScope.IAM_AUTH, null, userId,
+                    "shared-operation-key", "PROVIDER_TOKEN_EXCHANGE", "fp-exchange",
+                    IdempotencyStatus.COMPLETED, null, (short) 200, null,
+                    null, "ref-exchange", null, null, null,
+                    now, now, now.plusSeconds(300), now.plusSeconds(300)));
+            IdempotencyKey reused = new IdempotencyKey(
+                    UUID.randomUUID(), IdempotencyScope.IAM_AUTH, null, userId,
+                    "shared-operation-key", "DEVICE_SELF_REVOKE", "fp-device",
+                    IdempotencyStatus.COMPLETED, UUID.randomUUID(), (short) 200, null,
+                    "{}", null, null, null, null,
+                    now, now, now.plusSeconds(300), now.plusSeconds(300));
+
+            assertThatThrownBy(() -> repository.insertIdempotencyKeyOrFindExisting(reused))
+                    .isInstanceOf(IamException.class)
+                    .extracting("errorCode")
+                    .isEqualTo("IDEMPOTENCY_KEY_REUSED");
         }
     }
 

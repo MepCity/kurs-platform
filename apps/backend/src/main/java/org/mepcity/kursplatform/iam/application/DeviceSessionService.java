@@ -96,13 +96,13 @@ public final class DeviceSessionService {
                     } else {
                         authorizeOrganizationActor(actor.userId(), organizationId);
                     }
-                    OrganizationMembership target = repository.findOrganizationMembershipByIdForUpdate(targetMembershipId)
-                            .filter(m -> organizationId.equals(m.organizationId())).orElseThrow(this::notFound);
                     String fingerprint = "DS|" + organizationId + "|" + actor.userId() + "|" + targetMembershipId;
                     Optional<IdempotencyKey> replay = replay(actor.userId(), key, IdempotencyScope.ORGANIZATION, organizationId,
                             OperationCode.DEVICE_SESSION_REVOKE, fingerprint);
                     if (replay.isPresent()) return membershipSnapshot(replay.get());
                     rateLimiter.consume(actor.userId(), org.mepcity.kursplatform.iam.domain.OperationScope.ORGANIZATION, organizationId, OperationCode.DEVICE_SESSION_REVOKE);
+                    OrganizationMembership target = repository.findOrganizationMembershipByIdForUpdate(targetMembershipId)
+                            .filter(m -> organizationId.equals(m.organizationId())).orElseThrow(this::notFound);
                     List<RefreshTokenFamily> families = repository.findActiveRefreshTokenFamiliesByOrganizationMembershipId(targetMembershipId);
                     revokeFamilies(families);
                     if (!families.isEmpty()) {
@@ -180,16 +180,25 @@ public final class DeviceSessionService {
         repository.acquireIdempotencyAdvisoryLock(actor, key);
         Optional<IdempotencyKey> prior = repository.findIdempotencyKey(actor, key, scope, op);
         if (prior.isEmpty()) return Optional.empty();
-        if (!fingerprint.equals(prior.get().requestFingerprint())) throw new IamException("IDEMPOTENCY_KEY_REUSED", "Anahtar farklı istek için kullanılmış.");
-        if (!prior.get().isCompleted() || prior.get().resultPayload() == null) throw new IamException("IDEMPOTENCY_KEY_REUSED", "İşlem anahtarı tamamlanmamış.");
+        if (!fingerprint.equals(prior.get().requestFingerprint())) {
+            throw new IamException("IDEMPOTENCY_KEY_REUSED", "Anahtar farklı istek için kullanılmış.");
+        }
+        if (!prior.get().isCompleted()
+                || prior.get().resultPayload() == null
+                || prior.get().resultExpiresAt() == null
+                || !prior.get().resultExpiresAt().isAfter(clock.instant())) {
+            throw new IamException(
+                    "IDEMPOTENCY_KEY_REUSED", "İşlem sonucu kullanılamıyor.");
+        }
         return prior;
     }
 
     private void complete(UUID actor, String key, IdempotencyScope scope, UUID org, OperationCode op, String fingerprint, UUID result, String payload) {
         Instant now = clock.instant();
+        Instant retainedUntil = now.plus(settings.idempotencyRetention());
         IdempotencyKey record = new IdempotencyKey(UUID.randomUUID(), scope, org, actor, key, op.name(), fingerprint,
-                IdempotencyStatus.COMPLETED, result, (short) 200, null, payload, "iam-006:" + result,
-                null, null, null, now, now, null, now.plus(settings.idempotencyRetention()));
+                IdempotencyStatus.COMPLETED, result, (short) 200, null, payload, null,
+                null, null, null, now, now, retainedUntil, retainedUntil);
         if (repository.insertIdempotencyKeyOrFindExisting(record).isPresent()) throw new IamException("IDEMPOTENCY_KEY_REUSED", "Anahtar çakıştı.");
     }
 

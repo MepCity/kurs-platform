@@ -10,6 +10,7 @@ import org.mepcity.kursplatform.iam.domain.EscrowStatus;
 import org.mepcity.kursplatform.iam.domain.IdempotencyKey;
 import org.mepcity.kursplatform.iam.domain.IdempotencyScope;
 import org.mepcity.kursplatform.iam.domain.IdempotencyStatus;
+import org.mepcity.kursplatform.iam.domain.IamException;
 import org.mepcity.kursplatform.iam.domain.MembershipRole;
 import org.mepcity.kursplatform.iam.domain.OperationCode;
 import org.mepcity.kursplatform.iam.domain.OrganizationMembership;
@@ -270,8 +271,8 @@ public class JdbcIamAuthRepository implements IamAuthRepository {
     public Optional<IdempotencyKey> insertIdempotencyKeyOrFindExisting(IdempotencyKey key) {
         int inserted = jdbcTemplate.update(
                 "INSERT INTO idempotency_keys (id, scope_type, organization_id, user_id, client_mutation_id, operation_type, request_fingerprint, status, result_entity_id, terminal_http_status, terminal_error_code, result_payload, result_reference, lease_owner, lease_generation, lease_expires_at, created_at, completed_at, result_expires_at, key_retention_expires_at) " +
-                        "VALUES (?, ?::idempotency_scope_enum, ?, ?, ?, ?, ?, ?::idempotency_status_enum, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?, ?) " +
-                        "ON CONFLICT (user_id, client_mutation_id) WHERE scope_type = 'IAM_AUTH' DO NOTHING",
+                        "VALUES (?, ?::idempotency_scope_enum, ?, ?, ?, ?, ?, ?::idempotency_status_enum, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?, ?) "
+                        + "ON CONFLICT DO NOTHING",
                 key.id(), key.scopeType().name(),
                 key.organizationId(), key.userId(), key.clientMutationId(),
                 key.operationType(), key.requestFingerprint(), key.status().name(),
@@ -286,8 +287,16 @@ public class JdbcIamAuthRepository implements IamAuthRepository {
         if (inserted == 1) {
             return Optional.empty();
         }
-        return findIdempotencyKey(key.userId(), key.clientMutationId(), key.scopeType(),
+        Optional<IdempotencyKey> existing = findIdempotencyKey(
+                key.userId(), key.clientMutationId(), key.scopeType(),
                 OperationCode.valueOf(key.operationType()));
+        if (existing.isPresent()) {
+            return existing;
+        }
+        // RLS deliberately hides a record belonging to another operation code. The unique index
+        // still proves scope-key reuse, so expose only the stable domain conflict.
+        throw new IamException(
+                "IDEMPOTENCY_KEY_REUSED", "Anahtar farklı istek için kullanılmış.");
     }
 
     @Override
@@ -542,7 +551,6 @@ public class JdbcIamAuthRepository implements IamAuthRepository {
                 userId, clientMutationId, operationCode.name());
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
     }
-
     @Override
     public IdempotencyKey saveIdempotencyKey(IdempotencyKey key) {
         jdbcTemplate.update(

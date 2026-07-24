@@ -27,6 +27,10 @@ import org.mepcity.kursplatform.iam.application.contract.ActiveSessionResolver;
 import org.mepcity.kursplatform.iam.application.contract.CredentialResolution;
 import org.mepcity.kursplatform.iam.domain.DevicePlatform;
 import org.mepcity.kursplatform.iam.domain.IamException;
+import org.mepcity.kursplatform.iam.domain.IdempotencyKey;
+import org.mepcity.kursplatform.iam.domain.IdempotencyScope;
+import org.mepcity.kursplatform.iam.domain.IdempotencyStatus;
+import org.mepcity.kursplatform.iam.domain.OperationCode;
 import org.mepcity.kursplatform.iam.domain.OrganizationMembership;
 import org.mepcity.kursplatform.iam.domain.PlatformAdministrator;
 import org.mepcity.kursplatform.iam.domain.RefreshTokenFamily;
@@ -91,6 +95,50 @@ class DeviceSessionServiceTests {
         assertThatThrownBy(() -> service.revokePlatformDevice("token", UUID.randomUUID(), UUID.randomUUID(), "key-12345678"))
                 .isInstanceOf(IamException.class).extracting("errorCode").isEqualTo("FORBIDDEN");
         verify(repository, never()).revokeTrustedDeviceIfActive(any(), any());
+    }
+
+    @Test
+    void organizationReplayReturnsStoredSnapshotWithoutReadingCurrentTargetOrConsumingRateLimit() {
+        UUID org = UUID.randomUUID(), targetMembership = UUID.randomUUID();
+        var stored = new DeviceSessionService.MembershipRevokeResult(
+                targetMembership, org, 7, Instant.parse("2026-07-24T11:30:00Z"), 2);
+        var snapshot = mock(DeviceSessionSnapshotSerializer.class);
+        var limiter = mock(IamDeviceRateLimiter.class);
+        service = new DeviceSessionService(repository, transactions, credentials, mock(SessionInfoService.class),
+                new org.mepcity.kursplatform.iam.domain.TokenHasher() {
+                    public String hash(String v) { return "h:" + v; }
+                    public String hashWithPepper(String a, String b) { return hash(a); }
+                }, audits, settings(), Clock.fixed(Instant.parse("2026-07-24T12:00:00Z"), ZoneOffset.UTC),
+                limiter, snapshot);
+        when(credentials.resolveCredential("token")).thenReturn(
+                CredentialResolution.platformAccess(ActiveSession.globalPlatformAdmin(actor)));
+        when(repository.findActivePlatformAdministratorByUserId(actor)).thenReturn(Optional.of(
+                new PlatformAdministrator(UUID.randomUUID(), actor, actor, Instant.now(), null)));
+        IdempotencyKey prior = completedKey(
+                IdempotencyScope.ORGANIZATION, org, OperationCode.DEVICE_SESSION_REVOKE,
+                "DS|" + org + "|" + actor + "|" + targetMembership, "{\"snapshot\":true}");
+        when(repository.findIdempotencyKey(
+                actor, "key-12345678", IdempotencyScope.ORGANIZATION,
+                OperationCode.DEVICE_SESSION_REVOKE)).thenReturn(Optional.of(prior));
+        when(snapshot.readMembershipRevoke("{\"snapshot\":true}")).thenReturn(stored);
+
+        assertThat(service.revokeOrganizationSessions(
+                "token", org, targetMembership, "key-12345678")).isEqualTo(stored);
+
+        verify(repository, never()).findOrganizationMembershipByIdForUpdate(any());
+        verify(limiter, never()).consume(any(), any(), any(), any());
+        verify(audits, never()).write(any());
+    }
+
+    private IdempotencyKey completedKey(
+            IdempotencyScope scope, UUID org, OperationCode operation, String fingerprint,
+            String payload) {
+        Instant now = Instant.parse("2026-07-24T12:00:00Z");
+        return new IdempotencyKey(
+                UUID.randomUUID(), scope, org, actor, "key-12345678", operation.name(),
+                fingerprint, IdempotencyStatus.COMPLETED, UUID.randomUUID(), (short) 200,
+                null, payload, null, null, null, null, now, now, now.plusSeconds(60),
+                now.plusSeconds(60));
     }
 
     private static OrganizationMembership membership(UUID id, UUID org, UUID user) {
