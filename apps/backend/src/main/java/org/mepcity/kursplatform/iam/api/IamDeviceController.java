@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.UUID;
 import org.mepcity.kursplatform.iam.application.DeviceSessionService;
 import org.mepcity.kursplatform.iam.domain.IamException;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -14,11 +13,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import jakarta.servlet.http.HttpServletRequest;
-import javax.sql.DataSource;
 
 /** HTTP surface fixed by IAM_CIHAZ_VE_OTURUM_IPTALI_SOZLESMESI.md §§7–10. */
 @RestController
-@ConditionalOnBean(DataSource.class)
 @RequestMapping("/api/v1/iam")
 public final class IamDeviceController {
     private final DeviceSessionService devices;

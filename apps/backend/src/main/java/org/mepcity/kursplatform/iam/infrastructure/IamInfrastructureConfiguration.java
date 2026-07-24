@@ -24,7 +24,6 @@ import org.mepcity.kursplatform.iam.application.contract.ActiveSessionResolver;
 import org.mepcity.kursplatform.iam.application.contract.CredentialResolution;
 import org.mepcity.kursplatform.iam.application.contract.CredentialAuthenticationException;
 import org.mepcity.kursplatform.iam.domain.TokenHasher;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -38,15 +37,15 @@ import javax.sql.DataSource;
 import java.security.SecureRandom;
 import java.time.Clock;
 
-/** Same {@code @ConditionalOnBean(DataSource.class)} pattern as {@code JdbcOrganizationRepository}
- *  (ORG-003) — every bean here needs a real DataSource, so the whole configuration backs off
- *  cleanly when one isn't provided (e.g. KursPlatformBackendApplicationTests deliberately excludes
- *  DataSourceAutoConfiguration for a DB-free wiring smoke test). DataSource-independent beans
- *  (tokenHasher, aeadEscrowService, secureRandom, clock, IamProperties itself) live in
- *  IamCoreConfiguration instead, since IamLocalStubConfiguration's beans need them too without
- *  ever needing a DataSource. */
+/** Runtime wiring for IAM services backed by the application DataSource.
+ *
+ * <p>This is intentionally unconditional in the production component graph. A
+ * {@code ConditionalOnBean(DataSource.class)} guard on a regular scanned configuration is order
+ * dependent: it can be evaluated before DataSource auto-configuration and silently remove every
+ * IAM HTTP endpoint. DB-free tests use an explicit configuration that does not component-scan this
+ * class. DataSource-independent beans remain in {@link IamCoreConfiguration}.</p>
+ */
 @Configuration
-@ConditionalOnBean(DataSource.class)
 public class IamInfrastructureConfiguration {
 
     @Bean
@@ -224,7 +223,6 @@ public class IamInfrastructureConfiguration {
      * A-010's "production requires deliberate configuration" gate.
      */
     @Bean
-    @ConditionalOnBean(DataSource.class)
     @ConditionalOnProperty(prefix = "iam.provider-command.worker", name = "enabled", havingValue = "true")
     ProviderCommandScheduler providerCommandScheduler(ProviderCommandWorker providerCommandWorker,
                                                       IamAuthRepository repository,
