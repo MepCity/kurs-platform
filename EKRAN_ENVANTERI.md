@@ -184,10 +184,9 @@ Bu ekranlar seçili sınıf bağlamında çalışır; bir sınıf seçilmeden op
 | CLS-01 | Evet (destek modunda) | Evet | Evet (yalnızca atanmış sınıflar) |
 | CLS-02 | Evet (destek modunda) | Evet | Evet (yalnızca atanmış sınıf) |
 
-**Not — Tek sınıflı hoca optimizasyonu:** Hoca yalnızca bir sınıfa atanmışsa CLS-01 atlanarak
-doğrudan CLS-02 gösterilebilir; ancak aktif sınıf bağlamı arayüzde görünür kalmalı ve
-kullanıcı sınıf değiştirme ekranına her zaman ulaşabilmelidir. Bu kesin davranış `UI-002`'de
-netleşecektir.
+**Not — Sınıf seçimi davranışı:** `UI-002` kararıyla geçerli sınıf sayısı 0 ise boş durum
+gösterilir ve CLS-01 açılmaz; sayı 1 ise sınıf otomatik seçilir ve CLS-01 görsel olarak atlanır;
+sayı 2 veya daha fazlaysa CLS-01 zorunlu açılır. Seçili sınıf bağlamı arayüzde görünür kalır.
 
 ---
 
@@ -584,8 +583,8 @@ gösterilmemeli, tanımlı ve beklenen durumlar olarak ele alınmalıdır.
 
 | Durum | Sınıf İşlemleri | Yönetim | Rapor ve Denetim |
 |---|---|---|---|
-| Hiç sınıfa atanmamış, kurum kapsamlı yönetim izni var | CLS-01: boş durum ("Henüz atanmış bir sınıfın yok") | Normal çalışır | Normal çalışır (iznine göre) |
-| Hiç sınıfa atanmamış, hiç kurum kapsamlı yönetim izni yok | CLS-01: boş durum | Gizli (hiç gösterilmez) | Gizli (hiç gösterilmez) |
+| Hiç sınıfa atanmamış, kurum kapsamlı yönetim izni var | CLS-01 açılmaz; boş durum ("Henüz atanmış bir sınıfın yok") | Normal çalışır | Normal çalışır (iznine göre) |
+| Hiç sınıfa atanmamış, hiç kurum kapsamlı yönetim izni yok | CLS-01 açılmaz; boş durum | Gizli (hiç gösterilmez) | Gizli (hiç gösterilmez) |
 | Sınıfa atanmış, hiç yönetim izni yok | Normal çalışır | Gizli (hiç gösterilmez) | Gizli (hiç gösterilmez) |
 
 İkinci durumda kullanıcıya kurum yöneticisiyle iletişime geçmesini öneren açıklayıcı bir
@@ -660,8 +659,9 @@ boş durum gösterilmelidir.
   arası eşleme korunmalıdır.
 - CTX-01'in kesin bağlam seçme/değiştirme davranışı `UI_002_NAVIGASYON_VE_ROL_BAZLI_MENU_SOZLESMESI.md`
   §7 ile uyumludur; bu envanter aynı davranışı ekran düzeyinde kaydeder.
-- Tek sınıflı hoca optimizasyonu (CLS-01 atlama) kullanılabilirlik varsayımıdır; kesinleşmesi
-  `UI-002`'ye bırakılmıştır (`HOCA_MOBIL_BILGI_MIMARISI.md` bölüm 9).
+- Tek sınıflı hoca için geçerli sınıf sayısı 1 olduğunda sınıf otomatik seçilir ve CLS-01 görsel
+  olarak atlanır; 0 sınıfta boş durumla CLS-01 açılmaz, 2+ sınıfta CLS-01 zorunlu açılır. Bu
+  kesin davranış `UI_002_NAVIGASYON_VE_ROL_BAZLI_MENU_SOZLESMESI.md` §8 ile uyumludur.
 
 ### 19.1. Revizyon notu — v1.1
 

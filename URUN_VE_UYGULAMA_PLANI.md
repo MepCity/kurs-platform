@@ -1296,6 +1296,19 @@ Dalga 0 belgeleri tamamlanmadan ilgili alanda büyük ölçekli geliştirmeye ba
 - Sürekli staging, PITR, Render Pro ve yüksek erişilebilirlik başlangıç zorunluluğu olmaktan
   çıkarılmış; ölçülmüş kullanım veya kabul edilmiş RPO/RTO tetiklerine bağlanmıştır.
 
+### 15 Temmuz 2026 — Kabul edilen teknoloji kararları
+
+- **A-001:** iOS ve Android mobil framework'ü Flutter'dır
+  (`ADR/ADR-001-mobil-framework.md`, `experiments/a001_flutter_spike`).
+- **A-002:** Backend, Java 21 LTS + Spring Boot 4.1.x + Spring MVC ile modüler monolit olarak
+  uygulanacaktır (`ADR/ADR-002_BACKEND_DILI_VE_FRAMEWORK.md`).
+- **A-003:** Kademeli maliyet profiliyle yönetilen PostgreSQL için Supabase seçilmiştir;
+  tercih edilen bölge Frankfurt / `eu-central-1`dir. Bu karar Supabase Auth, Storage, Realtime
+  veya Data API'nin seçildiği anlamına gelmez (`ADR/ADR-003-postgresql-ve-hosting.md`).
+- **A-004R3:** V1'in nihai kimlik sağlayıcısı Amazon Cognito Essentials'tır
+  (`ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md`,
+  `A004R3_COGNITO_MALIYET_OPERASYON_VE_TEARDOWN_KANITI.md`).
+
 ### 16 Temmuz 2026 — A-004R3 nihai kimlik kararı
 
 - PLAN-005'teki "Cognito deneyleri tamamlanana kadar" ifadesi tarihsel geçiş kararı olarak
@@ -1334,9 +1347,13 @@ Dalga 0 belgeleri tamamlanmadan ilgili alanda büyük ölçekli geliştirmeye ba
 
 ---
 
-## 27. Bir sonraki adım
+## 27. Tarihsel başlangıç sırası
 
-Bu belge onaylandıktan sonra ilk çalışma **Faz 0** olacaktır. İlk alt adımlar:
+Bu bölüm, belgenin ilk onayındaki başlangıç sırasını tarihsel kayıt olarak korur. Aşağıdaki
+P-001, P-008 ve A-001 gibi başlangıç adımları tamamlanmıştır; güncel aktif dalga ve sıradaki iş
+yalnız `GOREV_DURUMU.md` dosyasından takip edilir.
+
+İlk planlanan alt adımlar:
 
 1. Terimler sözlüğünü hazırlamak,
 2. Ayrıntılı yetki matrisini oluşturmak,
@@ -1344,8 +1361,7 @@ Bu belge onaylandıktan sonra ilk çalışma **Faz 0** olacaktır. İlk alt adı
 4. Çekirdek veri modelini kesinleştirmek,
 5. Mobil teknoloji ve eşzamanlı yoklama için dikey teknik deneme planı hazırlamak.
 
-Kodlama, bu beş alt adımın kapsamı ve kabul ölçütleri netleşmeden ana geliştirme olarak
-başlatılmamalıdır.
+Bu tarihsel sıralama, güncel çalışma önceliğini veya yeni bir görev adını sabitlemez.
 
 Günlük çalışma sırası, paralel agent kullanımı, görev bağımlılıkları ve modül bazlı atomik
 iş paketleri `AGENT_GOREV_PLANI.md` belgesinde tanımlanmıştır. Repo üzerinde çalışan bütün

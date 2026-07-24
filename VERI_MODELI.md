@@ -33,10 +33,12 @@ kesinleşmiştir. Bu revizyon, eski sağlayıcı taslağını mekanik olarak yen
 4. Doğrulanmış Cognito `auth_time`, kullanıcı/üyelik ve cihaz yeniden doğrulama eşiklerine
    karşı canlı denetlenir. `session_generation`, kurum kapsamlı iptal ve refresh reuse aile
    iptali sağlayıcıdan bağımsız platform kuralları olarak kalır.
-5. Provider command, olay tüketimi ve durum uzlaştırması ayrı checkpoint/dedup kayıtları taşır.
-   Bilinmeyen subject, belirsiz güvenlik olayı veya erişilemeyen kanonik provider durumu yeni
-   aile üretmez; gerekli durumlarda idempotent iptal ve alarm üretir. Olay kaybı uzlaştırması
-   uygulanmıştır; gelecekteki provider genişletmeleri bu davranışı varsayamaz.
+5. A-004R2, Cognito olay kaybı ve uzlaştırma davranışını deney seviyesinde kanıtlamıştır.
+   Güncel production kodu aktivasyon sırasında kanonik Cognito kullanıcı durumunu denetler;
+   kalıcı event consumer, cursor/dedup işleyicisi ve kaçırılmış olay uzlaştırması henüz
+   production'da uygulanmamıştır ve IAM-009 kapsamındadır. Bilinmeyen subject, belirsiz
+   güvenlik olayı veya erişilemeyen kanonik provider durumu yeni aile üretmez; gerekli
+   durumlarda idempotent iptal ve alarm üretir.
 
 Keycloak, yalnız `ADR/ADR-004_KIMLIK_DOGRULAMA_SAGLAYICISI.md` içindeki tarihsel fallback
 seçeneğidir; bu belgenin normatif alan ve akışlarının sağlayıcısı değildir.
@@ -805,16 +807,22 @@ gizli teslim yüzeyinde bulunur.
 
 `iam_event_cursors`: `id` UUID PK, `source` ENUM(`ADMIN_EVENTS`,`USER_EVENTS`) **UNIQUE**,
 `realm` TEXT, `last_event_time` TIMESTAMPTZ, `last_event_id` TEXT, `last_successful_poll_at`
-TIMESTAMPTZ, `status` TEXT, `updated_at` TIMESTAMPTZ. `last_event_time`/`last_event_id` yalnız
-yerel checkpoint'tir; Cognito olay teslimi için genel bir start-after cursoru veya sıralama
-garantisi değildir. Olay kaybı/düzensiz teslim, kanonik provider durum sorgusu ve dedup ile
-ayrı uzlaştırma akışında fail-closed ele alınır.
+TIMESTAMPTZ, `status` TEXT, `updated_at` TIMESTAMPTZ. `ADMIN_EVENTS`, `USER_EVENTS` ve `realm`,
+eski sağlayıcı taslağından kalmış fiziksel şema adlarıdır; Cognito'nun gerçek event-delivery
+mekanizmasını veya event kaynağını tanımlamaz. `last_event_time`/`last_event_id` yalnız yerel
+checkpoint'tir; Cognito olay teslimi için genel bir start-after cursoru veya sıralama garantisi
+değildir.
 `iam_event_deduplications`: `source`,
 `event_id`, `event_time` TIMESTAMPTZ, `processed_at` TIMESTAMPTZ ve **UNIQUE (`source`,
-`event_id`)**. Retention sonrası temizlenmesi cursor güvenlik penceresinden önce olamaz. Bu dört
-tablo IAM-003 migration'ının fiziksel sahipliğidir; provider-command akışı IAM-004, olay kaybı,
-tekrar teslim ve iptal gecikmesi testleri IAM-009 tarafından uygulanır. Aile yenileme/tekrar
-kullanım etkisi IAM-005'in, cihaz ve global/kurum iptalindeki eşik etkisi IAM-006'nın sahibidir.
+`event_id`)**. Retention sonrası temizlenmesi cursor güvenlik penceresinden önce olamaz. A-004R2
+bu davranışı yalnız deney seviyesinde kanıtlamıştır; bu tabloların kalıcı event consumer veya
+kaçırılmış olay uzlaştırmasını çalıştıran production uygulaması değildir. Güncel production kodu
+aktivasyonda kanonik Cognito kullanıcı durumunu denetler. Migration değiştirilmeden, Cognito için
+kesin event kaynağı/taşıma modeli ile gerekirse yeni migration üzerinden adlandırma ve production
+uygulaması IAM-009'un sorumluluğundadır. Bu dört tablo IAM-003 migration'ının fiziksel
+sahipliğidir; provider-command akışı IAM-004, olay kaybı, tekrar teslim ve iptal gecikmesi
+testleri IAM-009 tarafından uygulanır. Aile yenileme/tekrar kullanım etkisi IAM-005'in, cihaz ve
+global/kurum iptalindeki eşik etkisi IAM-006'nın sahibidir.
 `iam_provider_commands` için `iam_runtime` `FORCE RLS` politikası `GLOBAL` bağlamda yalnız
 `target_identity_id → user_id = app.iam_target_user_id` eşleşmesinde; ilk
 `TEACHER_ACCOUNT_CREATE` provisioning'inde yalnız aynı operation code/`target_user_id` ve
