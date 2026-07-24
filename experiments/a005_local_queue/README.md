@@ -31,7 +31,7 @@ dart test
 - Aynı hedefte yazma sırası ve bağımlılıklar korunur; eşzamanlı iki claim denemesinden yalnız
   biri kaydı `SYNCING`e geçirir.
 
-`test/local_queue_test.dart` içindeki testler, yukarıdaki kabul davranışlarını kanıtlar.
+`test/local_queue_test.dart` içindeki **17 test**, yukarıdaki kabul davranışlarını kanıtlar.
 
 ## Sınırlar
 
