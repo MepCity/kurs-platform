@@ -2,6 +2,9 @@ package org.mepcity.kursplatform.org.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -9,17 +12,24 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.mepcity.kursplatform.iam.application.contract.ActiveSession;
 import org.mepcity.kursplatform.iam.application.contract.ActiveSessionResolver;
 import org.mepcity.kursplatform.iam.application.contract.CredentialResolution;
 import org.mepcity.kursplatform.org.application.OrganizationCreateRateLimiter;
 import org.mepcity.kursplatform.org.application.OrganizationCreationService;
 import org.mepcity.kursplatform.org.application.OrganizationLifecycleService;
+import org.mepcity.kursplatform.org.application.OrganizationBrandService;
 import org.mepcity.kursplatform.org.domain.OrganizationRepository;
 import org.mepcity.kursplatform.org.infrastructure.persistence.JdbcOrganizationRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,6 +60,8 @@ import org.testcontainers.containers.PostgreSQLContainer;
 })
 @AutoConfigureMockMvc
 @Import(OrganizationHttpPostgresIntegrationTests.TestAuthConfiguration.class)
+@Execution(ExecutionMode.SAME_THREAD)
+@TestMethodOrder(OrderAnnotation.class)
 class OrganizationHttpPostgresIntegrationTests {
     private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
     private static final AtomicReference<UUID> ACTOR = new AtomicReference<>();
@@ -80,7 +92,7 @@ class OrganizationHttpPostgresIntegrationTests {
         }
     }
 
-    @Test
+    @Test @Order(1)
     void httpCreateReplayConflictAndAuthorizationUseTheRealIamRuntimeToOrgRuntimeChain() throws Exception {
         assertProductionCompositionRoot();
         try (Connection connection = dataSource.getConnection(); var statement = connection.createStatement();
@@ -127,6 +139,204 @@ class OrganizationHttpPostgresIntegrationTests {
                 .andExpect(status().isForbidden());
         assertThat(ownerCount("organizations")).isEqualTo(1);
         assertThat(ownerCount("audit_logs WHERE action_type = 'ORG_CREATED'")).isEqualTo(1);
+    }
+
+    @Test @Order(2)
+    void httpBrandUsesTheProductionControllerServiceRepositoryAuditAndIdempotencyChain() throws Exception {
+        assertThat(applicationContext.getBean(OrganizationBrandService.class).getClass().getName())
+                .doesNotContain("TestAuthConfiguration");
+        var created = mockMvc.perform(post("/api/v1/organizations").header("Authorization", "Bearer global")
+                        .header("Idempotency-Key", "brand-http-create").contentType("application/json")
+                        .content("{\"name\":\"Marka HTTP\",\"defaultTimezone\":\"Europe/Istanbul\"}"))
+                .andExpect(status().isCreated()).andReturn();
+        UUID organizationId = UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(created.getResponse().getContentAsString()).path("id").textValue());
+
+        mockMvc.perform(get("/api/v1/organizations/{id}/brand", organizationId)
+                        .header("Authorization", "Bearer global").header("X-Request-Id", "brand-request-42"))
+                .andExpect(status().isOk()).andExpect(header().string("ETag", "\"1\""))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.primaryColor").value("#2E7D32"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.secondaryColor").value("#E65100"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.logo").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.colors").doesNotExist());
+        assertThat(ownerCount("audit_logs WHERE action_type = 'PLATFORM_ADMIN_ORG_ACCESS' AND request_id = 'brand-request-42'"))
+                .isEqualTo(1);
+
+        String body = "{\"primaryColor\":\"#1565C0\"}";
+        var first = mockMvc.perform(patch("/api/v1/organizations/{id}/brand", organizationId)
+                        .header("Authorization", "Bearer global").header("Idempotency-Key", "brand-http-replay")
+                        .header("If-Match-Row-Version", "1").contentType("application/json").content(body))
+                .andExpect(status().isOk()).andExpect(header().string("ETag", "\"2\"")).andReturn();
+        var replay = mockMvc.perform(patch("/api/v1/organizations/{id}/brand", organizationId)
+                        .header("Authorization", "Bearer global").header("Idempotency-Key", "brand-http-replay")
+                        .header("If-Match-Row-Version", "1").contentType("application/json").content(body))
+                .andExpect(status().isOk()).andReturn();
+        assertThat(new com.fasterxml.jackson.databind.ObjectMapper().readTree(replay.getResponse().getContentAsString()))
+                .isEqualTo(new com.fasterxml.jackson.databind.ObjectMapper().readTree(first.getResponse().getContentAsString()));
+        assertThat(ownerCount("audit_logs WHERE action_type = 'ORG_SETTING_CHANGED' AND organization_id = '" + organizationId + "'"))
+                .isEqualTo(1);
+    }
+
+    @Test @Order(3)
+    void sameKeyWithDifferentRowVersionIsRejectedForBrandPaletteAndModulesWithoutSideEffects() throws Exception {
+        UUID organizationId = createOrganization("Fingerprint çatışması");
+
+        assertDifferentRowVersionConflict(organizationId, rowVersion -> patch("/api/v1/organizations/{id}/brand", organizationId)
+                        .header("If-Match-Row-Version", rowVersion).content("{\"primaryColor\":\"#1565C0\"}"),
+                "ORG_UPDATE_BRAND", 1);
+        assertDifferentRowVersionConflict(organizationId, rowVersion -> put("/api/v1/organizations/{id}/brand-colors", organizationId)
+                        .header("If-Match-Row-Version", rowVersion)
+                        .content("{\"items\":[{\"colorHex\":\"#1565C0\",\"sortOrder\":0}]}"),
+                "ORG_UPDATE_BRAND_COLORS", 2);
+        assertDifferentRowVersionConflict(organizationId, rowVersion -> patch("/api/v1/organizations/{id}/modules", organizationId)
+                        .header("If-Match-Row-Version", rowVersion)
+                        .content("{\"items\":[{\"moduleCode\":\"ATT\",\"isEnabled\":false}]}"),
+                "ORG_UPDATE_MODULES", 3);
+    }
+
+    @Test @Order(4)
+    void sameFingerprintReplayReturnsTheOriginalBrandSnapshotAfterTheSourceChanges() throws Exception {
+        UUID organizationId = createOrganization("Snapshot replay");
+        String firstKey = "brand-original-snapshot";
+        var first = mockMvc.perform(patch("/api/v1/organizations/{id}/brand", organizationId)
+                        .header("Authorization", "Bearer global").header("Idempotency-Key", firstKey)
+                        .header("If-Match-Row-Version", "1").contentType("application/json")
+                        .content("{\"primaryColor\":\"#1565C0\"}"))
+                .andExpect(status().isOk()).andExpect(header().string("ETag", "\"2\"")).andReturn();
+        mockMvc.perform(patch("/api/v1/organizations/{id}/brand", organizationId)
+                        .header("Authorization", "Bearer global").header("Idempotency-Key", "brand-source-change")
+                        .header("If-Match-Row-Version", "2").contentType("application/json")
+                        .content("{\"primaryColor\":\"#6A1B9A\"}"))
+                .andExpect(status().isOk()).andExpect(header().string("ETag", "\"3\""));
+        var replay = mockMvc.perform(patch("/api/v1/organizations/{id}/brand", organizationId)
+                        .header("Authorization", "Bearer global").header("Idempotency-Key", firstKey)
+                        .header("If-Match-Row-Version", "1").contentType("application/json")
+                        .content("{\"primaryColor\":\"#1565C0\"}"))
+                .andExpect(status().isOk()).andExpect(header().string("ETag", "\"2\"")).andReturn();
+        assertThat(new com.fasterxml.jackson.databind.ObjectMapper().readTree(replay.getResponse().getContentAsString()))
+                .isEqualTo(new com.fasterxml.jackson.databind.ObjectMapper().readTree(first.getResponse().getContentAsString()));
+    }
+
+    @Test @Order(5)
+    void plainTextWritesReturnTheSafeInvalidRequestEnvelopeWithoutPersistentSideEffects() throws Exception {
+        UUID organizationId = createOrganization("Yanlış içerik türü");
+        long auditBefore = ownerCount("audit_logs WHERE organization_id = '" + organizationId + "'");
+        long rateBefore = ownerCount("organization_brand_rate_limits WHERE organization_id = '" + organizationId + "'");
+        long completedBefore = ownerCount("idempotency_keys WHERE organization_id = '" + organizationId + "' AND status = 'COMPLETED'");
+
+        assertPlainTextRejected(patch("/api/v1/organizations/{id}/brand", organizationId), "plain-brand-42");
+        assertPlainTextRejected(put("/api/v1/organizations/{id}/brand-colors", organizationId), "plain-palette-42");
+        assertPlainTextRejected(patch("/api/v1/organizations/{id}/modules", organizationId), "plain-modules-42");
+
+        assertThat(ownerCount("audit_logs WHERE organization_id = '" + organizationId + "'")).isEqualTo(auditBefore);
+        assertThat(ownerCount("organization_brand_rate_limits WHERE organization_id = '" + organizationId + "'")).isEqualTo(rateBefore);
+        assertThat(ownerCount("idempotency_keys WHERE organization_id = '" + organizationId + "' AND status = 'COMPLETED'"))
+                .isEqualTo(completedBefore);
+    }
+
+    @Test @Order(6)
+    void nonexistentOrganizationIsRejectedBeforeRateLimitIdempotencyAuditOrMutationForEveryBrandEndpoint() throws Exception {
+        UUID missing = UUID.randomUUID();
+        long rateBefore = ownerCount("organization_brand_rate_limits");
+        long idempotencyBefore = ownerCount("idempotency_keys");
+        long settingsAuditBefore = ownerCount("audit_logs WHERE action_type = 'ORG_SETTING_CHANGED'");
+        long supportAuditBefore = ownerCount("audit_logs WHERE action_type = 'PLATFORM_ADMIN_ORG_ACCESS'");
+        long colorsBefore = ownerCount("organization_brand_colors");
+        long modulesBefore = ownerCount("organization_modules");
+
+        assertMissing(get("/api/v1/organizations/{id}/brand", missing));
+        assertMissing(patch("/api/v1/organizations/{id}/brand", missing).header("Idempotency-Key", "missing-brand")
+                .header("If-Match-Row-Version", "1").contentType("application/json").content("{\"primaryColor\":\"#1565C0\"}"));
+        assertMissing(get("/api/v1/organizations/{id}/brand-colors", missing));
+        assertMissing(put("/api/v1/organizations/{id}/brand-colors", missing).header("Idempotency-Key", "missing-palette")
+                .header("If-Match-Row-Version", "1").contentType("application/json").content("{\"items\":[]}"));
+        assertMissing(get("/api/v1/organizations/{id}/modules", missing));
+        assertMissing(patch("/api/v1/organizations/{id}/modules", missing).header("Idempotency-Key", "missing-modules")
+                .header("If-Match-Row-Version", "1").contentType("application/json").content("{\"items\":[]}"));
+
+        assertThat(ownerCount("organization_brand_rate_limits")).isEqualTo(rateBefore);
+        assertThat(ownerCount("idempotency_keys")).isEqualTo(idempotencyBefore);
+        assertThat(ownerCount("audit_logs WHERE action_type = 'ORG_SETTING_CHANGED'")).isEqualTo(settingsAuditBefore);
+        assertThat(ownerCount("audit_logs WHERE action_type = 'PLATFORM_ADMIN_ORG_ACCESS'")).isEqualTo(supportAuditBefore);
+        assertThat(ownerCount("organization_brand_colors")).isEqualTo(colorsBefore);
+        assertThat(ownerCount("organization_modules")).isEqualTo(modulesBefore);
+    }
+
+    private void assertMissing(org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request) throws Exception {
+        var result = mockMvc.perform(request.header("Authorization", "Bearer global"))
+                .andExpect(status().isNotFound())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error.code")
+                        .value("RESOURCE_NOT_FOUND"))
+                .andReturn();
+        assertThat(result.getResponse().getContentAsString()).doesNotContain("SQLException", "org.postgresql", "Exception");
+    }
+
+    private UUID createOrganization(String name) throws Exception {
+        UUID organizationId = UUID.randomUUID();
+        UUID actor = ACTOR.get();
+        try (Connection owner = ownerConnection(); var organization = owner.prepareStatement("""
+                INSERT INTO organizations (id, name, status, default_timezone, created_by_user_id, updated_by_user_id)
+                VALUES (?, ?, 'ACTIVE', 'Europe/Istanbul', ?, ?)
+                """);
+                var modules = owner.prepareStatement("""
+                INSERT INTO organization_modules (organization_id, module_code, is_enabled, sort_order, updated_by_user_id)
+                VALUES (?, ?, true, ?, ?)
+                ON CONFLICT (organization_id, module_code) DO NOTHING
+                """)) {
+            organization.setObject(1, organizationId);
+            organization.setString(2, name);
+            organization.setObject(3, actor);
+            organization.setObject(4, actor);
+            organization.executeUpdate();
+            String[] moduleCodes = {"ATT", "PROGRAM", "CONTENT", "PROGRESS", "EXPORT", "AUDIT"};
+            for (int index = 0; index < moduleCodes.length; index++) {
+                modules.setObject(1, organizationId);
+                modules.setString(2, moduleCodes[index]);
+                modules.setInt(3, index);
+                modules.setObject(4, actor);
+                modules.addBatch();
+            }
+            modules.executeBatch();
+            owner.commit();
+        }
+        return organizationId;
+    }
+
+    private void assertDifferentRowVersionConflict(UUID organizationId,
+            Function<String, org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder> requestForVersion,
+            String operation, int firstRowVersion) throws Exception {
+        String key = "fingerprint-" + operation.toLowerCase();
+        mockMvc.perform(requestForVersion.apply(Integer.toString(firstRowVersion)).header("Authorization", "Bearer global")
+                        .header("Idempotency-Key", key).contentType("application/json"))
+                .andExpect(status().isOk());
+        long auditAfterFirst = ownerCount("audit_logs WHERE action_type = 'ORG_SETTING_CHANGED' AND organization_id = '" + organizationId + "'");
+        long rateAfterFirst = ownerCount("organization_brand_rate_limits WHERE organization_id = '" + organizationId + "'");
+        long completedAfterFirst = ownerCount("idempotency_keys WHERE organization_id = '" + organizationId + "' AND operation_type = '" + operation + "' AND status = 'COMPLETED'");
+
+        mockMvc.perform(requestForVersion.apply(Integer.toString(firstRowVersion + 1)).header("Authorization", "Bearer global")
+                        .header("Idempotency-Key", key).contentType("application/json"))
+                .andExpect(status().isConflict())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error.code")
+                        .value("IDEMPOTENCY_KEY_REUSED"));
+        assertThat(ownerCount("audit_logs WHERE action_type = 'ORG_SETTING_CHANGED' AND organization_id = '" + organizationId + "'"))
+                .isEqualTo(auditAfterFirst);
+        assertThat(ownerCount("organization_brand_rate_limits WHERE organization_id = '" + organizationId + "'"))
+                .isEqualTo(rateAfterFirst);
+        assertThat(ownerCount("idempotency_keys WHERE organization_id = '" + organizationId + "' AND operation_type = '" + operation + "' AND status = 'COMPLETED'"))
+                .isEqualTo(completedAfterFirst);
+    }
+
+    private void assertPlainTextRejected(org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request,
+            String requestId) throws Exception {
+        var result = mockMvc.perform(request.header("Authorization", "Bearer global").header("Idempotency-Key", requestId)
+                        .header("If-Match-Row-Version", "1").header("X-Request-Id", requestId)
+                        .contentType("text/plain").content("not-json"))
+                .andExpect(status().isBadRequest())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error.code").value("INVALID_REQUEST"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error.requestId").value(requestId))
+                .andReturn();
+        String body = result.getResponse().getContentAsString();
+        assertThat(body).doesNotContain("Exception", "SQLException", "stack", "org.postgresql");
     }
 
     private void assertProductionCompositionRoot() {

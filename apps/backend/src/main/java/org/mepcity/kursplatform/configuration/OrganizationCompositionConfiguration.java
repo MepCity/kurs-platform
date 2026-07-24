@@ -2,6 +2,7 @@ package org.mepcity.kursplatform.configuration;
 
 import java.time.Clock;
 import org.mepcity.kursplatform.iam.application.contract.ActiveSessionResolver;
+import org.mepcity.kursplatform.org.application.OrganizationBrandAuthentication;
 import org.mepcity.kursplatform.org.application.OrganizationCreationService;
 import org.mepcity.kursplatform.org.application.OrganizationLifecycleService;
 import org.springframework.context.annotation.Bean;
@@ -14,5 +15,10 @@ public class OrganizationCompositionConfiguration {
     OrganizationCreationService organizationCreationService(OrganizationLifecycleService lifecycleService,
                                                             ActiveSessionResolver sessionResolver, Clock clock) {
         return new OrganizationCreationService(lifecycleService, sessionResolver, clock);
+    }
+
+    @Bean
+    OrganizationBrandAuthentication organizationBrandAuthentication(ActiveSessionResolver sessionResolver) {
+        return new OrganizationBrandAuthentication(sessionResolver);
     }
 }
