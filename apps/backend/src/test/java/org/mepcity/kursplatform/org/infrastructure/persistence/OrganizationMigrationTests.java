@@ -1542,14 +1542,11 @@ class OrganizationMigrationTests {
 
     @Test
     void auditLogsInsertRejectsOrgActorPathForOrg002WriteOperationCodesInPostgres() throws Exception {
-        // Default-deny: the 5 ORG-002 write codes have no org-actor branch at all in
-        // audit_logs_insert_org_setting_changed -- even a real, active ORG_ADMIN actor cannot use
-        // them without the platform-admin support-access flag. Only ORG_UPDATE_IDENTITY has a
-        // genuine org-actor path (via org_actor_has_identity_update_access).
+        // ORG-005 adds its own active-membership authorization paths for brand and modules;
+        // file operations remain platform-admin-only until their separate contract lands.
         UUID org = organization("Org-actor default-deny", user(), null, "ACTIVE");
         UUID actor = orgAdminActor(org);
-        for (String operationCode : List.of("ORG_UPDATE_BRAND", "ORG_UPDATE_BRAND_COLORS", "ORG_UPDATE_MODULES",
-                "ORG_UPLOAD_LOGO", "ORG_REMOVE_LOGO")) {
+        for (String operationCode : List.of("ORG_UPLOAD_LOGO", "ORG_REMOVE_LOGO")) {
             try (var connection = openConnection()) {
                 connection.createStatement().execute("SET ROLE org_runtime");
                 connection.createStatement().execute("SET LOCAL app.iam_operation_scope = 'ORGANIZATION'");

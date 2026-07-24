@@ -85,8 +85,7 @@ STABLE
 SECURITY DEFINER
 SET search_path = pg_catalog, public
 AS $$
-    SELECT current_user = 'org_runtime'
-       AND current_setting('app.iam_operation_scope', true) = 'ORGANIZATION'
+    SELECT current_setting('app.iam_operation_scope', true) = 'ORGANIZATION'
        AND target_org = current_setting('app.organization_id', true)::uuid
        AND actor = current_setting('app.iam_actor_user_id', true)::uuid
        AND (
@@ -112,13 +111,11 @@ AS $$
     );
 $$;
 REVOKE ALL ON FUNCTION public.org_actor_has_brand_access(UUID, UUID, TEXT) FROM PUBLIC;
--- iam_runtime needs EXECUTE only because its older organization RLS policies reference this
--- function. The role guard above makes every direct or IAM-context invocation return false.
-GRANT EXECUTE ON FUNCTION public.org_actor_has_brand_access(UUID, UUID, TEXT) TO org_runtime, iam_runtime;
+GRANT EXECUTE ON FUNCTION public.org_actor_has_brand_access(UUID, UUID, TEXT) TO org_runtime;
 
 -- The same function is used by Java authorization and RLS; a platform-admin support flag is
 -- accepted only after the actor-only platform_administrators SELECT has succeeded.
-CREATE POLICY organizations_org_brand_select ON organizations FOR SELECT USING (
+CREATE POLICY organizations_org_brand_select ON organizations FOR SELECT TO org_runtime USING (
     current_user = 'org_runtime' AND current_setting('app.iam_operation_scope', true) = 'ORGANIZATION'
     AND id = current_setting('app.organization_id', true)::uuid
     AND current_setting('app.iam_operation_code', true) IN
@@ -129,7 +126,7 @@ CREATE POLICY organizations_org_brand_select ON organizations FOR SELECT USING (
              AND status = 'ACTIVE' AND org_actor_has_brand_access(id, current_setting('app.iam_actor_user_id', true)::uuid, NULL))
     )
 );
-CREATE POLICY organizations_org_brand_update ON organizations FOR UPDATE USING (
+CREATE POLICY organizations_org_brand_update ON organizations FOR UPDATE TO org_runtime USING (
     current_user = 'org_runtime' AND id = current_setting('app.organization_id', true)::uuid
     AND current_setting('app.iam_operation_code', true) IN ('ORG_UPDATE_BRAND','ORG_UPDATE_BRAND_COLORS','ORG_UPDATE_MODULES')
     AND ((current_setting('app.iam_platform_admin_support_access', true) = 'true'
@@ -140,7 +137,7 @@ CREATE POLICY organizations_org_brand_update ON organizations FOR UPDATE USING (
              AND org_actor_has_brand_access(id, current_setting('app.iam_actor_user_id', true)::uuid, 'MODULE_MANAGE')))
 ) WITH CHECK (status <> 'ARCHIVED');
 
-CREATE POLICY brand_colors_org_runtime_select ON organization_brand_colors FOR SELECT USING (
+CREATE POLICY brand_colors_org_runtime_select ON organization_brand_colors FOR SELECT TO org_runtime USING (
     current_user = 'org_runtime'
     AND current_setting('app.iam_operation_scope', true) = 'ORGANIZATION'
     AND organization_id = current_setting('app.organization_id', true)::uuid
@@ -151,7 +148,7 @@ CREATE POLICY brand_colors_org_runtime_select ON organization_brand_colors FOR S
               AND org_actor_has_brand_access(organization_id, current_setting('app.iam_actor_user_id', true)::uuid,
                   CASE WHEN current_setting('app.iam_operation_code', true) = 'ORG_UPDATE_BRAND_COLORS' THEN 'BRAND_MANAGE' ELSE NULL END)) )
 );
-CREATE POLICY brand_colors_org_runtime_insert ON organization_brand_colors FOR INSERT WITH CHECK (
+CREATE POLICY brand_colors_org_runtime_insert ON organization_brand_colors FOR INSERT TO org_runtime WITH CHECK (
     current_user = 'org_runtime'
     AND current_setting('app.iam_operation_scope', true) = 'ORGANIZATION'
     AND current_setting('app.iam_operation_code', true) = 'ORG_UPDATE_BRAND_COLORS'
@@ -162,7 +159,7 @@ CREATE POLICY brand_colors_org_runtime_insert ON organization_brand_colors FOR I
               AND org_actor_has_brand_access(organization_id, current_setting('app.iam_actor_user_id', true)::uuid,
                   'BRAND_MANAGE')) )
 );
-CREATE POLICY brand_colors_org_runtime_delete ON organization_brand_colors FOR DELETE USING (
+CREATE POLICY brand_colors_org_runtime_delete ON organization_brand_colors FOR DELETE TO org_runtime USING (
     current_user = 'org_runtime'
     AND current_setting('app.iam_operation_scope', true) = 'ORGANIZATION'
     AND current_setting('app.iam_operation_code', true) = 'ORG_UPDATE_BRAND_COLORS'
@@ -174,7 +171,7 @@ CREATE POLICY brand_colors_org_runtime_delete ON organization_brand_colors FOR D
                   'BRAND_MANAGE')) )
 );
 
-CREATE POLICY modules_org_runtime_select ON organization_modules FOR SELECT USING (
+CREATE POLICY modules_org_runtime_select ON organization_modules FOR SELECT TO org_runtime USING (
     current_user = 'org_runtime'
     AND current_setting('app.iam_operation_scope', true) = 'ORGANIZATION'
     AND organization_id = current_setting('app.organization_id', true)::uuid
@@ -185,7 +182,7 @@ CREATE POLICY modules_org_runtime_select ON organization_modules FOR SELECT USIN
               AND org_actor_has_brand_access(organization_id, current_setting('app.iam_actor_user_id', true)::uuid,
                   CASE WHEN current_setting('app.iam_operation_code', true) = 'ORG_UPDATE_MODULES' THEN 'MODULE_MANAGE' ELSE NULL END)) )
 );
-CREATE POLICY modules_org_runtime_update ON organization_modules FOR UPDATE USING (
+CREATE POLICY modules_org_runtime_update ON organization_modules FOR UPDATE TO org_runtime USING (
     current_user = 'org_runtime'
     AND current_setting('app.iam_operation_scope', true) = 'ORGANIZATION'
     AND current_setting('app.iam_operation_code', true) = 'ORG_UPDATE_MODULES'
@@ -196,7 +193,7 @@ CREATE POLICY modules_org_runtime_update ON organization_modules FOR UPDATE USIN
               AND org_actor_has_brand_access(organization_id, current_setting('app.iam_actor_user_id', true)::uuid,
                   'MODULE_MANAGE')) )
 ) WITH CHECK (organization_id = current_setting('app.organization_id', true)::uuid);
-CREATE POLICY modules_org_create_seed ON organization_modules FOR INSERT WITH CHECK (
+CREATE POLICY modules_org_create_seed ON organization_modules FOR INSERT TO org_runtime WITH CHECK (
     current_user='org_runtime' AND current_setting('app.iam_operation_scope',true)='GLOBAL'
     AND current_setting('app.iam_operation_code',true)='ORG_CREATE'
     AND EXISTS (SELECT 1 FROM platform_administrators p
@@ -272,7 +269,7 @@ $$;
 -- V3's default-deny policies intentionally predate ORG-005. Recreate their ORG-005 branches
 -- with live, in-transaction authorization; a support flag is never sufficient on its own.
 DROP POLICY idempotency_keys_org_runtime_organization ON idempotency_keys;
-CREATE POLICY idempotency_keys_org_runtime_organization ON idempotency_keys FOR ALL USING (
+CREATE POLICY idempotency_keys_org_runtime_organization ON idempotency_keys FOR ALL TO org_runtime USING (
     current_user='org_runtime' AND current_setting('app.iam_operation_scope',true)='ORGANIZATION'
     AND scope_type='ORGANIZATION' AND organization_id=current_setting('app.organization_id',true)::uuid
     AND user_id=current_setting('app.iam_actor_user_id',true)::uuid

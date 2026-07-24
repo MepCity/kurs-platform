@@ -38,7 +38,7 @@ public final class OrganizationBrandService {
     }
 
     public BrandSettings.Brand brand(UUID actor, UUID organizationId, boolean platformAdmin, String requestId) {
-        return transactions.execute(s -> { context(actor, organizationId, "ORG_VIEW_BRAND", platformAdmin); rateLimiter.check(actor, organizationId, "ORG_VIEW_BRAND"); Organization o = visible(organizationId);
+        return transactions.execute(s -> { context(actor, organizationId, "ORG_VIEW_BRAND", platformAdmin); Organization o = visible(organizationId); rateLimiter.check(actor, organizationId, "ORG_VIEW_BRAND");
             if (platformAdmin) accessAudit(actor, organizationId, "ORG_VIEW_BRAND", requestId);
             return new BrandSettings.Brand(orDefault(o.primaryColor(), DEFAULT_PRIMARY), orDefault(o.secondaryColor(), DEFAULT_SECONDARY), o.rowVersion(), null); });
     }
@@ -47,6 +47,7 @@ public final class OrganizationBrandService {
         if (primary == null && secondary == null) throw new IllegalArgumentException("body.REQUIRED");
         return transactions.execute(s -> {
             context(command.actor(), command.organizationId(), "ORG_UPDATE_BRAND", command.platformAdmin());
+            visible(command.organizationId());
             Claim claim = claim(command); if (claim.replay()) return resultSerializer.deserializeBrand(claim.replayResult().resultPayload());
             rateLimiter.check(command.actor(), command.organizationId(), command.operation());
             Organization old = lock(command.organizationId()); verifyVersion(old, command.rowVersion());
@@ -73,7 +74,7 @@ public final class OrganizationBrandService {
     }
 
     public BrandSettings.Palette palette(UUID actor, UUID organizationId, boolean platformAdmin, String requestId) {
-        return transactions.execute(s -> { context(actor, organizationId, "ORG_VIEW_BRAND_COLORS", platformAdmin); rateLimiter.check(actor, organizationId, "ORG_VIEW_BRAND_COLORS"); Organization o=visible(organizationId);
+        return transactions.execute(s -> { context(actor, organizationId, "ORG_VIEW_BRAND_COLORS", platformAdmin); Organization o=visible(organizationId); rateLimiter.check(actor, organizationId, "ORG_VIEW_BRAND_COLORS");
             if (platformAdmin) accessAudit(actor, organizationId, "ORG_VIEW_BRAND_COLORS", requestId);
             return new BrandSettings.Palette(o.rowVersion(), readPalette()); });
     }
@@ -82,6 +83,7 @@ public final class OrganizationBrandService {
         List<BrandSettings.Color> normalized = normalizeColors(items);
         return transactions.execute(s -> {
             context(command.actor(), command.organizationId(), "ORG_UPDATE_BRAND_COLORS", command.platformAdmin());
+            visible(command.organizationId());
             Claim claim=claim(command); if(claim.replay()) return resultSerializer.deserializePalette(claim.replayResult().resultPayload());
             rateLimiter.check(command.actor(), command.organizationId(), command.operation());
             Organization old=lock(command.organizationId()); verifyVersion(old,command.rowVersion()); List<BrandSettings.Color> before=readPalette();
@@ -98,11 +100,11 @@ public final class OrganizationBrandService {
     }
 
     public BrandSettings.Modules modules(UUID actor, UUID organizationId, boolean platformAdmin, String requestId) {
-        return transactions.execute(s -> { context(actor,organizationId,"ORG_VIEW_MODULES",platformAdmin); rateLimiter.check(actor, organizationId, "ORG_VIEW_MODULES"); Organization o=visible(organizationId); if(platformAdmin) accessAudit(actor,organizationId,"ORG_VIEW_MODULES",requestId); return new BrandSettings.Modules(o.rowVersion(),readModules()); });
+        return transactions.execute(s -> { context(actor,organizationId,"ORG_VIEW_MODULES",platformAdmin); Organization o=visible(organizationId); rateLimiter.check(actor, organizationId, "ORG_VIEW_MODULES"); if(platformAdmin) accessAudit(actor,organizationId,"ORG_VIEW_MODULES",requestId); return new BrandSettings.Modules(o.rowVersion(),readModules()); });
     }
 
     public BrandSettings.Modules updateModules(Command command, List<BrandSettings.ModulePatch> items) {
-        return transactions.execute(s -> { context(command.actor(),command.organizationId(),"ORG_UPDATE_MODULES",command.platformAdmin()); Claim claim=claim(command); if(claim.replay()) return resultSerializer.deserializeModules(claim.replayResult().resultPayload()); rateLimiter.check(command.actor(), command.organizationId(), command.operation()); Organization old=lock(command.organizationId()); verifyVersion(old,command.rowVersion()); List<BrandSettings.Module> before=readModules(); List<BrandSettings.Module> normalized=mergeModules(before,items);
+        return transactions.execute(s -> { context(command.actor(),command.organizationId(),"ORG_UPDATE_MODULES",command.platformAdmin()); visible(command.organizationId()); Claim claim=claim(command); if(claim.replay()) return resultSerializer.deserializeModules(claim.replayResult().resultPayload()); rateLimiter.check(command.actor(), command.organizationId(), command.operation()); Organization old=lock(command.organizationId()); verifyVersion(old,command.rowVersion()); List<BrandSettings.Module> before=readModules(); List<BrandSettings.Module> normalized=mergeModules(before,items);
             if (before.equals(normalized)) { if(command.platformAdmin()) accessAudit(command.actor(),old.id(),"ORG_UPDATE_MODULES",command.requestId()); BrandSettings.Modules response = new BrandSettings.Modules(old.rowVersion(), before); complete(claim, old.id(), command, resultSerializer.serialize(response)); return response; }
             Connection c=DataSourceUtils.getConnection(dataSource); try(PreparedStatement u=c.prepareStatement("UPDATE organization_modules SET is_enabled=?, sort_order=?, updated_at=transaction_timestamp(), updated_by_user_id=? WHERE organization_id=? AND module_code=?")){ for(var m:normalized){u.setBoolean(1,m.isEnabled());u.setInt(2,m.sortOrder());u.setObject(3,command.actor());u.setObject(4,old.id());u.setString(5,m.moduleCode()); if(u.executeUpdate()!=1) throw new OrganizationConflictException();} }catch(SQLException e){throw new OrganizationPersistenceStateException("Modül ayarı yazılamadı",e);}
             Organization changed=organizations.updateBrand(old.id(),old.primaryColor(),old.secondaryColor(),old.rowVersion(),command.actor()).orElseThrow(OrganizationConflictException::new);

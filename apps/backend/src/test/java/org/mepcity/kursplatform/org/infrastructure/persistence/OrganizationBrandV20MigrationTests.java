@@ -65,8 +65,8 @@ class OrganizationBrandV20MigrationTests {
             String grants = single(c, "SELECT coalesce(string_agg(grantee || ':' || privilege_type, ',' ORDER BY grantee), '') FROM information_schema.role_routine_grants WHERE routine_schema='public' AND routine_name='org_actor_has_brand_access'");
             assertThat(definition).contains("SECURITY DEFINER", "SET search_path TO 'pg_catalog', 'public'",
                     "public.organization_memberships", "public.organization_membership_roles");
-            assertThat(grants).contains("org_runtime:EXECUTE", "iam_runtime:EXECUTE")
-                    .doesNotContain("PUBLIC:EXECUTE", "app_runtime:EXECUTE");
+            assertThat(grants).contains("org_runtime:EXECUTE")
+                    .doesNotContain("PUBLIC:EXECUTE", "iam_runtime:EXECUTE", "app_runtime:EXECUTE");
         }
     }
 
