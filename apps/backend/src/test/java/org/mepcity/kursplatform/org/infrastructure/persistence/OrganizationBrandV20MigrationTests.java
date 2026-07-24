@@ -1,8 +1,10 @@
 package org.mepcity.kursplatform.org.infrastructure.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.UUID;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterAll;
@@ -69,6 +71,90 @@ class OrganizationBrandV20MigrationTests {
                     .doesNotContain("PUBLIC:EXECUTE", "iam_runtime:EXECUTE", "app_runtime:EXECUTE");
         }
     }
+
+    @Test void brandAccessFunctionEnforcesTheLiveActorPermissionAndGucMatrix() throws Exception {
+        UUID organization = UUID.randomUUID();
+        UUID admin = member(organization, "ORG_ADMIN", null, false, false, false);
+        UUID brandTeacher = member(organization, "TEACHER", "BRAND_MANAGE", false, false, false);
+        UUID moduleTeacher = member(organization, "TEACHER", "MODULE_MANAGE", false, false, false);
+        UUID noPermissionTeacher = member(organization, "TEACHER", null, false, false, false);
+        UUID revokedMembership = member(organization, "ORG_ADMIN", null, true, false, false);
+        UUID revokedRole = member(organization, "ORG_ADMIN", null, false, true, false);
+        UUID revokedPermission = member(organization, "TEACHER", "BRAND_MANAGE", false, false, true);
+
+        assertThat(callAsOrgRuntime(organization, admin, "ORGANIZATION", "ORG_VIEW_BRAND", null)).isTrue();
+        assertThat(callAsOrgRuntime(organization, admin, "ORGANIZATION", "ORG_UPDATE_BRAND", "BRAND_MANAGE")).isTrue();
+        assertThat(callAsOrgRuntime(organization, admin, "ORGANIZATION", "ORG_UPDATE_MODULES", "MODULE_MANAGE")).isTrue();
+        assertThat(callAsOrgRuntime(organization, brandTeacher, "ORGANIZATION", "ORG_UPDATE_BRAND", "BRAND_MANAGE")).isTrue();
+        assertThat(callAsOrgRuntime(organization, brandTeacher, "ORGANIZATION", "ORG_UPDATE_BRAND_COLORS", "BRAND_MANAGE")).isTrue();
+        assertThat(callAsOrgRuntime(organization, brandTeacher, "ORGANIZATION", "ORG_UPDATE_MODULES", "MODULE_MANAGE")).isFalse();
+        assertThat(callAsOrgRuntime(organization, moduleTeacher, "ORGANIZATION", "ORG_UPDATE_MODULES", "MODULE_MANAGE")).isTrue();
+        assertThat(callAsOrgRuntime(organization, moduleTeacher, "ORGANIZATION", "ORG_UPDATE_BRAND", "BRAND_MANAGE")).isFalse();
+        assertThat(callAsOrgRuntime(organization, noPermissionTeacher, "ORGANIZATION", "ORG_UPDATE_BRAND", "BRAND_MANAGE")).isFalse();
+        assertThat(callAsOrgRuntime(organization, revokedMembership, "ORGANIZATION", "ORG_UPDATE_BRAND", "BRAND_MANAGE")).isFalse();
+        assertThat(callAsOrgRuntime(organization, revokedRole, "ORGANIZATION", "ORG_UPDATE_BRAND", "BRAND_MANAGE")).isFalse();
+        assertThat(callAsOrgRuntime(organization, revokedPermission, "ORGANIZATION", "ORG_UPDATE_BRAND", "BRAND_MANAGE")).isFalse();
+        assertThat(callAsOrgRuntime(organization, admin, "GLOBAL", "ORG_UPDATE_BRAND", "BRAND_MANAGE")).isFalse();
+        assertThat(callAsOrgRuntime(UUID.randomUUID(), admin, "ORGANIZATION", "ORG_UPDATE_BRAND", "BRAND_MANAGE")).isFalse();
+        assertThat(callAsOrgRuntime(organization, UUID.randomUUID(), "ORGANIZATION", "ORG_UPDATE_BRAND", "BRAND_MANAGE")).isFalse();
+        assertThat(callAsOrgRuntime(organization, admin, "ORGANIZATION", "IAM_AUTH", "BRAND_MANAGE")).isFalse();
+    }
+
+    @Test void brandAccessFunctionExecuteIsDeniedOutsideOrgRuntime() throws Exception {
+        assertSqlState("42501", () -> callAs("iam_runtime"));
+        assertSqlState("42501", () -> callAs("app_runtime"));
+        try (Connection c = java.sql.DriverManager.getConnection(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())) {
+            c.setAutoCommit(false);
+            c.createStatement().execute("CREATE ROLE org_brand_function_denied NOLOGIN");
+            c.commit();
+        }
+        assertSqlState("42501", () -> callAs("org_brand_function_denied"));
+    }
+
+    private UUID member(UUID organization, String role, String permission, boolean membershipRevoked,
+            boolean roleRevoked, boolean permissionRevoked) throws Exception {
+        UUID actor = UUID.randomUUID();
+        UUID membership = UUID.randomUUID();
+        UUID roleId = UUID.randomUUID();
+        try (Connection c = java.sql.DriverManager.getConnection(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())) {
+            c.setAutoCommit(false);
+            c.createStatement().execute("INSERT INTO users (id, status) VALUES ('" + actor + "', 'ACTIVE') ON CONFLICT DO NOTHING");
+            c.createStatement().execute("INSERT INTO organizations (id, name, status, default_timezone, created_by_user_id, updated_by_user_id) VALUES ('" + organization + "', 'Function test', 'ACTIVE', 'Europe/Istanbul', '" + actor + "', '" + actor + "') ON CONFLICT DO NOTHING");
+            c.createStatement().execute("INSERT INTO people (id, organization_id, first_name, last_name, phone) VALUES ('" + UUID.randomUUID() + "','" + organization + "','A','B','1')");
+            c.createStatement().execute("INSERT INTO organization_memberships (id, organization_id, user_id, person_id, status, granted_at) VALUES ('" + membership + "','" + organization + "','" + actor + "',(SELECT id FROM people WHERE organization_id='" + organization + "' ORDER BY created_at DESC LIMIT 1),'" + (membershipRevoked ? "SUSPENDED" : "ACTIVE") + "',transaction_timestamp())");
+            c.createStatement().execute("INSERT INTO organization_membership_roles (id, organization_membership_id, organization_id, role, granted_at, revoked_at) VALUES ('" + roleId + "','" + membership + "','" + organization + "','" + role + "',transaction_timestamp()," + (roleRevoked ? "transaction_timestamp()" : "NULL") + ")");
+            if (permission != null) c.createStatement().execute("INSERT INTO organization_membership_permissions (id, organization_id, target_membership_role_id, target_role_code, permission_code, granted_by_platform_admin_user_id, granted_at, revoked_at) VALUES ('" + UUID.randomUUID() + "','" + organization + "','" + roleId + "','TEACHER','" + permission + "','" + UUID.randomUUID() + "',transaction_timestamp()," + (permissionRevoked ? "transaction_timestamp()" : "NULL") + ")");
+            c.commit();
+        }
+        return actor;
+    }
+
+    private boolean callAsOrgRuntime(UUID organization, UUID actor, String scope, String operation, String permission) throws Exception {
+        try (Connection c = java.sql.DriverManager.getConnection(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())) {
+            c.setAutoCommit(false);
+            c.createStatement().execute("SET LOCAL ROLE org_runtime");
+            c.createStatement().execute("SET LOCAL app.iam_operation_scope = '" + scope + "'");
+            c.createStatement().execute("SET LOCAL app.organization_id = '" + organization + "'");
+            c.createStatement().execute("SET LOCAL app.iam_actor_user_id = '" + actor + "'");
+            c.createStatement().execute("SET LOCAL app.iam_operation_code = '" + operation + "'");
+            try (var r = c.createStatement().executeQuery("SELECT org_actor_has_brand_access('" + organization + "', '" + actor + "', " + (permission == null ? "NULL" : "'" + permission + "'") + ")")) { r.next(); return r.getBoolean(1); }
+        }
+    }
+
+    private void callAs(String role) throws Exception {
+        try (Connection c = java.sql.DriverManager.getConnection(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())) {
+            c.setAutoCommit(false);
+            c.createStatement().execute("SET LOCAL ROLE " + role);
+            c.createStatement().executeQuery("SELECT org_actor_has_brand_access(NULL, NULL, NULL)");
+        }
+    }
+
+    private static void assertSqlState(String expected, ThrowingSql operation) {
+        assertThatThrownBy(operation::run).isInstanceOf(SQLException.class)
+                .satisfies(error -> assertThat(((SQLException) error).getSQLState()).isEqualTo(expected));
+    }
+
+    @FunctionalInterface private interface ThrowingSql { void run() throws Exception; }
 
     private static String single(Connection c, String sql) throws Exception {
         try (var s = c.createStatement(); var r = s.executeQuery(sql)) { r.next(); return r.getString(1); }
