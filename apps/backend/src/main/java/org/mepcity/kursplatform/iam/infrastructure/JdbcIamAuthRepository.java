@@ -13,6 +13,7 @@ import org.mepcity.kursplatform.iam.domain.IdempotencyStatus;
 import org.mepcity.kursplatform.iam.domain.MembershipRole;
 import org.mepcity.kursplatform.iam.domain.OperationCode;
 import org.mepcity.kursplatform.iam.domain.OrganizationMembership;
+import org.mepcity.kursplatform.iam.domain.OrganizationMembershipPermission;
 import org.mepcity.kursplatform.iam.domain.OrganizationMembershipRole;
 import org.mepcity.kursplatform.iam.domain.PlatformAdministrator;
 import org.mepcity.kursplatform.iam.domain.ProviderCommand;
@@ -140,6 +141,27 @@ public class JdbcIamAuthRepository implements IamAuthRepository {
                         toInstant(rs.getTimestamp("revoked_at"))),
                 userId, deviceId);
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+    }
+
+    @Override
+    public List<TrustedDevice> findActiveTrustedDevicesByUserId(UUID userId, int limit) {
+        return jdbcTemplate.query("SELECT id, user_id, device_identifier, device_name, platform, trusted_at, last_seen_at, revoked_at "
+                        + "FROM trusted_devices WHERE user_id = ? AND revoked_at IS NULL ORDER BY trusted_at DESC, id ASC LIMIT ?",
+                (rs, rowNum) -> mapTrustedDevice(rs), userId, limit);
+    }
+
+    @Override
+    public Optional<TrustedDevice> findTrustedDeviceByIdForUpdate(UUID userId, UUID deviceId) {
+        List<TrustedDevice> results = jdbcTemplate.query("SELECT id, user_id, device_identifier, device_name, platform, trusted_at, last_seen_at, revoked_at "
+                        + "FROM trusted_devices WHERE user_id = ? AND id = ? FOR UPDATE",
+                (rs, rowNum) -> mapTrustedDevice(rs), userId, deviceId);
+        return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+    }
+
+    @Override
+    public boolean revokeTrustedDeviceIfActive(UUID userId, UUID deviceId) {
+        return jdbcTemplate.update("UPDATE trusted_devices SET revoked_at = transaction_timestamp() "
+                + "WHERE user_id = ? AND id = ? AND revoked_at IS NULL", userId, deviceId) == 1;
     }
 
     @Override
@@ -405,6 +427,47 @@ public class JdbcIamAuthRepository implements IamAuthRepository {
     public void revokeRefreshTokensInFamily(UUID familyId, Instant revokedAt) {
         jdbcTemplate.update("UPDATE refresh_tokens SET revoked_at = transaction_timestamp() WHERE family_id = ? AND revoked_at IS NULL",
                 familyId);
+    }
+
+    @Override
+    public List<RefreshTokenFamily> findActiveRefreshTokenFamiliesByTrustedDeviceId(UUID trustedDeviceId) {
+        return jdbcTemplate.query("SELECT id, user_id, trusted_device_id, organization_membership_id, authenticated_at, issued_at_session_generation, revoked_at, created_at "
+                        + "FROM refresh_token_families WHERE trusted_device_id = ? AND revoked_at IS NULL FOR UPDATE",
+                (rs, rowNum) -> mapRefreshTokenFamily(rs), trustedDeviceId);
+    }
+
+    @Override
+    public List<RefreshTokenFamily> findActiveRefreshTokenFamiliesByOrganizationMembershipId(UUID membershipId) {
+        return jdbcTemplate.query("SELECT id, user_id, trusted_device_id, organization_membership_id, authenticated_at, issued_at_session_generation, revoked_at, created_at "
+                        + "FROM refresh_token_families WHERE organization_membership_id = ? AND revoked_at IS NULL FOR UPDATE",
+                (rs, rowNum) -> mapRefreshTokenFamily(rs), membershipId);
+    }
+
+    @Override
+    public Optional<OrganizationMembership> findOrganizationMembershipById(UUID membershipId) {
+        List<OrganizationMembership> results = jdbcTemplate.query("SELECT id, organization_id, user_id, person_id, status, session_generation, reauthentication_required_after, granted_by_user_id, granted_at "
+                        + "FROM organization_memberships WHERE id = ?",
+                (rs, rowNum) -> mapOrganizationMembership(rs), membershipId);
+        return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+    }
+
+    @Override
+    public List<OrganizationMembershipPermission> findActivePermissionsByMembershipId(UUID membershipId) {
+        return jdbcTemplate.query("SELECT p.id, p.organization_id, p.target_membership_role_id, p.target_role_code, p.permission_code, "
+                        + "p.granted_by_membership_role_id, p.granted_role_code, p.granted_by_platform_admin_user_id, p.granted_at, p.revoked_at "
+                        + "FROM organization_membership_permissions p JOIN organization_membership_roles r ON r.id=p.target_membership_role_id "
+                        + "WHERE r.organization_membership_id=? AND p.revoked_at IS NULL",
+                (rs, rowNum) -> new OrganizationMembershipPermission(rs.getObject("id", UUID.class), rs.getObject("organization_id", UUID.class),
+                        rs.getObject("target_membership_role_id", UUID.class), MembershipRole.valueOf(rs.getString("target_role_code")),
+                        rs.getString("permission_code"), rs.getObject("granted_by_membership_role_id", UUID.class),
+                        rs.getString("granted_role_code") == null ? null : MembershipRole.valueOf(rs.getString("granted_role_code")),
+                        rs.getObject("granted_by_platform_admin_user_id", UUID.class), toInstant(rs.getTimestamp("granted_at")), toInstant(rs.getTimestamp("revoked_at"))), membershipId);
+    }
+
+    @Override
+    public void advanceMembershipSessionBarrier(UUID membershipId) {
+        jdbcTemplate.update("UPDATE organization_memberships SET session_generation = session_generation + 1, "
+                + "reauthentication_required_after = transaction_timestamp() WHERE id = ?", membershipId);
     }
 
     @Override
@@ -794,6 +857,28 @@ public class JdbcIamAuthRepository implements IamAuthRepository {
                 toInstant(rs.getTimestamp("used_at")),
                 toInstant(rs.getTimestamp("expires_at")),
                 toInstant(rs.getTimestamp("revoked_at")));
+    }
+
+    private TrustedDevice mapTrustedDevice(java.sql.ResultSet rs) throws java.sql.SQLException {
+        return new TrustedDevice(rs.getObject("id", UUID.class), rs.getObject("user_id", UUID.class),
+                rs.getObject("device_identifier", UUID.class), rs.getString("device_name"),
+                DevicePlatform.valueOf(rs.getString("platform")), toInstant(rs.getTimestamp("trusted_at")),
+                toInstant(rs.getTimestamp("last_seen_at")), toInstant(rs.getTimestamp("revoked_at")));
+    }
+
+    private RefreshTokenFamily mapRefreshTokenFamily(java.sql.ResultSet rs) throws java.sql.SQLException {
+        return new RefreshTokenFamily(rs.getObject("id", UUID.class), rs.getObject("user_id", UUID.class),
+                rs.getObject("trusted_device_id", UUID.class), rs.getObject("organization_membership_id", UUID.class),
+                toInstant(rs.getTimestamp("authenticated_at")), rs.getObject("issued_at_session_generation", Integer.class),
+                toInstant(rs.getTimestamp("revoked_at")), toInstant(rs.getTimestamp("created_at")));
+    }
+
+    private OrganizationMembership mapOrganizationMembership(java.sql.ResultSet rs) throws java.sql.SQLException {
+        return new OrganizationMembership(rs.getObject("id", UUID.class), rs.getObject("organization_id", UUID.class),
+                rs.getObject("user_id", UUID.class), rs.getObject("person_id", UUID.class),
+                UserStatus.valueOf(rs.getString("status")), rs.getInt("session_generation"),
+                toInstant(rs.getTimestamp("reauthentication_required_after")), rs.getObject("granted_by_user_id", UUID.class),
+                toInstant(rs.getTimestamp("granted_at")));
     }
 
     private IdempotencyKey mapIdempotencyKey(java.sql.ResultSet rs) throws java.sql.SQLException {

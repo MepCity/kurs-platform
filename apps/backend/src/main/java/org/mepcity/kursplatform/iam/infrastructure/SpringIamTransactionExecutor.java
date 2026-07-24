@@ -67,6 +67,19 @@ public class SpringIamTransactionExecutor implements IamTransactionExecutor {
     }
 
     @Override
+    public <T> T executeInOrganizationScope(OperationCode operationCode, IamAuthScopeContext context,
+                                             boolean platformAdminSupportAccess, Supplier<T> action) {
+        Map<String, String> vars = new HashMap<>();
+        vars.put("app.iam_operation_scope", OperationScope.ORGANIZATION.name());
+        vars.put("app.iam_operation_code", operationCode.name());
+        // A false value is always present on normal role paths, so a pooled connection cannot
+        // accidentally retain a prior support context.
+        vars.put("app.iam_platform_admin_support_access", "false");
+        putContextVars(vars, context);
+        return executeMutationWithVars(vars, action);
+    }
+
+    @Override
     public <T> T executeInProvisioningScope(OperationCode operationCode, IamAuthScopeContext context,
                                              Supplier<T> action) {
         Map<String, String> vars = new HashMap<>();
@@ -96,6 +109,14 @@ public class SpringIamTransactionExecutor implements IamTransactionExecutor {
             throw new IllegalStateException("Security revoke yalnız aktif IAM transaction içinde kurulabilir.");
         }
         applySessionVarsToBoundConnection(Map.of("app.iam_security_revoke_required", "true"));
+    }
+
+    @Override
+    public void enablePlatformAdminSupportAccess() {
+        if (!Boolean.TRUE.equals(mutationScopeActive.get()) || !TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new IllegalStateException("Platform admin support yalnız aktif IAM transaction içinde kurulabilir.");
+        }
+        applySessionVarsToBoundConnection(Map.of("app.iam_platform_admin_support_access", "true"));
     }
 
     private void putContextVars(Map<String, String> vars, IamAuthScopeContext context) {
