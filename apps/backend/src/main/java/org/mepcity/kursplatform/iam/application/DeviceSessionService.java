@@ -85,8 +85,9 @@ public final class DeviceSessionService {
                     complete(actor.userId(), key, IdempotencyScope.ORGANIZATION, organizationId, OperationCode.DEVICE_SESSION_REVOKE, fingerprint, targetMembershipId);
                     audit("DEVICE_SESSION_REVOKED", IamAuditEvent.EventScope.ORGANIZATION, organizationId, actor.userId(), target.userId(),
                             Map.of("operationCode", OperationCode.DEVICE_SESSION_REVOKE.name(), "organizationMembershipId", targetMembershipId.toString(), "revokedRefreshTokenFamilyCount", families.size()));
-                    if (support) audit("PLATFORM_ADMIN_ORG_ACCESS", IamAuditEvent.EventScope.ORGANIZATION, organizationId, actor.userId(), target.userId(),
-                            Map.of("operationCode", OperationCode.DEVICE_SESSION_REVOKE.name(), "organizationMembershipId", targetMembershipId.toString()));
+                    if (support) audits.write(new IamAuditEvent(UUID.randomUUID(), organizationId, actor.userId(), MDC.get("requestId"),
+                            "PLATFORM_ADMIN_ORG_ACCESS", IamAuditEvent.EventScope.ORGANIZATION, "ORGANIZATION", IamAuditEvent.EventKind.ACCESS,
+                            organizationId, Map.of(), Map.of("operationCode", OperationCode.DEVICE_SESSION_REVOKE.name(), "outcome", "SUCCESS")));
                     return new MembershipRevokeResult(targetMembershipId, families.size(), false);
                 });
     }

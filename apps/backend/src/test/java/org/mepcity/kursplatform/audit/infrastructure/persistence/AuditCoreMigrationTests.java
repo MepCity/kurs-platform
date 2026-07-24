@@ -48,7 +48,7 @@ class AuditCoreMigrationTests {
             // ORG_SETTING_CHANGED payload_schema_version=2 row (VERI_MODELI.md §13.0a) + IAM-004's
             // 6 new codes (V7__iam_audit_events.sql) + IAM-004 Fix Round 3's 4 further new codes
             // (V10__iam_audit_unknown_and_command_completed.sql), each a single row.
-            assertThat(catalogCount(connection)).isEqualTo(19);
+            assertThat(catalogCount(connection)).isEqualTo(22);
             assertThat(catalogCodes(connection)).containsExactlyElementsOf(expected.keySet());
 
             for (var entry : expected.entrySet()) {
@@ -245,6 +245,14 @@ class AuditCoreMigrationTests {
                 """
                 {"oldValue":{"allowed":[],"requiredNull":true},"newValue":{"allowed":["deviceIdentifier","refreshTokenFamilyId","organizationMembershipId"]},"eventMetadata":{"allowed":["operationCode"]},"reasonCodes":[],"rejectUnknown":true}
                 """));
+        String deviceAuditPayload = """
+                {"oldValue":{"allowed":[],"requiredNull":true},"newValue":{"allowed":[],"requiredNull":true},"eventMetadata":{"allowed":["operationCode","trustedDeviceId","revokedRefreshTokenFamilyCount"]},"reasonCodes":[],"rejectUnknown":true}
+                """;
+        expected.put("DEVICE_SELF_REVOKED", new CatalogExpectation("GLOBAL", "SECURITY", "USER", true, false, false, false, deviceAuditPayload));
+        expected.put("DEVICE_SESSION_REVOKED", new CatalogExpectation("ORGANIZATION", "SECURITY", "USER", true, false, false, false,
+                """
+                {"oldValue":{"allowed":[],"requiredNull":true},"newValue":{"allowed":[],"requiredNull":true},"eventMetadata":{"allowed":["operationCode","organizationMembershipId","revokedRefreshTokenFamilyCount"]},"reasonCodes":[],"rejectUnknown":true}
+                """));
         expected.put("IAM_ORG_PROVIDER_SESSION_REVOKED", new CatalogExpectation(
                 "ORGANIZATION", "SECURITY", "USER", true, false, false, false,
                 """
@@ -285,6 +293,7 @@ class AuditCoreMigrationTests {
                 """
                 {"oldValue":{"allowed":[],"requiredNull":true},"newValue":{"allowed":["deviceIdentifier","refreshTokenFamilyId"]},"eventMetadata":{"allowed":["operationCode"]},"reasonCodes":[],"rejectUnknown":true}
                 """));
+        expected.put("PLATFORM_DEVICE_REVOKED", new CatalogExpectation("GLOBAL", "SECURITY", "USER", true, false, false, false, deviceAuditPayload));
         expected.put("PLATFORM_ADMIN_ORG_ACCESS", new CatalogExpectation(
                 "ORGANIZATION", "ACCESS", "ORGANIZATION", true, false, false, false,
                 """
@@ -518,7 +527,7 @@ class AuditCoreMigrationTests {
                 "SELECT count(*) FROM pg_policies WHERE tablename='audit_logs' AND cmd = 'INSERT' AND roles = '{iam_runtime}'");
                 var rows = statement.executeQuery()) {
             rows.next();
-            assertThat(rows.getInt(1)).isEqualTo(3);
+            assertThat(rows.getInt(1)).isEqualTo(4);
         }
         try (var statement = connection.prepareStatement(
                 "SELECT count(*) FROM pg_policies WHERE tablename='audit_logs' AND cmd IN ('SELECT','UPDATE','DELETE')");
