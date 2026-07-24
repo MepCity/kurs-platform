@@ -234,6 +234,43 @@ class OrganizationHttpPostgresIntegrationTests {
                 .isEqualTo(completedBefore);
     }
 
+    @Test @Order(6)
+    void nonexistentOrganizationIsRejectedBeforeRateLimitIdempotencyAuditOrMutationForEveryBrandEndpoint() throws Exception {
+        UUID missing = UUID.randomUUID();
+        long rateBefore = ownerCount("organization_brand_rate_limits");
+        long idempotencyBefore = ownerCount("idempotency_keys");
+        long settingsAuditBefore = ownerCount("audit_logs WHERE action_type = 'ORG_SETTING_CHANGED'");
+        long supportAuditBefore = ownerCount("audit_logs WHERE action_type = 'PLATFORM_ADMIN_ORG_ACCESS'");
+        long colorsBefore = ownerCount("organization_brand_colors");
+        long modulesBefore = ownerCount("organization_modules");
+
+        assertMissing(get("/api/v1/organizations/{id}/brand", missing));
+        assertMissing(patch("/api/v1/organizations/{id}/brand", missing).header("Idempotency-Key", "missing-brand")
+                .header("If-Match-Row-Version", "1").contentType("application/json").content("{\"primaryColor\":\"#1565C0\"}"));
+        assertMissing(get("/api/v1/organizations/{id}/brand-colors", missing));
+        assertMissing(put("/api/v1/organizations/{id}/brand-colors", missing).header("Idempotency-Key", "missing-palette")
+                .header("If-Match-Row-Version", "1").contentType("application/json").content("{\"items\":[]}"));
+        assertMissing(get("/api/v1/organizations/{id}/modules", missing));
+        assertMissing(patch("/api/v1/organizations/{id}/modules", missing).header("Idempotency-Key", "missing-modules")
+                .header("If-Match-Row-Version", "1").contentType("application/json").content("{\"items\":[]}"));
+
+        assertThat(ownerCount("organization_brand_rate_limits")).isEqualTo(rateBefore);
+        assertThat(ownerCount("idempotency_keys")).isEqualTo(idempotencyBefore);
+        assertThat(ownerCount("audit_logs WHERE action_type = 'ORG_SETTING_CHANGED'")).isEqualTo(settingsAuditBefore);
+        assertThat(ownerCount("audit_logs WHERE action_type = 'PLATFORM_ADMIN_ORG_ACCESS'")).isEqualTo(supportAuditBefore);
+        assertThat(ownerCount("organization_brand_colors")).isEqualTo(colorsBefore);
+        assertThat(ownerCount("organization_modules")).isEqualTo(modulesBefore);
+    }
+
+    private void assertMissing(org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request) throws Exception {
+        var result = mockMvc.perform(request.header("Authorization", "Bearer global"))
+                .andExpect(status().isNotFound())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error.code")
+                        .value("RESOURCE_NOT_FOUND"))
+                .andReturn();
+        assertThat(result.getResponse().getContentAsString()).doesNotContain("SQLException", "org.postgresql", "Exception");
+    }
+
     private UUID createOrganization(String name) throws Exception {
         UUID organizationId = UUID.randomUUID();
         UUID actor = ACTOR.get();
