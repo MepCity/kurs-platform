@@ -102,7 +102,12 @@ public interface IamAuthRepository {
 
     List<RefreshTokenFamily> findActiveRefreshTokenFamiliesByOrganizationMembershipId(UUID membershipId);
 
+    /** Locks every token in a family after the caller has locked the family row. */
+    void lockActiveRefreshTokensInFamily(UUID familyId);
+
     Optional<OrganizationMembership> findOrganizationMembershipById(UUID membershipId);
+
+    Optional<OrganizationMembership> findOrganizationMembershipByIdForUpdate(UUID membershipId);
 
     List<OrganizationMembershipPermission> findActivePermissionsByMembershipId(UUID membershipId);
 

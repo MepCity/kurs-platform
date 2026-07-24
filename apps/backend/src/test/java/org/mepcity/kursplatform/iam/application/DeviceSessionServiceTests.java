@@ -29,6 +29,7 @@ import org.mepcity.kursplatform.iam.domain.DevicePlatform;
 import org.mepcity.kursplatform.iam.domain.IamException;
 import org.mepcity.kursplatform.iam.domain.OrganizationMembership;
 import org.mepcity.kursplatform.iam.domain.PlatformAdministrator;
+import org.mepcity.kursplatform.iam.domain.RefreshTokenFamily;
 import org.mepcity.kursplatform.iam.domain.TrustedDevice;
 import org.mepcity.kursplatform.iam.domain.UserStatus;
 
@@ -61,9 +62,10 @@ class DeviceSessionServiceTests {
         when(credentials.resolveCredential("token")).thenReturn(CredentialResolution.platformAccess(ActiveSession.globalPlatformAdmin(actor)));
         when(repository.findActivePlatformAdministratorByUserId(actor)).thenReturn(Optional.of(new PlatformAdministrator(UUID.randomUUID(), actor, actor, Instant.now(), null)));
         when(repository.findOrganizationMembershipById(targetMembership)).thenReturn(Optional.of(membership(targetMembership, org, targetUser)));
+        when(repository.findOrganizationMembershipByIdForUpdate(targetMembership)).thenReturn(Optional.of(membership(targetMembership, org, targetUser)));
         when(repository.findIdempotencyKey(any(), anyString(), any(), any())).thenReturn(Optional.empty());
         when(repository.insertIdempotencyKeyOrFindExisting(any())).thenReturn(Optional.empty());
-        when(repository.findActiveRefreshTokenFamiliesByOrganizationMembershipId(targetMembership)).thenReturn(List.of());
+        when(repository.findActiveRefreshTokenFamiliesByOrganizationMembershipId(targetMembership)).thenReturn(List.of(new RefreshTokenFamily(UUID.randomUUID(), targetUser, null, targetMembership, Instant.EPOCH, 1, null, Instant.EPOCH)));
 
         service.revokeOrganizationSessions("token", org, targetMembership, "key-12345678");
 

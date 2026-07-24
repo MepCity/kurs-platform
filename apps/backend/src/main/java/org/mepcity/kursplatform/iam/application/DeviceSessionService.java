@@ -6,6 +6,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.mepcity.kursplatform.iam.application.contract.ActiveSession;
 import org.mepcity.kursplatform.iam.application.contract.ActiveSessionResolver;
 import org.mepcity.kursplatform.iam.application.contract.CredentialResolution;
@@ -25,6 +28,7 @@ import org.slf4j.MDC;
 
 /** IAM-006 device and organization-session revocation boundary. All mutation/audit pairs share one transaction. */
 public final class DeviceSessionService {
+    private static final ObjectMapper SNAPSHOTS = new ObjectMapper();
     private final IamAuthRepository repository;
     private final IamTransactionExecutor transactions;
     private final ActiveSessionResolver credentials;
@@ -92,25 +96,27 @@ public final class DeviceSessionService {
                     } else {
                         authorizeOrganizationActor(actor.userId(), organizationId);
                     }
-                    OrganizationMembership target = repository.findOrganizationMembershipById(targetMembershipId)
+                    OrganizationMembership target = repository.findOrganizationMembershipByIdForUpdate(targetMembershipId)
                             .filter(m -> organizationId.equals(m.organizationId())).orElseThrow(this::notFound);
                     String fingerprint = "DS|" + organizationId + "|" + actor.userId() + "|" + targetMembershipId;
-                    if (replay(actor.userId(), key, IdempotencyScope.ORGANIZATION, organizationId,
-                            OperationCode.DEVICE_SESSION_REVOKE, fingerprint)) return MembershipRevokeResult.from(target, 0);
+                    Optional<IdempotencyKey> replay = replay(actor.userId(), key, IdempotencyScope.ORGANIZATION, organizationId,
+                            OperationCode.DEVICE_SESSION_REVOKE, fingerprint);
+                    if (replay.isPresent()) return membershipSnapshot(replay.get());
                     rateLimiter.consume(actor.userId(), org.mepcity.kursplatform.iam.domain.OperationScope.ORGANIZATION, organizationId, OperationCode.DEVICE_SESSION_REVOKE);
                     List<RefreshTokenFamily> families = repository.findActiveRefreshTokenFamiliesByOrganizationMembershipId(targetMembershipId);
-                    for (RefreshTokenFamily family : families) { repository.revokeRefreshTokensInFamily(family.id(), clock.instant()); repository.revokeRefreshTokenFamily(family.id(), clock.instant()); }
+                    for (RefreshTokenFamily family : families) { repository.lockActiveRefreshTokensInFamily(family.id()); repository.revokeRefreshTokensInFamily(family.id(), clock.instant()); repository.revokeRefreshTokenFamily(family.id(), clock.instant()); }
                     if (!families.isEmpty()) {
                         repository.advanceMembershipSessionBarrier(targetMembershipId);
                         target = repository.findOrganizationMembershipById(targetMembershipId).orElseThrow(this::notFound);
                     }
-                    complete(actor.userId(), key, IdempotencyScope.ORGANIZATION, organizationId, OperationCode.DEVICE_SESSION_REVOKE, fingerprint, targetMembershipId);
+                    MembershipRevokeResult result = MembershipRevokeResult.from(target, families.size());
                     audit("DEVICE_SESSION_REVOKED", IamAuditEvent.EventScope.ORGANIZATION, organizationId, actor.userId(), target.userId(),
                             Map.of("operationCode", OperationCode.DEVICE_SESSION_REVOKE.name(), "organizationMembershipId", targetMembershipId.toString(), "revokedRefreshTokenFamilyCount", families.size()));
                     if (support) audits.write(new IamAuditEvent(UUID.randomUUID(), organizationId, actor.userId(), MDC.get("requestId"),
                             "PLATFORM_ADMIN_ORG_ACCESS", IamAuditEvent.EventScope.ORGANIZATION, "ORGANIZATION", IamAuditEvent.EventKind.ACCESS,
                             organizationId, Map.of(), Map.of("operationCode", OperationCode.DEVICE_SESSION_REVOKE.name(), "outcome", "SUCCESS")));
-                    return MembershipRevokeResult.from(target, families.size());
+                    complete(actor.userId(), key, IdempotencyScope.ORGANIZATION, organizationId, OperationCode.DEVICE_SESSION_REVOKE, fingerprint, targetMembershipId, membershipSnapshot(result));
+                    return result;
                 });
     }
 
@@ -129,10 +135,8 @@ public final class DeviceSessionService {
     private DeviceRevokeResult revokeDevice(UUID actor, UUID targetUser, UUID deviceId, UUID currentDevice, String key,
                                              String fingerprint, IdempotencyScope scope, UUID organizationId,
                                              OperationCode operation, boolean platform) {
-        if (replay(actor, key, scope, organizationId, operation, fingerprint)) {
-            TrustedDevice device = repository.findTrustedDeviceById(targetUser, deviceId).orElseThrow(this::notFound);
-            return new DeviceRevokeResult(device, 0, currentDevice != null && currentDevice.equals(deviceId), true);
-        }
+        Optional<IdempotencyKey> replay = replay(actor, key, scope, organizationId, operation, fingerprint);
+        if (replay.isPresent()) return deviceSnapshot(replay.get());
         rateLimiter.consume(actor, scope == IdempotencyScope.GLOBAL ? org.mepcity.kursplatform.iam.domain.OperationScope.GLOBAL : org.mepcity.kursplatform.iam.domain.OperationScope.IAM_AUTH,
                 organizationId == null ? actor : organizationId, operation);
         TrustedDevice discovered = repository.findTrustedDeviceById(targetUser, deviceId).orElseThrow(this::notFound);
@@ -143,12 +147,13 @@ public final class DeviceSessionService {
                 ? repository.findActiveRefreshTokenFamiliesByTrustedDeviceId(deviceId) : List.of();
         if (locked.isActive()) {
             repository.revokeTrustedDeviceIfActive(targetUser, deviceId);
-            for (RefreshTokenFamily family : families) { repository.revokeRefreshTokensInFamily(family.id(), clock.instant()); repository.revokeRefreshTokenFamily(family.id(), clock.instant()); }
+            for (RefreshTokenFamily family : families) { repository.lockActiveRefreshTokensInFamily(family.id()); repository.revokeRefreshTokensInFamily(family.id(), clock.instant()); repository.revokeRefreshTokenFamily(family.id(), clock.instant()); }
         }
-        complete(actor, key, scope, organizationId, operation, fingerprint, deviceId);
+        DeviceRevokeResult result = new DeviceRevokeResult(locked, families.size(), currentDevice != null && currentDevice.equals(deviceId), false);
         audit(platform ? "PLATFORM_DEVICE_REVOKED" : "DEVICE_SELF_REVOKED", IamAuditEvent.EventScope.GLOBAL, null, actor, targetUser,
                 Map.of("operationCode", operation.name(), "trustedDeviceId", deviceId.toString(), "revokedRefreshTokenFamilyCount", families.size()));
-        return new DeviceRevokeResult(locked, families.size(), currentDevice != null && currentDevice.equals(deviceId), false);
+        complete(actor, key, scope, organizationId, operation, fingerprint, deviceId, deviceSnapshot(result));
+        return result;
     }
 
     private void authorizeOrganizationActor(UUID actor, UUID organization) {
@@ -160,20 +165,50 @@ public final class DeviceSessionService {
         if (!admin && !delegatedTeacher) throw forbidden();
     }
 
-    private boolean replay(UUID actor, String key, IdempotencyScope scope, UUID org, OperationCode op, String fingerprint) {
+    private Optional<IdempotencyKey> replay(UUID actor, String key, IdempotencyScope scope, UUID org, OperationCode op, String fingerprint) {
         repository.acquireIdempotencyAdvisoryLock(actor, key);
         Optional<IdempotencyKey> prior = repository.findIdempotencyKey(actor, key, scope, op);
-        if (prior.isEmpty()) return false;
+        if (prior.isEmpty()) return Optional.empty();
         if (!fingerprint.equals(prior.get().requestFingerprint())) throw new IamException("IDEMPOTENCY_KEY_REUSED", "Anahtar farklı istek için kullanılmış.");
-        return prior.get().isCompleted();
+        if (!prior.get().isCompleted() || prior.get().resultPayload() == null) throw new IamException("IDEMPOTENCY_KEY_REUSED", "İşlem anahtarı tamamlanmamış.");
+        return prior;
     }
 
-    private void complete(UUID actor, String key, IdempotencyScope scope, UUID org, OperationCode op, String fingerprint, UUID result) {
+    private void complete(UUID actor, String key, IdempotencyScope scope, UUID org, OperationCode op, String fingerprint, UUID result, String payload) {
         Instant now = clock.instant();
         IdempotencyKey record = new IdempotencyKey(UUID.randomUUID(), scope, org, actor, key, op.name(), fingerprint,
-                IdempotencyStatus.COMPLETED, result, (short) 200, null, null, "iam-006:" + result,
+                IdempotencyStatus.COMPLETED, result, (short) 200, null, payload, "iam-006:" + result,
                 null, null, null, now, now, null, now.plus(settings.idempotencyRetention()));
         if (repository.insertIdempotencyKeyOrFindExisting(record).isPresent()) throw new IamException("IDEMPOTENCY_KEY_REUSED", "Anahtar çakıştı.");
+    }
+
+    private String deviceSnapshot(DeviceRevokeResult value) {
+        TrustedDevice d = value.device();
+        try { return SNAPSHOTS.writeValueAsString(Map.ofEntries(Map.entry("version", 1), Map.entry("kind", "device-revoke"), Map.entry("id", d.id().toString()), Map.entry("userId", d.userId().toString()), Map.entry("deviceIdentifier", d.deviceIdentifier().toString()), Map.entry("deviceName", d.deviceName()), Map.entry("platform", d.platform().name()), Map.entry("trustedAt", d.trustedAt().toString()), Map.entry("lastSeenAt", d.lastSeenAt().toString()), Map.entry("revokedAt", d.revokedAt() == null ? "" : d.revokedAt().toString()), Map.entry("familyCount", value.revokedRefreshTokenFamilyCount()), Map.entry("currentDevice", value.currentDevice()))); }
+        catch (JsonProcessingException e) { throw new IllegalStateException("Idempotency sonucu yazılamadı.", e); }
+    }
+
+    private String membershipSnapshot(MembershipRevokeResult value) {
+        try { return SNAPSHOTS.writeValueAsString(Map.of("version", 1, "kind", "membership-revoke", "membershipId", value.organizationMembershipId().toString(), "organizationId", value.organizationId().toString(), "sessionGeneration", value.sessionGeneration(), "reauthenticationRequiredAfter", value.reauthenticationRequiredAfter().toString(), "familyCount", value.revokedRefreshTokenFamilyCount())); }
+        catch (JsonProcessingException e) { throw new IllegalStateException("Idempotency sonucu yazılamadı.", e); }
+    }
+
+    private DeviceRevokeResult deviceSnapshot(IdempotencyKey replay) {
+        try {
+            JsonNode n = SNAPSHOTS.readTree(replay.resultPayload());
+            if (n.path("version").asInt() != 1 || !"device-revoke".equals(n.path("kind").asText())) throw new IllegalArgumentException();
+            TrustedDevice device = new TrustedDevice(UUID.fromString(n.path("id").asText()), UUID.fromString(n.path("userId").asText()), UUID.fromString(n.path("deviceIdentifier").asText()), n.path("deviceName").asText(), org.mepcity.kursplatform.iam.domain.DevicePlatform.valueOf(n.path("platform").asText()), Instant.parse(n.path("trustedAt").asText()), Instant.parse(n.path("lastSeenAt").asText()), n.path("revokedAt").asText().isEmpty() ? null : Instant.parse(n.path("revokedAt").asText()));
+            return new DeviceRevokeResult(device, n.path("familyCount").asInt(), n.path("currentDevice").asBoolean(), true);
+        }
+        catch (Exception e) { throw new IamException("IDEMPOTENCY_KEY_REUSED", "İşlem sonucu okunamadı."); }
+    }
+
+    private MembershipRevokeResult membershipSnapshot(IdempotencyKey replay) {
+        try {
+            JsonNode n = SNAPSHOTS.readTree(replay.resultPayload());
+            if (n.path("version").asInt() != 1 || !"membership-revoke".equals(n.path("kind").asText())) throw new IllegalArgumentException();
+            return new MembershipRevokeResult(UUID.fromString(n.path("membershipId").asText()), UUID.fromString(n.path("organizationId").asText()), n.path("sessionGeneration").asInt(), Instant.parse(n.path("reauthenticationRequiredAfter").asText()), n.path("familyCount").asInt());
+        } catch (Exception e) { throw new IamException("IDEMPOTENCY_KEY_REUSED", "İşlem sonucu okunamadı."); }
     }
 
     private ActiveSession requirePlatformAccess(String bearer) {
