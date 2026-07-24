@@ -11,6 +11,25 @@ class OrganizationBrand {
   final String primaryColor;
   final String secondaryColor;
   final int rowVersion;
+
+  OrganizationBrand copyWith({int? rowVersion}) => OrganizationBrand(
+    primaryColor: primaryColor,
+    secondaryColor: secondaryColor,
+    rowVersion: rowVersion ?? this.rowVersion,
+  );
+
+  bool sameValues(OrganizationBrand other) =>
+      primaryColor == other.primaryColor &&
+      secondaryColor == other.secondaryColor;
+
+  @override
+  bool operator ==(Object other) =>
+      other is OrganizationBrand &&
+      rowVersion == other.rowVersion &&
+      sameValues(other);
+
+  @override
+  int get hashCode => Object.hash(primaryColor, secondaryColor, rowVersion);
 }
 
 /// `GET`/`PUT /brand-colors` bağımsız yanıtı; brand içine gömülmez.
@@ -21,6 +40,24 @@ class OrganizationBrandColors {
   }) : items = List.unmodifiable(items);
   final int rowVersion;
   final List<OrganizationBrandColor> items;
+
+  OrganizationBrandColors copyWith({int? rowVersion}) =>
+      OrganizationBrandColors(
+        rowVersion: rowVersion ?? this.rowVersion,
+        items: items,
+      );
+
+  bool sameValues(OrganizationBrandColors other) =>
+      _listEquals(items, other.items);
+
+  @override
+  bool operator ==(Object other) =>
+      other is OrganizationBrandColors &&
+      rowVersion == other.rowVersion &&
+      sameValues(other);
+
+  @override
+  int get hashCode => Object.hash(rowVersion, Object.hashAll(items));
 }
 
 class OrganizationBrandColor {
@@ -30,6 +67,15 @@ class OrganizationBrandColor {
   });
   final String colorHex;
   final int sortOrder;
+
+  @override
+  bool operator ==(Object other) =>
+      other is OrganizationBrandColor &&
+      colorHex == other.colorHex &&
+      sortOrder == other.sortOrder;
+
+  @override
+  int get hashCode => Object.hash(colorHex, sortOrder);
 }
 
 enum OrganizationModuleCode { att, program, content, progress, export, audit }
@@ -68,6 +114,16 @@ class OrganizationModule {
         isEnabled: isEnabled ?? this.isEnabled,
         sortOrder: sortOrder ?? this.sortOrder,
       );
+
+  @override
+  bool operator ==(Object other) =>
+      other is OrganizationModule &&
+      code == other.code &&
+      isEnabled == other.isEnabled &&
+      sortOrder == other.sortOrder;
+
+  @override
+  int get hashCode => Object.hash(code, isEnabled, sortOrder);
 }
 
 class OrganizationModules {
@@ -77,6 +133,31 @@ class OrganizationModules {
   }) : items = List.unmodifiable(items);
   final int rowVersion;
   final List<OrganizationModule> items;
+
+  OrganizationModules copyWith({int? rowVersion}) => OrganizationModules(
+    rowVersion: rowVersion ?? this.rowVersion,
+    items: items,
+  );
+
+  bool sameValues(OrganizationModules other) => _listEquals(items, other.items);
+
+  @override
+  bool operator ==(Object other) =>
+      other is OrganizationModules &&
+      rowVersion == other.rowVersion &&
+      sameValues(other);
+
+  @override
+  int get hashCode => Object.hash(rowVersion, Object.hashAll(items));
+}
+
+bool _listEquals<T>(List<T> left, List<T> right) {
+  if (identical(left, right)) return true;
+  if (left.length != right.length) return false;
+  for (var index = 0; index < left.length; index++) {
+    if (left[index] != right[index]) return false;
+  }
+  return true;
 }
 
 /// ORG-002 §2.4.2 ile aynı istemci ön doğrulaması.

@@ -93,6 +93,7 @@ class OrganizationsMockRepository
       <String, OrganizationBrandColors>{};
   final Map<String, OrganizationModules> _modules =
       <String, OrganizationModules>{};
+  final Map<String, int> _settingsVersions = <String, int>{};
   final Map<String, _BrandIdempotencyEntry> _brandIdempotency =
       <String, _BrandIdempotencyEntry>{};
   final Map<String, _BrandIdempotencyEntry> _colorsIdempotency =
@@ -313,11 +314,15 @@ class OrganizationsMockRepository
     }
   }
 
-  @override
-  Future<OrganizationBrand> getBrand(String organizationId) async {
-    await Future<void>.delayed(latency);
-    _assertBrandAccess(organizationId, write: false, module: false);
-    if (!_organizations.any((o) => o.id == organizationId)) {
+  Organization _assertOrganizationExists(String organizationId) {
+    Organization? organization;
+    for (final item in _organizations) {
+      if (item.id == organizationId) {
+        organization = item;
+        break;
+      }
+    }
+    if (organization == null) {
       throw OrganizationsFailure(
         session.hasGlobalPlatformAdminScope
             ? OrganizationsFailureCode.resourceNotFound
@@ -325,12 +330,25 @@ class OrganizationsMockRepository
         'Kurum bulunamadı veya erişim izniniz yok.',
       );
     }
+    return organization;
+  }
+
+  int _settingsVersion(String organizationId) => _settingsVersions.putIfAbsent(
+    organizationId,
+    () => _assertOrganizationExists(organizationId).rowVersion,
+  );
+
+  @override
+  Future<OrganizationBrand> getBrand(String organizationId) async {
+    await Future<void>.delayed(latency);
+    _assertBrandAccess(organizationId, write: false, module: false);
+    _assertOrganizationExists(organizationId);
     return _brands.putIfAbsent(
       organizationId,
-      () => const OrganizationBrand(
+      () => OrganizationBrand(
         primaryColor: '#2E7D32',
         secondaryColor: '#E65100',
-        rowVersion: 1,
+        rowVersion: _settingsVersion(organizationId),
       ),
     );
   }
@@ -343,9 +361,11 @@ class OrganizationsMockRepository
   ) async {
     await Future<void>.delayed(latency);
     _assertBrandAccess(organizationId, write: true, module: false);
+    _assertOrganizationExists(organizationId);
     final fingerprint =
         '${brand.primaryColor}|${brand.secondaryColor}|${brand.rowVersion}';
-    final idKey = '${session.actorUserId}:brand:$clientMutationId';
+    final idKey =
+        '${session.actorUserId}:$organizationId:brand:$clientMutationId';
     final replay = _brandIdempotency[idKey];
     if (replay != null) {
       if (replay.fingerprint == fingerprint) {
@@ -357,7 +377,7 @@ class OrganizationsMockRepository
       );
     }
     final current = await getBrand(organizationId);
-    if (current.rowVersion != brand.rowVersion) {
+    if (_settingsVersion(organizationId) != brand.rowVersion) {
       throw const OrganizationsFailure(
         OrganizationsFailureCode.versionConflict,
         'Ayarlar başka bir kullanıcı tarafından güncellendi.',
@@ -380,6 +400,7 @@ class OrganizationsMockRepository
       secondaryColor: normalizeBrandHex(brand.secondaryColor),
       rowVersion: current.rowVersion + 1,
     );
+    _settingsVersions[organizationId] = updated.rowVersion;
     _brands[organizationId] = updated;
     _brandIdempotency[idKey] = _BrandIdempotencyEntry(fingerprint, updated);
     if (existingColors != null) {
@@ -402,10 +423,14 @@ class OrganizationsMockRepository
   Future<OrganizationBrandColors> getBrandColors(String organizationId) async {
     await Future<void>.delayed(latency);
     _assertBrandAccess(organizationId, write: false, module: false);
+    _assertOrganizationExists(organizationId);
     await getBrand(organizationId);
     return _brandColors.putIfAbsent(
       organizationId,
-      () => OrganizationBrandColors(rowVersion: 1, items: const []),
+      () => OrganizationBrandColors(
+        rowVersion: _settingsVersion(organizationId),
+        items: const [],
+      ),
     );
   }
 
@@ -417,9 +442,11 @@ class OrganizationsMockRepository
   ) async {
     await Future<void>.delayed(latency);
     _assertBrandAccess(organizationId, write: true, module: false);
+    _assertOrganizationExists(organizationId);
     final fingerprint =
         '${colors.rowVersion}:${colors.items.map((e) => '${normalizeBrandHex(e.colorHex)}:${e.sortOrder}').join(',')}';
-    final idKey = '${session.actorUserId}:colors:$clientMutationId';
+    final idKey =
+        '${session.actorUserId}:$organizationId:colors:$clientMutationId';
     final replay = _colorsIdempotency[idKey];
     if (replay != null) {
       if (replay.fingerprint == fingerprint) {
@@ -431,7 +458,7 @@ class OrganizationsMockRepository
       );
     }
     final current = await getBrandColors(organizationId);
-    if (current.rowVersion != colors.rowVersion) {
+    if (_settingsVersion(organizationId) != colors.rowVersion) {
       throw const OrganizationsFailure(
         OrganizationsFailureCode.versionConflict,
         'Yardımcı palet başka bir kullanıcı tarafından güncellendi.',
@@ -469,6 +496,7 @@ class OrganizationsMockRepository
       rowVersion: current.rowVersion + 1,
       items: List.unmodifiable(normalized),
     );
+    _settingsVersions[organizationId] = updated.rowVersion;
     _brandColors[organizationId] = updated;
     _colorsIdempotency[idKey] = _BrandIdempotencyEntry(fingerprint, updated);
     final brand = _brands[organizationId];
@@ -493,10 +521,11 @@ class OrganizationsMockRepository
   Future<OrganizationModules> getModules(String organizationId) async {
     await Future<void>.delayed(latency);
     _assertBrandAccess(organizationId, write: false, module: true);
+    _assertOrganizationExists(organizationId);
     return _modules.putIfAbsent(
       organizationId,
       () => OrganizationModules(
-        rowVersion: 1,
+        rowVersion: _settingsVersion(organizationId),
         items: OrganizationModuleCode.values.indexed
             .map(
               (e) => OrganizationModule(
@@ -518,9 +547,11 @@ class OrganizationsMockRepository
   ) async {
     await Future<void>.delayed(latency);
     _assertBrandAccess(organizationId, write: true, module: true);
+    _assertOrganizationExists(organizationId);
     final fingerprint =
         '${modules.rowVersion}:${modules.items.map((e) => '${e.code.wireName}:${e.isEnabled}:${e.sortOrder}').join(',')}';
-    final idKey = '${session.actorUserId}:modules:$clientMutationId';
+    final idKey =
+        '${session.actorUserId}:$organizationId:modules:$clientMutationId';
     final replay = _modulesIdempotency[idKey];
     if (replay != null) {
       if (replay.fingerprint == fingerprint) {
@@ -532,7 +563,7 @@ class OrganizationsMockRepository
       );
     }
     final current = await getModules(organizationId);
-    if (current.rowVersion != modules.rowVersion) {
+    if (_settingsVersion(organizationId) != modules.rowVersion) {
       throw const OrganizationsFailure(
         OrganizationsFailureCode.versionConflict,
         'Modüller başka bir kullanıcı tarafından güncellendi.',
@@ -547,10 +578,17 @@ class OrganizationsMockRepository
         'Modül ayarları geçersiz.',
       );
     }
+    final canonicalItems = List<OrganizationModule>.of(modules.items)
+      ..sort(
+        (left, right) => left.sortOrder != right.sortOrder
+            ? left.sortOrder.compareTo(right.sortOrder)
+            : left.code.wireName.compareTo(right.code.wireName),
+      );
     final updated = OrganizationModules(
       rowVersion: current.rowVersion + 1,
-      items: List.unmodifiable(modules.items),
+      items: List.unmodifiable(canonicalItems),
     );
+    _settingsVersions[organizationId] = updated.rowVersion;
     _modules[organizationId] = updated;
     _modulesIdempotency[idKey] = _BrandIdempotencyEntry(fingerprint, updated);
     final existingBrand = _brands[organizationId];
@@ -559,6 +597,13 @@ class OrganizationsMockRepository
         primaryColor: existingBrand.primaryColor,
         secondaryColor: existingBrand.secondaryColor,
         rowVersion: updated.rowVersion,
+      );
+    }
+    final existingColors = _brandColors[organizationId];
+    if (existingColors != null) {
+      _brandColors[organizationId] = OrganizationBrandColors(
+        rowVersion: updated.rowVersion,
+        items: existingColors.items,
       );
     }
     return updated;

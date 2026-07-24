@@ -11,4 +11,20 @@ void main() {
       expect(validateBrandHex('Ana renk', '#123'), isNotNull);
     });
   });
+
+  test('domain collections are immutable and compare structurally', () {
+    final source = <OrganizationBrandColor>[
+      const OrganizationBrandColor(colorHex: '#ABCDEF', sortOrder: 0),
+    ];
+    final first = OrganizationBrandColors(rowVersion: 1, items: source);
+    source.clear();
+    final second = OrganizationBrandColors(
+      rowVersion: 1,
+      items: const [OrganizationBrandColor(colorHex: '#ABCDEF', sortOrder: 0)],
+    );
+
+    expect(first, second);
+    expect(first.items, hasLength(1));
+    expect(() => first.items.add(second.items.single), throwsUnsupportedError);
+  });
 }
