@@ -5,7 +5,7 @@
 | Son güncelleme | 24 Temmuz 2026 |
 | Aktif dalga | Dalga 2 — Kimlik, kurum ve mobil kabuk |
 | Aktif görev | Yok |
-| Sıradaki görev | ORG-008 — Kurum adı ve renk ayarı mobil akışı (dosyasız) |
+| Sıradaki görev | PLAN-006 — Belge ve sözleşme senkronizasyonunu tamamla |
 
 Bu dosya projenin kaldığı yeri gösteren kısa operasyon panosudur. Her çalışma oturumunun
 başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev tanımları
@@ -15,6 +15,7 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 
 | Kimlik | Görev | Boyut | Not |
 |---|---|---:|---|
+| PLAN-006 | Belge ve sözleşme senkronizasyonunu tamamla | M | A-004R3, UI-002 ve IAM-004 tamamlandı; yeni uygulama görevinden önce belge bakım borcunu kapatır |
 | IAM-008 | Mobil güvenli oturum saklamayı uygula | M | IAM-002 ve A-005 tamamlandı; mobil alanda IAM-003 backend migration çalışmasıyla paralel ilerleyebilir |
 | IAM-006 | Cihaz kaydı, DEVICE_SESSION_REVOKE ve yeniden doğrulamayı uygula | M | IAM-002 ve IAM-005 tamamlandı; IAM backend oturum alanında başlanabilir |
 | ORG-008 | Kurum adı ve renk ayarı mobil akışı (dosyasız) | M | ORG-002, ORG-005, UI-001, UI-003 ve UI-004 tamamlandı; sıradaki ORG mobil görevi |
