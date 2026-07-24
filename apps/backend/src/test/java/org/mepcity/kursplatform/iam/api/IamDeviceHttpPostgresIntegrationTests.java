@@ -53,7 +53,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * transaction executor, JDBC repository, audit, idempotency, rate limiter and snapshot serializer
  * are production beans, connected as iam_runtime to a real PostgreSQL instance.
  */
-@ActiveProfiles("test")
+@ActiveProfiles("local-stub")
 @SpringBootTest(properties = {
         "spring.flyway.enabled=false",
         "KURS_PLATFORM_ENVIRONMENT=development",
