@@ -95,6 +95,10 @@ class OrganizationsMockRepository
       <String, OrganizationModules>{};
   final Map<String, _BrandIdempotencyEntry> _brandIdempotency =
       <String, _BrandIdempotencyEntry>{};
+  final Map<String, _BrandIdempotencyEntry> _colorsIdempotency =
+      <String, _BrandIdempotencyEntry>{};
+  final Map<String, _BrandIdempotencyEntry> _modulesIdempotency =
+      <String, _BrandIdempotencyEntry>{};
 
   static const int _maxCursorRegistrySize = 500;
   static const int _maxLimit = 100;
@@ -344,7 +348,9 @@ class OrganizationsMockRepository
     final idKey = '${session.actorUserId}:brand:$clientMutationId';
     final replay = _brandIdempotency[idKey];
     if (replay != null) {
-      if (replay.fingerprint == fingerprint) return replay.brand;
+      if (replay.fingerprint == fingerprint) {
+        return replay.brand as OrganizationBrand;
+      }
       throw const OrganizationsFailure(
         OrganizationsFailureCode.idempotencyKeyReused,
         'Bu istek anahtarı farklı içerikle kullanıldı.',
@@ -399,7 +405,7 @@ class OrganizationsMockRepository
     await getBrand(organizationId);
     return _brandColors.putIfAbsent(
       organizationId,
-      () => const OrganizationBrandColors(rowVersion: 1, items: []),
+      () => OrganizationBrandColors(rowVersion: 1, items: const []),
     );
   }
 
@@ -411,6 +417,19 @@ class OrganizationsMockRepository
   ) async {
     await Future<void>.delayed(latency);
     _assertBrandAccess(organizationId, write: true, module: false);
+    final fingerprint =
+        '${colors.rowVersion}:${colors.items.map((e) => '${normalizeBrandHex(e.colorHex)}:${e.sortOrder}').join(',')}';
+    final idKey = '${session.actorUserId}:colors:$clientMutationId';
+    final replay = _colorsIdempotency[idKey];
+    if (replay != null) {
+      if (replay.fingerprint == fingerprint) {
+        return replay.brand as OrganizationBrandColors;
+      }
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.idempotencyKeyReused,
+        'Bu istek anahtarı farklı içerikle kullanıldı.',
+      );
+    }
     final current = await getBrandColors(organizationId);
     if (current.rowVersion != colors.rowVersion) {
       throw const OrganizationsFailure(
@@ -451,6 +470,7 @@ class OrganizationsMockRepository
       items: List.unmodifiable(normalized),
     );
     _brandColors[organizationId] = updated;
+    _colorsIdempotency[idKey] = _BrandIdempotencyEntry(fingerprint, updated);
     final brand = _brands[organizationId];
     if (brand != null) {
       _brands[organizationId] = OrganizationBrand(
@@ -498,6 +518,19 @@ class OrganizationsMockRepository
   ) async {
     await Future<void>.delayed(latency);
     _assertBrandAccess(organizationId, write: true, module: true);
+    final fingerprint =
+        '${modules.rowVersion}:${modules.items.map((e) => '${e.code.wireName}:${e.isEnabled}:${e.sortOrder}').join(',')}';
+    final idKey = '${session.actorUserId}:modules:$clientMutationId';
+    final replay = _modulesIdempotency[idKey];
+    if (replay != null) {
+      if (replay.fingerprint == fingerprint) {
+        return replay.brand as OrganizationModules;
+      }
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.idempotencyKeyReused,
+        'Bu istek anahtarı farklı içerikle kullanıldı.',
+      );
+    }
     final current = await getModules(organizationId);
     if (current.rowVersion != modules.rowVersion) {
       throw const OrganizationsFailure(
@@ -519,6 +552,7 @@ class OrganizationsMockRepository
       items: List.unmodifiable(modules.items),
     );
     _modules[organizationId] = updated;
+    _modulesIdempotency[idKey] = _BrandIdempotencyEntry(fingerprint, updated);
     final existingBrand = _brands[organizationId];
     if (existingBrand != null) {
       _brands[organizationId] = OrganizationBrand(
@@ -729,7 +763,7 @@ class OrganizationsMockRepository
 class _BrandIdempotencyEntry {
   const _BrandIdempotencyEntry(this.fingerprint, this.brand);
   final String fingerprint;
-  final OrganizationBrand brand;
+  final Object brand;
 }
 
 /// Server-side idempotency record for one `createOrganization` attempt. See

@@ -14,6 +14,25 @@ enum OrganizationBrandStatus {
   error,
 }
 
+/// Bir yüzeyin sunucu snapshot'ı ve ekrandaki taslağı birbirinden ayrıdır.
+class OrganizationBrandSection<T> {
+  OrganizationBrandSection({
+    this.snapshot,
+    this.draft,
+    this.error,
+    this.success,
+    this.pendingKey,
+  });
+  T? snapshot;
+  T? draft;
+  String? error;
+  String? success;
+  String? pendingKey;
+  bool saving = false;
+  bool get dirty =>
+      snapshot != null && draft != null && '$snapshot' != '$draft';
+}
+
 /// Her uç için ayrı idempotency anahtarı ve generation koruması taşır.
 class OrganizationBrandController extends ChangeNotifier {
   OrganizationBrandController({
@@ -25,15 +44,15 @@ class OrganizationBrandController extends ChangeNotifier {
   bool _disposed = false;
   int _generation = 0;
   OrganizationBrandStatus _status = OrganizationBrandStatus.loading;
-  OrganizationBrand? _brand;
-  OrganizationBrandColors? _colors;
-  OrganizationModules? _modules;
+  final brandSection = OrganizationBrandSection<OrganizationBrand>();
+  final colorsSection = OrganizationBrandSection<OrganizationBrandColors>();
+  final modulesSection = OrganizationBrandSection<OrganizationModules>();
   String? _message;
   final Map<String, String> _keys = <String, String>{};
   OrganizationBrandStatus get status => _status;
-  OrganizationBrand? get brand => _brand;
-  OrganizationBrandColors? get colors => _colors;
-  OrganizationModules? get modules => _modules;
+  OrganizationBrand? get brand => brandSection.snapshot;
+  OrganizationBrandColors? get colors => colorsSection.snapshot;
+  OrganizationModules? get modules => modulesSection.snapshot;
   String? get message => _message;
   static final Random _random = Random.secure();
   String _key(String operation, String fingerprint) => _keys.putIfAbsent(
@@ -63,9 +82,9 @@ class OrganizationBrandController extends ChangeNotifier {
         _notify();
         return;
       }
-      _brand = brand;
-      _colors = colors;
-      _modules = modules;
+      _mergeBrand(brand);
+      _mergeColors(colors);
+      _mergeModules(modules);
       _status = OrganizationBrandStatus.ready;
     } on OrganizationsFailure catch (e) {
       if (_disposed || g != _generation) return;
@@ -81,8 +100,41 @@ class OrganizationBrandController extends ChangeNotifier {
     _notify();
   }
 
+  void _mergeBrand(OrganizationBrand value) {
+    brandSection.snapshot = value;
+    brandSection.draft ??= value;
+  }
+
+  void _mergeColors(OrganizationBrandColors value) {
+    colorsSection.snapshot = value;
+    colorsSection.draft ??= value;
+  }
+
+  void _mergeModules(OrganizationModules value) {
+    modulesSection.snapshot = value;
+    modulesSection.draft ??= value;
+  }
+
+  void setBrandDraft(String primary, String secondary) =>
+      brandSection.draft = OrganizationBrand(
+        primaryColor: primary,
+        secondaryColor: secondary,
+        rowVersion: brandSection.snapshot?.rowVersion ?? 0,
+      );
+  void setColorsDraft(List<OrganizationBrandColor> items) =>
+      colorsSection.draft = OrganizationBrandColors(
+        rowVersion: colorsSection.snapshot?.rowVersion ?? 0,
+        items: items,
+      );
+  void setModulesDraft(List<OrganizationModule> items) =>
+      modulesSection.draft = OrganizationModules(
+        rowVersion: modulesSection.snapshot?.rowVersion ?? 0,
+        items: items,
+      );
+
   Future<bool> saveBrand(String primary, String secondary) => _mutate(
     'brand',
+    brandSection,
     OrganizationBrandStatus.savingBrand,
     () {
       final error =
@@ -97,7 +149,7 @@ class OrganizationBrandController extends ChangeNotifier {
       final value = OrganizationBrand(
         primaryColor: primary,
         secondaryColor: secondary,
-        rowVersion: _brand!.rowVersion,
+        rowVersion: brandSection.snapshot!.rowVersion,
       );
       return _repository.updateBrand(
         organizationId,
@@ -105,14 +157,33 @@ class OrganizationBrandController extends ChangeNotifier {
         _key('brand', '$primary|$secondary|${value.rowVersion}'),
       );
     },
-    (v) => _brand = v as OrganizationBrand,
+    (v) => v as OrganizationBrand,
   );
   Future<bool> saveColors(List<OrganizationBrandColor> items) => _mutate(
     'palette',
+    colorsSection,
     OrganizationBrandStatus.savingColors,
     () {
+      final normalized = items
+          .map((e) => normalizeBrandHex(e.colorHex))
+          .toList();
+      if (items.length > 20 ||
+          items.any(
+            (e) =>
+                !RegExp(
+                  r'^#[0-9A-F]{6}$',
+                ).hasMatch(normalizeBrandHex(e.colorHex)) ||
+                e.sortOrder < 0 ||
+                e.sortOrder > 999,
+          ) ||
+          normalized.toSet().length != normalized.length) {
+        throw const OrganizationsFailure(
+          OrganizationsFailureCode.validationFailed,
+          'Her renk #RRGGBB, sıra 0–999 ve benzersiz olmalıdır.',
+        );
+      }
       final value = OrganizationBrandColors(
-        rowVersion: _colors!.rowVersion,
+        rowVersion: colorsSection.snapshot!.rowVersion,
         items: List.unmodifiable(items),
       );
       final fingerprint = value.items
@@ -124,14 +195,15 @@ class OrganizationBrandController extends ChangeNotifier {
         _key('palette', '$fingerprint|${value.rowVersion}'),
       );
     },
-    (v) => _colors = v as OrganizationBrandColors,
+    (v) => v as OrganizationBrandColors,
   );
   Future<bool> saveModules(List<OrganizationModule> items) => _mutate(
     'modules',
+    modulesSection,
     OrganizationBrandStatus.savingModules,
     () {
       final value = OrganizationModules(
-        rowVersion: _modules!.rowVersion,
+        rowVersion: modulesSection.snapshot!.rowVersion,
         items: List.unmodifiable(items),
       );
       final fingerprint = value.items
@@ -143,51 +215,60 @@ class OrganizationBrandController extends ChangeNotifier {
         _key('modules', '$fingerprint|${value.rowVersion}'),
       );
     },
-    (v) => _modules = v as OrganizationModules,
+    (v) => v as OrganizationModules,
   );
   Future<bool> _mutate(
-    String section,
+    String operation,
+    OrganizationBrandSection<Object> target,
     OrganizationBrandStatus pending,
     Future<Object> Function() call,
-    void Function(Object) accept,
+    Object Function(Object) accept,
   ) async {
     if (_disposed ||
         _status.name.startsWith('saving') ||
-        _brand == null ||
-        _colors == null ||
-        _modules == null) {
+        target.snapshot == null ||
+        target.saving) {
       return false;
     }
     final g = _generation;
     _status = pending;
-    _message = null;
+    target.saving = true;
+    target.error = null;
     _notify();
     try {
       final value = await call();
       if (_disposed || g != _generation) return false;
-      accept(value);
+      final saved = accept(value);
+      target.snapshot = saved;
+      target.draft = saved;
+      target.pendingKey = null;
+      target.success = 'Kaydedildi.';
+      target.saving = false;
       _status = OrganizationBrandStatus.ready;
       _notify();
       return true;
     } on OrganizationsFailure catch (e) {
       if (_disposed || g != _generation) return false;
       if (e.code == OrganizationsFailureCode.versionConflict) {
-        await load(
-          conflictMessage:
-              '$section bölümünde sürüm çakışması oluştu; güncel değerler yüklendi.',
-        );
+        target.saving = false;
+        target.error =
+            '$operation bölümünde sürüm çakışması oluştu; taslağınız korundu.';
+        _status = OrganizationBrandStatus.ready;
+        _notify();
       } else {
-        _message = e.message;
+        target.saving = false;
+        target.error = e.message;
         _status = e.isUnauthorized
             ? OrganizationBrandStatus.unauthorized
-            : OrganizationBrandStatus.error;
+            : OrganizationBrandStatus.ready;
         _notify();
       }
       return false;
     } catch (_) {
       if (!_disposed && g == _generation) {
-        _message = 'Ayarlar kaydedilemedi.';
-        _status = OrganizationBrandStatus.error;
+        target.saving = false;
+        target.error = 'Ayarlar kaydedilemedi.';
+        _status = OrganizationBrandStatus.ready;
         _notify();
       }
       return false;

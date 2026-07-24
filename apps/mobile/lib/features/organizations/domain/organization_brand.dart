@@ -15,10 +15,10 @@ class OrganizationBrand {
 
 /// `GET`/`PUT /brand-colors` bağımsız yanıtı; brand içine gömülmez.
 class OrganizationBrandColors {
-  const OrganizationBrandColors({
+  OrganizationBrandColors({
     required this.rowVersion,
-    required this.items,
-  });
+    required List<OrganizationBrandColor> items,
+  }) : items = List.unmodifiable(items);
   final int rowVersion;
   final List<OrganizationBrandColor> items;
 }
@@ -71,7 +71,10 @@ class OrganizationModule {
 }
 
 class OrganizationModules {
-  const OrganizationModules({required this.rowVersion, required this.items});
+  OrganizationModules({
+    required this.rowVersion,
+    required List<OrganizationModule> items,
+  }) : items = List.unmodifiable(items);
   final int rowVersion;
   final List<OrganizationModule> items;
 }
