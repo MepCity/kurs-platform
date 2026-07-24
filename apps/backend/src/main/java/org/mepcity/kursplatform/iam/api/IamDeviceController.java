@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import jakarta.servlet.http.HttpServletRequest;
 import javax.sql.DataSource;
 
 /** HTTP surface fixed by IAM_CIHAZ_VE_OTURUM_IPTALI_SOZLESMESI.md §§7–10. */
@@ -36,7 +37,8 @@ public final class IamDeviceController {
     @PostMapping("/devices/{deviceId}/revoke")
     public ResponseEntity<DeviceRevokeResponse> revokeOwn(@RequestHeader("Authorization") String authorization,
                                                            @RequestHeader("Idempotency-Key") String key,
-                                                           @PathVariable UUID deviceId) {
+                                                           @PathVariable UUID deviceId, HttpServletRequest request) {
+        rejectBody(request);
         IdempotencyKeyValidator.requireValid(key);
         var result = devices.revokeOwnDevice(token(authorization), deviceId, key);
         return ResponseEntity.ok(new DeviceRevokeResponse(DeviceResponse.from(result.device(), result.currentDevice()), result.currentDevice(), result.revokedRefreshTokenFamilyCount()));
@@ -45,7 +47,8 @@ public final class IamDeviceController {
     @PostMapping("/organizations/{organizationId}/memberships/{membershipId}/session-revoke")
     public ResponseEntity<MembershipRevokeResponse> revokeMembership(@RequestHeader("Authorization") String authorization,
                                                                        @RequestHeader("Idempotency-Key") String key,
-                                                                       @PathVariable UUID organizationId, @PathVariable UUID membershipId) {
+                                                                       @PathVariable UUID organizationId, @PathVariable UUID membershipId, HttpServletRequest request) {
+        rejectBody(request);
         IdempotencyKeyValidator.requireValid(key);
         var result = devices.revokeOrganizationSessions(token(authorization), organizationId, membershipId, key);
         return ResponseEntity.ok(new MembershipRevokeResponse(result.organizationMembershipId(), result.organizationId(),
@@ -55,7 +58,8 @@ public final class IamDeviceController {
     @PostMapping("/platform-admin/users/{userId}/devices/{deviceId}/revoke")
     public ResponseEntity<DeviceRevokeResponse> revokePlatform(@RequestHeader("Authorization") String authorization,
                                                                 @RequestHeader("Idempotency-Key") String key,
-                                                                @PathVariable UUID userId, @PathVariable UUID deviceId) {
+                                                                @PathVariable UUID userId, @PathVariable UUID deviceId, HttpServletRequest request) {
+        rejectBody(request);
         IdempotencyKeyValidator.requireValid(key);
         var result = devices.revokePlatformDevice(token(authorization), userId, deviceId, key);
         return ResponseEntity.ok(new DeviceRevokeResponse(DeviceResponse.from(result.device(), false), false, result.revokedRefreshTokenFamilyCount()));
@@ -64,6 +68,13 @@ public final class IamDeviceController {
     private String token(String authorization) {
         if (authorization == null || !authorization.startsWith("Bearer ")) throw new IamException("UNAUTHENTICATED", "Authorization başlığı geçersiz.");
         return authorization.substring(7);
+    }
+    private void rejectBody(HttpServletRequest request) {
+        try {
+            if (request.getContentLengthLong() > 0 || request.getInputStream().read() != -1) {
+                throw new IamException("INVALID_REQUEST", "Bu uç nokta istek gövdesi kabul etmez.");
+            }
+        } catch (java.io.IOException e) { throw new IamException("INVALID_REQUEST", "İstek gövdesi okunamadı."); }
     }
     public record DeviceListResponse(List<DeviceResponse> items, PageResponse page) { }
     public record PageResponse(String nextCursor, boolean hasNextPage) { }
