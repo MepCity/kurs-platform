@@ -135,13 +135,21 @@ CREATE POLICY audit_logs_insert_iam_device_revoke ON audit_logs FOR INSERT TO ia
  AND ((action_type='DEVICE_SELF_REVOKED' AND event_scope='GLOBAL' AND organization_id IS NULL AND target_entity_id=current_setting('app.iam_actor_user_id',true)::uuid
        AND current_setting('app.iam_operation_scope',true)='IAM_AUTH' AND current_setting('app.iam_operation_code',true)='DEVICE_SELF_REVOKE')
   OR (action_type='PLATFORM_DEVICE_REVOKED' AND event_scope='GLOBAL' AND organization_id IS NULL
+       AND target_entity_id=current_setting('app.iam_target_user_id',true)::uuid
+       AND (event_metadata->>'trustedDeviceId')=current_setting('app.iam_target_device_id',true)
+       AND EXISTS (SELECT 1 FROM trusted_devices d WHERE d.id=current_setting('app.iam_target_device_id',true)::uuid
+                   AND d.user_id=current_setting('app.iam_target_user_id',true)::uuid)
        AND current_setting('app.iam_operation_scope',true)='GLOBAL' AND current_setting('app.iam_operation_code',true)='PLATFORM_DEVICE_REVOKE')
   OR (action_type='DEVICE_SESSION_REVOKED' AND event_scope='ORGANIZATION' AND target_entity_type='USER'
        AND organization_id=current_setting('app.iam_target_organization_id',true)::uuid
+       AND (event_metadata->>'organizationMembershipId')=current_setting('app.iam_target_membership_id',true)
+       AND EXISTS (SELECT 1 FROM organization_memberships m WHERE m.id=current_setting('app.iam_target_membership_id',true)::uuid
+                   AND m.user_id=target_entity_id AND m.organization_id=organization_id)
        AND current_setting('app.iam_operation_scope',true)='ORGANIZATION' AND current_setting('app.iam_operation_code',true)='DEVICE_SESSION_REVOKE'
        )
   OR (action_type='PLATFORM_ADMIN_ORG_ACCESS' AND event_scope='ORGANIZATION' AND target_entity_type='ORGANIZATION'
        AND target_entity_id=organization_id AND organization_id=current_setting('app.iam_target_organization_id',true)::uuid
        AND current_setting('app.iam_operation_scope',true)='ORGANIZATION' AND current_setting('app.iam_operation_code',true)='DEVICE_SESSION_REVOKE'
-       AND current_setting('app.iam_platform_admin_support_access',true)='true'))
+       AND current_setting('app.iam_platform_admin_support_access',true)='true'
+       AND EXISTS (SELECT 1 FROM platform_administrators pa WHERE pa.user_id=current_setting('app.iam_actor_user_id',true)::uuid AND pa.revoked_at IS NULL)))
 );
