@@ -1,12 +1,16 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kurs_platform_mobile/features/auth/data/flutter_secure_session_store.dart';
 import 'package:kurs_platform_mobile/features/auth/domain/secure_session_store.dart';
 
-class _MemoryStorage implements SecureKeyValueStorage {
+class _MemorySecureStorage implements SecureKeyValueStorage {
   final values = <String, String>{};
-  bool failRead = false;
-  bool failWrite = false;
   bool failDelete = false;
+  bool failWriteAfterPersisting = false;
+  Completer<void>? payloadWriteStarted;
+  Completer<void>? payloadWriteGate;
 
   @override
   Future<void> delete(String key) async {
@@ -15,100 +19,188 @@ class _MemoryStorage implements SecureKeyValueStorage {
   }
 
   @override
-  Future<String?> read(String key) async {
-    if (failRead) throw StateError('read failed');
-    return values[key];
-  }
+  Future<String?> read(String key) async => values[key];
 
   @override
   Future<void> write(String key, String value) async {
-    if (failWrite) throw StateError('write failed');
     values[key] = value;
+    if (key.startsWith('iam.platform-session.v2.payload.')) {
+      if (payloadWriteStarted case final started? when !started.isCompleted) {
+        started.complete();
+      }
+      await payloadWriteGate?.future;
+    }
+    if (failWriteAfterPersisting) throw StateError('write failed after value');
   }
 }
 
-final _organizationSession = SecureSession(
+class _MemoryMarkerStorage implements ApplicationMarkerStorage {
+  final values = <String, String>{};
+
+  @override
+  Future<void> delete(String key) async => values.remove(key);
+
+  @override
+  Future<String?> read(String key) async => values[key];
+
+  @override
+  Future<void> write(String key, String value) async => values[key] = value;
+}
+
+SecureSession _organizationSession({
+  String membershipId = 'membership-1',
+  String organizationId = 'organization-1',
+  DateTime? authenticatedAt,
+  DateTime? expiresAt,
+  DateTime? refreshExpiresAt,
+}) => SecureSession(
   userId: 'user-1',
   deviceId: 'device-1',
   scope: SecureSessionScope.organization,
   accessToken: 'opaque-access-token',
   refreshToken: 'opaque-refresh-token',
-  expiresAt: DateTime.utc(2026, 7, 24, 10),
-  refreshExpiresAt: DateTime.utc(2026, 8, 24, 10),
-  authenticatedAt: DateTime.utc(2026, 7, 24, 9),
-  organizationMembershipId: 'membership-1',
-  organizationId: 'organization-1',
+  authenticatedAt: authenticatedAt ?? DateTime.utc(2026, 7, 24, 9),
+  expiresAt: expiresAt ?? DateTime.utc(2026, 7, 24, 10),
+  refreshExpiresAt: refreshExpiresAt ?? DateTime.utc(2026, 8, 24, 10),
+  organizationMembershipId: membershipId,
+  organizationId: organizationId,
   sessionGeneration: 4,
 );
 
+Future<void> _commit(
+  FlutterSecureSessionStore store,
+  SecureSession session,
+) async {
+  final lease = await store.beginActivation();
+  expect(await store.commit(lease, session), isTrue);
+}
+
 void main() {
   group('FlutterSecureSessionStore', () {
-    test(
-      'round trips one organization-scoped opaque platform session',
-      () async {
-        final storage = _MemoryStorage();
-        final store = FlutterSecureSessionStore(storage: storage);
+    test('reads only a completed current-installation session', () async {
+      final secure = _MemorySecureStorage();
+      final markers = _MemoryMarkerStorage();
+      final store = FlutterSecureSessionStore(
+        storage: secure,
+        markerStorage: markers,
+      );
 
-        await store.write(_organizationSession);
-        final restored = await store.read();
+      await _commit(store, _organizationSession());
+      final restored = await store.read();
 
-        expect(restored?.userId, 'user-1');
-        expect(restored?.deviceId, 'device-1');
-        expect(restored?.scope, SecureSessionScope.organization);
-        expect(restored?.organizationId, 'organization-1');
-        expect(restored?.sessionGeneration, 4);
-        expect(restored?.accessToken, 'opaque-access-token');
-        expect(restored?.refreshToken, 'opaque-refresh-token');
-      },
-    );
+      expect(restored?.userId, 'user-1');
+      expect(restored?.organizationId, 'organization-1');
+      expect(restored?.sessionGeneration, 4);
+      expect(restored?.refreshToken, 'opaque-refresh-token');
+    });
 
     test(
-      'replaces the previous user session instead of mixing contexts',
+      'write failure after payload and failed cleanup cannot reopen old user',
       () async {
-        final storage = _MemoryStorage();
-        final store = FlutterSecureSessionStore(storage: storage);
-        await store.write(_organizationSession);
-        await store.write(
-          SecureSession(
-            userId: 'user-2',
-            deviceId: 'device-2',
-            scope: SecureSessionScope.globalPlatformAdministrator,
-            accessToken: 'other-access',
-            refreshToken: 'other-refresh',
-            expiresAt: DateTime.utc(2026, 7, 24, 11),
-            refreshExpiresAt: DateTime.utc(2026, 8, 24, 11),
-            authenticatedAt: DateTime.utc(2026, 7, 24, 10),
+        final secure = _MemorySecureStorage();
+        final markers = _MemoryMarkerStorage();
+        final store = FlutterSecureSessionStore(
+          storage: secure,
+          markerStorage: markers,
+        );
+        await _commit(store, _organizationSession());
+
+        final lease = await store.beginActivation();
+        secure
+          ..failWriteAfterPersisting = true
+          ..failDelete = true;
+        await expectLater(
+          store.commit(
+            lease,
+            _organizationSession(
+              membershipId: 'membership-2',
+              organizationId: 'organization-2',
+            ),
           ),
+          throwsA(isA<SecureSessionStoreFailure>()),
         );
 
-        final restored = await store.read();
-
-        expect(restored?.userId, 'user-2');
-        expect(restored?.organizationId, isNull);
-        expect(restored?.sessionGeneration, isNull);
-        expect(restored?.refreshToken, 'other-refresh');
-      },
-    );
-
-    test(
-      'clears the session on explicit logout or revocation handling',
-      () async {
-        final storage = _MemoryStorage();
-        final store = FlutterSecureSessionStore(storage: storage);
-        await store.write(_organizationSession);
-
-        await store.clear();
-
         expect(await store.read(), isNull);
+        expect(
+          markers.values.containsKey('iam.platform-session.v2.commit'),
+          isFalse,
+        );
       },
     );
 
     test(
-      'rejects and removes malformed persisted values fail closed',
+      'uninstall reinstall marker mismatch rejects surviving secure payload',
       () async {
-        final storage = _MemoryStorage()
-          ..values['iam.platform-session.v1'] = '{not-json';
-        final store = FlutterSecureSessionStore(storage: storage);
+        final secure = _MemorySecureStorage();
+        final installedMarkers = _MemoryMarkerStorage();
+        final oldStore = FlutterSecureSessionStore(
+          storage: secure,
+          markerStorage: installedMarkers,
+        );
+        await _commit(oldStore, _organizationSession());
+
+        // Keychain/Keystore may survive, but app-sandbox marker storage does not.
+        final reinstalledStore = FlutterSecureSessionStore(
+          storage: secure,
+          markerStorage: _MemoryMarkerStorage(),
+        );
+
+        expect(await reinstalledStore.read(), isNull);
+      },
+    );
+
+    test('bekleyen eski yazma daha yeni aktivasyonu ezemez', () async {
+      final secure = _MemorySecureStorage();
+      final markers = _MemoryMarkerStorage();
+      final store = FlutterSecureSessionStore(
+        storage: secure,
+        markerStorage: markers,
+      );
+      secure
+        ..payloadWriteStarted = Completer<void>()
+        ..payloadWriteGate = Completer<void>();
+
+      final firstLease = await store.beginActivation();
+      final firstWrite = store.commit(
+        firstLease,
+        _organizationSession(membershipId: 'membership-a'),
+      );
+      await secure.payloadWriteStarted!.future;
+      final secondLeaseFuture = store.beginActivation();
+      secure.payloadWriteGate!.complete();
+
+      expect(await firstWrite, isFalse);
+      final secondLease = await secondLeaseFuture;
+      expect(
+        await store.commit(
+          secondLease,
+          _organizationSession(membershipId: 'membership-b'),
+        ),
+        isTrue,
+      );
+      expect((await store.read())?.organizationMembershipId, 'membership-b');
+    });
+
+    test(
+      'corrupted payload shapes and unknown schema versions fail closed',
+      () async {
+        final secure = _MemorySecureStorage();
+        final markers = _MemoryMarkerStorage();
+        final store = FlutterSecureSessionStore(
+          storage: secure,
+          markerStorage: markers,
+        );
+        await _commit(store, _organizationSession());
+        final commit =
+            jsonDecode(markers.values['iam.platform-session.v2.commit']!)
+                as Map<String, dynamic>;
+        final payloadKey = 'iam.platform-session.v2.payload.${commit['slot']}';
+        secure.values[payloadKey] = jsonEncode(<String, Object?>{
+          'version': 99,
+          'installationId': commit['installationId'],
+          'slot': commit['slot'],
+          'session': <String, Object?>{},
+        });
 
         await expectLater(
           store.read(),
@@ -120,40 +212,89 @@ void main() {
             ),
           ),
         );
-
-        expect(storage.values, isEmpty);
+        expect(
+          markers.values.containsKey('iam.platform-session.v2.commit'),
+          isFalse,
+        );
       },
     );
 
     test(
-      'does not leave a prior token usable when secure write fails',
+      'kalıcı şemada tip, kapsam ve zaman ihlalleri fail closed olur',
       () async {
-        final storage = _MemoryStorage()..failWrite = true;
-        final store = FlutterSecureSessionStore(storage: storage);
+        final corruptions = <void Function(Map<String, dynamic>)>[
+          (session) => session.remove('userId'),
+          (session) => session['deviceId'] = 7,
+          (session) => session['organizationMembershipId'] = ' ',
+          (session) => session['scope'] = 'GLOBAL_PLATFORM_ADMIN',
+          (session) => session['authenticatedAt'] = '2026-07-24T11:00:00.000Z',
+        ];
 
-        await expectLater(
-          store.write(_organizationSession),
-          throwsA(
-            isA<SecureSessionStoreFailure>().having(
-              (failure) => failure.reason,
-              'reason',
-              SecureSessionStoreFailureReason.unavailable,
+        for (final corrupt in corruptions) {
+          final secure = _MemorySecureStorage();
+          final markers = _MemoryMarkerStorage();
+          final store = FlutterSecureSessionStore(
+            storage: secure,
+            markerStorage: markers,
+          );
+          await _commit(store, _organizationSession());
+          final commit =
+              jsonDecode(markers.values['iam.platform-session.v2.commit']!)
+                  as Map<String, dynamic>;
+          final payloadKey =
+              'iam.platform-session.v2.payload.${commit['slot']}';
+          final payload =
+              jsonDecode(secure.values[payloadKey]!) as Map<String, dynamic>;
+          final session = Map<String, dynamic>.from(
+            payload['session'] as Map<String, dynamic>,
+          );
+          corrupt(session);
+          payload['session'] = session;
+          secure.values[payloadKey] = jsonEncode(payload);
+
+          await expectLater(
+            store.read(),
+            throwsA(
+              isA<SecureSessionStoreFailure>().having(
+                (failure) => failure.reason,
+                'reason',
+                SecureSessionStoreFailureReason.corrupted,
+              ),
             ),
-          ),
-        );
-
-        expect(storage.values, isEmpty);
+          );
+          expect(
+            markers.values.containsKey('iam.platform-session.v2.commit'),
+            isFalse,
+          );
+        }
       },
     );
 
-    test('never exposes an unavailable secure-storage cause', () async {
-      final storage = _MemoryStorage()..failRead = true;
-      final store = FlutterSecureSessionStore(storage: storage);
-
-      await expectLater(
-        store.read(),
-        throwsA(isA<SecureSessionStoreFailure>()),
-      );
-    });
+    test(
+      'missing, invalid, and time-reversed fields are rejected by the model',
+      () {
+        expect(
+          () => _organizationSession(membershipId: ' '),
+          throwsArgumentError,
+        );
+        expect(
+          () => _organizationSession(organizationId: ' '),
+          throwsArgumentError,
+        );
+        expect(
+          () => _organizationSession(
+            authenticatedAt: DateTime.utc(2026, 7, 24, 11),
+          ),
+          throwsArgumentError,
+        );
+        expect(
+          () => _organizationSession(
+            expiresAt: DateTime.utc(2026, 9, 24),
+            refreshExpiresAt: DateTime.utc(2026, 8, 24),
+          ),
+          throwsArgumentError,
+        );
+      },
+    );
   });
 }

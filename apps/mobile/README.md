@@ -50,5 +50,11 @@ CycloneDX SBOM olarak CI artefaktında saklanır.
 IAM-008, platform access/refresh tokenları için `flutter_secure_storage` adaptörünü ekler.
 Bu adaptör Android Keystore ve iOS Keychain kullanır; parola veya Cognito tokenı saklamaz,
 Android yedeğini kapatır ve iOS anahtarlarını başka cihaza taşınmayacak şekilde yapılandırır.
+Android manifestindeki `allowBackup=false`, uygulama verisinin bulut/cihaz yedeğine alınmasını
+engeller. `migrateWithBackup=true` ise bunun tersi değildir: yalnızca secure-storage'ın şifreleme
+algoritması geçişinde kullandığı yerel geri alma mekanizmasıdır. Oturum ayrıca secretsiz uygulama
+kum havuzu kurulum işaretçisiyle bağlanır; Keychain/Keystore girdisi yeniden kurulumda kalsa bile
+işaretçi olmadan okunamaz. iOS eşzamanlaması kapalıdır (`synchronizable=false`) ve this-device-only
+erişilebilirlik kullanılır.
 Durum yönetimi, ağ istemcisi, şifreli yerel veritabanı ve kalıcı kuyruk hâlâ ilgili sonraki
 görevlerin karar alanıdır.
