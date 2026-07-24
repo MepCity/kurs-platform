@@ -98,7 +98,6 @@ class FlutterSecureSessionStore implements SecureSessionStore {
 
   final SecureKeyValueStorage _storage;
   final ApplicationMarkerStorage _markerStorage;
-  Future<void> _tail = Future<void>.value();
 
   @override
   Future<SecureSessionWriteLease> beginActivation() async {
@@ -316,8 +315,8 @@ class FlutterSecureSessionStore implements SecureSessionStore {
   }
 
   Future<T> _serialize<T>(Future<T> Function() operation) {
-    final result = _tail.then((_) => operation());
-    _tail = result.then<void>((_) {}, onError: (_, _) {});
+    final result = _coordinator.tail.then((_) => operation());
+    _coordinator.tail = result.then<void>((_) {}, onError: (_, _) {});
     return result;
   }
 
@@ -421,4 +420,5 @@ class _CommitMarker {
 class _PhysicalStoreCoordinator {
   int nextAttempt = 0;
   int latestAttempt = 0;
+  Future<void> tail = Future<void>.value();
 }
