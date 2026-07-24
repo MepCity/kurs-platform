@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kurs_platform_mobile/core/presentation/widgets/app_sync_indicator.dart';
 import 'package:kurs_platform_mobile/features/auth/data/unavailable_authentication_repository.dart';
+import 'package:kurs_platform_mobile/features/auth/data/flutter_secure_session_store.dart';
 import 'package:kurs_platform_mobile/features/bootstrap/presentation/kurs_platform_app.dart';
 import 'package:kurs_platform_mobile/features/bootstrap/presentation/mobile_navigation_shell.dart';
 
@@ -49,6 +50,7 @@ Widget app(
   ValueChanged<MobileShellActionRequest>? onActionRequest,
 }) => KursPlatformApp(
   authenticationRepository: const UnavailableAuthenticationRepository(),
+  secureSessionStore: FlutterSecureSessionStore(),
   home: MobileNavigationShell(
     context: context,
     requests: route == null

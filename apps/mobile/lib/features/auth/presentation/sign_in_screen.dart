@@ -4,17 +4,20 @@ import '../../../core/presentation/widgets/widgets.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../application/sign_in_controller.dart';
 import '../domain/authentication_repository.dart';
+import '../domain/secure_session_store.dart';
 
 /// AUTH-01 and CTX-01. Password entry is deliberately delegated to Cognito's
 /// system-browser page; this app never renders or receives a password.
 class SignInScreen extends StatefulWidget {
   const SignInScreen({
     required this.repository,
+    required this.secureSessionStore,
     super.key,
     this.onSessionActivated,
   });
 
   final AuthenticationRepository repository;
+  final SecureSessionStore secureSessionStore;
   final ValueChanged<ActivatedSession>? onSessionActivated;
 
   @override
@@ -27,18 +30,23 @@ class _SignInScreenState extends State<SignInScreen> {
   @override
   void initState() {
     super.initState();
-    _controller = SignInController(repository: widget.repository)
-      ..addListener(_changed);
+    _controller = SignInController(
+      repository: widget.repository,
+      secureSessionStore: widget.secureSessionStore,
+    )..addListener(_changed);
   }
 
   @override
   void didUpdateWidget(covariant SignInScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.repository != widget.repository) {
+    if (oldWidget.repository != widget.repository ||
+        oldWidget.secureSessionStore != widget.secureSessionStore) {
       _controller.removeListener(_changed);
       _controller.dispose();
-      _controller = SignInController(repository: widget.repository)
-        ..addListener(_changed);
+      _controller = SignInController(
+        repository: widget.repository,
+        secureSessionStore: widget.secureSessionStore,
+      )..addListener(_changed);
     }
   }
 
