@@ -69,18 +69,41 @@ final _globalSession = SecureSession(
 
 class _SessionStore implements SecureSessionStore {
   SecureSession? value;
+  int _attempt = 0;
+
+  @override
+  Future<SecureSessionWriteLease> beginActivation() async =>
+      SecureSessionWriteLease(++_attempt);
+
+  @override
+  void abandonActivation(SecureSessionWriteLease lease) {}
 
   @override
   Future<void> clear() async => value = null;
 
   @override
-  Future<SecureSession?> read() async => value;
+  Future<bool> commit(
+    SecureSessionWriteLease lease,
+    SecureSession session,
+  ) async {
+    value = session;
+    return true;
+  }
 
   @override
-  Future<void> write(SecureSession session) async => value = session;
+  Future<SecureSession?> read() async => value;
 }
 
 class _FailingSessionStore implements SecureSessionStore {
+  int _attempt = 0;
+
+  @override
+  Future<SecureSessionWriteLease> beginActivation() async =>
+      SecureSessionWriteLease(++_attempt);
+
+  @override
+  void abandonActivation(SecureSessionWriteLease lease) {}
+
   @override
   Future<void> clear() async {}
 
@@ -88,11 +111,12 @@ class _FailingSessionStore implements SecureSessionStore {
   Future<SecureSession?> read() async => null;
 
   @override
-  Future<void> write(SecureSession session) => Future<void>.error(
-    const SecureSessionStoreFailure(
-      SecureSessionStoreFailureReason.unavailable,
-    ),
-  );
+  Future<bool> commit(SecureSessionWriteLease lease, SecureSession session) =>
+      Future<bool>.error(
+        const SecureSessionStoreFailure(
+          SecureSessionStoreFailureReason.unavailable,
+        ),
+      );
 }
 
 Widget _wrap(Widget child) => MaterialApp(

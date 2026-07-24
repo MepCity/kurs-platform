@@ -18,6 +18,8 @@ class SignInController extends ChangeNotifier {
   AuthContextChoices? _choices;
   String? _message;
   bool _disposed = false;
+  SecureSessionWriteLease? _activeLease;
+  int _activationAttempt = 0;
 
   SignInStatus get status => _status;
   AuthContextChoices? get choices => _choices;
@@ -63,29 +65,60 @@ class SignInController extends ChangeNotifier {
   }
 
   Future<ActivatedSession?> activateOrganization(String membershipId) =>
-      _activate(() => repository.activateOrganization(membershipId));
+      _activate(
+        () => repository.activateOrganization(membershipId),
+        requestedOrganizationMembershipId: membershipId,
+      );
 
   Future<ActivatedSession?> activatePlatformAdministrator() =>
       _activate(repository.activatePlatformAdministrator);
 
   Future<ActivatedSession?> _activate(
-    Future<AuthenticatedSessionActivation> Function() action,
-  ) async {
+    Future<AuthenticatedSessionActivation> Function() action, {
+    String? requestedOrganizationMembershipId,
+  }) async {
     if (_disposed || isBusy) return null;
+    final attempt = ++_activationAttempt;
     _status = SignInStatus.activating;
     _message = null;
     notifyListeners();
+    SecureSessionWriteLease? lease;
     try {
+      lease = await secureSessionStore.beginActivation();
+      if (_disposed || attempt != _activationAttempt) {
+        secureSessionStore.abandonActivation(lease);
+        return null;
+      }
+      _activeLease = lease;
       final activation = await action();
-      await secureSessionStore.write(activation.secureSession);
-      if (_disposed) return null;
+      if (!_isCurrent(lease, attempt)) return null;
+      if (requestedOrganizationMembershipId != null &&
+          activation.session.organizationMembership?.id !=
+              requestedOrganizationMembershipId) {
+        _abandonActiveLease();
+        _returnToContextChoice();
+        return null;
+      }
+      final committed = await secureSessionStore.commit(
+        lease,
+        activation.secureSession,
+      );
+      if (!_isCurrent(lease, attempt)) return null;
+      if (!committed) {
+        _activeLease = null;
+        _returnToContextChoice();
+        return null;
+      }
+      _activeLease = null;
       _status = SignInStatus.choosingContext;
       notifyListeners();
       return activation.session;
     } on AuthenticationFailure catch (failure) {
+      if (lease != null && _isCurrent(lease, attempt)) _abandonActiveLease();
       _showFailure(failure);
       return null;
     } catch (_) {
+      if (lease != null && _isCurrent(lease, attempt)) _abandonActiveLease();
       _showFailure(
         const AuthenticationFailure(
           AuthenticationFailureCode.unavailable,
@@ -103,8 +136,16 @@ class SignInController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _returnToContextChoice() {
+    if (_disposed) return;
+    _status = SignInStatus.choosingContext;
+    notifyListeners();
+  }
+
   void retry() {
-    if (_disposed || isBusy) return;
+    if (_disposed) return;
+    _activationAttempt++;
+    _abandonActiveLease();
     _status = _choices == null
         ? SignInStatus.ready
         : SignInStatus.choosingContext;
@@ -115,6 +156,19 @@ class SignInController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _activationAttempt++;
+    _abandonActiveLease();
     super.dispose();
+  }
+
+  bool _isCurrent(SecureSessionWriteLease lease, int attempt) =>
+      !_disposed &&
+      attempt == _activationAttempt &&
+      identical(_activeLease, lease);
+
+  void _abandonActiveLease() {
+    final lease = _activeLease;
+    _activeLease = null;
+    if (lease != null) secureSessionStore.abandonActivation(lease);
   }
 }

@@ -25,12 +25,20 @@ class SecureSession {
       throw ArgumentError('Güvenli oturum için zorunlu alan eksik.');
     }
     final organizationScope = scope == SecureSessionScope.organization;
-    if (organizationScope !=
-        (organizationMembershipId != null && organizationId != null)) {
+    final hasOrganizationContext =
+        organizationMembershipId != null && organizationId != null;
+    if (organizationScope != hasOrganizationContext ||
+        (!organizationScope &&
+            (organizationMembershipId != null || organizationId != null)) ||
+        (organizationMembershipId?.trim().isEmpty ?? false) ||
+        (organizationId?.trim().isEmpty ?? false)) {
       throw ArgumentError('Oturum kapsamı bağlam alanlarıyla uyuşmuyor.');
     }
-    if ((!organizationScope && sessionGeneration != null) ||
-        (sessionGeneration != null && sessionGeneration! < 0)) {
+    if ((organizationScope && sessionGeneration == null) ||
+        (!organizationScope && sessionGeneration != null) ||
+        (sessionGeneration != null && sessionGeneration! < 0) ||
+        authenticatedAt.isAfter(expiresAt) ||
+        expiresAt.isAfter(refreshExpiresAt)) {
       throw ArgumentError('Geçersiz oturum nesli.');
     }
   }
@@ -48,13 +56,28 @@ class SecureSession {
   final int? sessionGeneration;
 }
 
+class SecureSessionWriteLease {
+  const SecureSessionWriteLease(this.value);
+  final int value;
+}
+
 /// Domain port for the one active platform session on this installation.
 ///
 /// A stored value is only a refresh candidate. Bootstrap must still validate it
 /// with IAM before opening an authenticated workspace.
 abstract interface class SecureSessionStore {
   Future<SecureSession?> read();
-  Future<void> write(SecureSession session);
+
+  /// Invalidates the previously readable session before a new authentication
+  /// attempt starts. Only the most recently obtained lease may commit.
+  Future<SecureSessionWriteLease> beginActivation();
+
+  /// Returns false when a newer attempt has superseded [lease].
+  Future<bool> commit(SecureSessionWriteLease lease, SecureSession session);
+
+  /// Invalidates a pending lease without making a token-bearing write.
+  void abandonActivation(SecureSessionWriteLease lease);
+
   Future<void> clear();
 }
 

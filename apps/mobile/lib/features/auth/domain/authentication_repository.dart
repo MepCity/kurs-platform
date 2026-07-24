@@ -65,10 +65,16 @@ class AuthenticatedSessionActivation {
     required this.session,
     required this.secureSession,
   }) {
-    final expectedScope = session.scope == ActivatedSessionScope.organization
-        ? SecureSessionScope.organization
-        : SecureSessionScope.globalPlatformAdministrator;
-    if (secureSession.scope != expectedScope) {
+    if (session.scope == ActivatedSessionScope.organization) {
+      final membership = session.organizationMembership;
+      if (membership == null ||
+          membership.id.trim().isEmpty ||
+          secureSession.scope != SecureSessionScope.organization ||
+          membership.id != secureSession.organizationMembershipId) {
+        throw ArgumentError('Kurum aktivasyon bağlamı uyuşmuyor.');
+      }
+    } else if (session.organizationMembership != null ||
+        secureSession.scope != SecureSessionScope.globalPlatformAdministrator) {
       throw ArgumentError('Aktivasyon ve güvenli oturum kapsamı uyuşmuyor.');
     }
   }
