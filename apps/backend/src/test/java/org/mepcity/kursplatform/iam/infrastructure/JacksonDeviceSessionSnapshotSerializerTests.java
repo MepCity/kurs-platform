@@ -8,6 +8,7 @@ import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mepcity.kursplatform.iam.application.DeviceSessionService.DeviceRevokeResult;
+import org.mepcity.kursplatform.iam.application.DeviceSessionService.MembershipRevokeResult;
 import org.mepcity.kursplatform.iam.domain.DevicePlatform;
 import org.mepcity.kursplatform.iam.domain.TrustedDevice;
 
@@ -33,5 +34,37 @@ class JacksonDeviceSessionSnapshotSerializerTests {
         assertThatThrownBy(() -> serializer.readDeviceRevoke("{\"version\":1,\"kind\":\"membership-revoke\"}"))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> serializer.readDeviceRevoke("not-json")).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void deviceSnapshotRejectsMissingUnknownNegativeAndInvalidTypedFields() {
+        String id = UUID.randomUUID().toString();
+        String user = UUID.randomUUID().toString();
+        String identifier = UUID.randomUUID().toString();
+        String base = "{\"version\":1,\"kind\":\"device-revoke\",\"id\":\"" + id + "\",\"userId\":\"" + user
+                + "\",\"deviceIdentifier\":\"" + identifier + "\",\"deviceName\":\"x\",\"platform\":\"ANDROID\",\"trustedAtEpochMillis\":1,\"lastSeenAtEpochMillis\":1,\"familyCount\":0,\"currentDevice\":false";
+        String[] invalid = {"{\"version\":1,\"kind\":\"device-revoke\"}", base + ",\"familyCount\":-1}",
+                base + ",\"unknown\":true}", base.replace(id, "not-a-uuid") + "}", base.replace("\"trustedAtEpochMillis\":1", "\"trustedAtEpochMillis\":0") + "}"};
+        for (String payload : invalid) {
+            assertThatThrownBy(() -> serializer.readDeviceRevoke(payload)).isInstanceOf(IllegalArgumentException.class);
+        }
+    }
+
+    @Test
+    void roundTripsMembershipSnapshotAndRejectsMalformedPayloadsFailClosed() {
+        MembershipRevokeResult value = new MembershipRevokeResult(UUID.randomUUID(), UUID.randomUUID(), 3,
+                Instant.parse("2026-07-24T12:02:00Z"), 2);
+        assertThat(serializer.readMembershipRevoke(serializer.serialize(value))).isEqualTo(value);
+
+        String[] invalid = {
+                "{\"version\":2,\"kind\":\"membership-revoke\"}",
+                "{\"version\":1,\"kind\":\"device-revoke\"}",
+                "{\"version\":1,\"kind\":\"membership-revoke\",\"membershipId\":\"not-a-uuid\"}",
+                "{\"version\":1,\"kind\":\"membership-revoke\",\"membershipId\":\"" + UUID.randomUUID() + "\",\"organizationId\":\"" + UUID.randomUUID() + "\",\"sessionGeneration\":-1,\"reauthenticationRequiredAfterEpochMillis\":1,\"familyCount\":0}",
+                "{\"version\":1,\"kind\":\"membership-revoke\",\"unexpected\":true}"
+        };
+        for (String payload : invalid) {
+            assertThatThrownBy(() -> serializer.readMembershipRevoke(payload)).isInstanceOf(IllegalArgumentException.class);
+        }
     }
 }
