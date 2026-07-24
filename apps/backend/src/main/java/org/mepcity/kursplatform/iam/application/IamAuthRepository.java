@@ -75,6 +75,8 @@ public interface IamAuthRepository {
 
     List<OrganizationMembership> findActiveOrganizationMembershipsByUserId(UUID userId);
 
+    boolean isDeviceSessionRevokeAuthorized(UUID actorUserId, UUID organizationId);
+
     Optional<OrganizationMembership> findOrganizationMembershipByIdAndUserId(UUID membershipId, UUID userId);
 
     List<OrganizationMembershipRole> findActiveRolesByMembershipId(UUID membershipId);

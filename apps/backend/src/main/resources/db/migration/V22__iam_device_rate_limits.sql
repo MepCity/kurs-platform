@@ -11,15 +11,15 @@ ALTER TABLE iam_device_rate_limits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE iam_device_rate_limits FORCE ROW LEVEL SECURITY;
 GRANT SELECT, INSERT, UPDATE ON iam_device_rate_limits TO iam_runtime;
 CREATE POLICY iam_device_rate_limits_runtime ON iam_device_rate_limits FOR ALL TO iam_runtime USING (
-    current_user='iam_runtime' AND actor_user_id=current_setting('app.iam_actor_user_id',true)::uuid
+    current_user='iam_runtime' AND actor_user_id=NULLIF(current_setting('app.iam_actor_user_id',true),'')::uuid
     AND scope_type=current_setting('app.iam_operation_scope',true)
     AND operation_code=current_setting('app.iam_operation_code',true)
-    AND context_id=CASE WHEN scope_type='ORGANIZATION' THEN current_setting('app.iam_target_organization_id',true)::uuid
-                        ELSE current_setting('app.iam_actor_user_id',true)::uuid END
+    AND context_id=CASE WHEN scope_type='ORGANIZATION' THEN NULLIF(current_setting('app.iam_target_organization_id',true),'')::uuid
+                        ELSE NULLIF(current_setting('app.iam_actor_user_id',true),'')::uuid END
 ) WITH CHECK (
-    current_user='iam_runtime' AND actor_user_id=current_setting('app.iam_actor_user_id',true)::uuid
+    current_user='iam_runtime' AND actor_user_id=NULLIF(current_setting('app.iam_actor_user_id',true),'')::uuid
     AND scope_type=current_setting('app.iam_operation_scope',true)
     AND operation_code=current_setting('app.iam_operation_code',true)
-    AND context_id=CASE WHEN scope_type='ORGANIZATION' THEN current_setting('app.iam_target_organization_id',true)::uuid
-                        ELSE current_setting('app.iam_actor_user_id',true)::uuid END
+    AND context_id=CASE WHEN scope_type='ORGANIZATION' THEN NULLIF(current_setting('app.iam_target_organization_id',true),'')::uuid
+                        ELSE NULLIF(current_setting('app.iam_actor_user_id',true),'')::uuid END
 );

@@ -90,6 +90,25 @@ class DeviceSessionServiceTests {
     }
 
     @Test
+    void organizationScopeUsesTheDatabaseAuthorizationPredicate() {
+        UUID org = UUID.randomUUID(), targetMembership = UUID.randomUUID(), targetUser = UUID.randomUUID();
+        when(credentials.resolveCredential("token")).thenReturn(
+                CredentialResolution.platformAccess(ActiveSession.organization(actor, org)));
+        when(repository.isDeviceSessionRevokeAuthorized(actor, org)).thenReturn(true);
+        when(repository.findOrganizationMembershipByIdForUpdate(targetMembership))
+                .thenReturn(Optional.of(membership(targetMembership, org, targetUser)));
+        when(repository.findIdempotencyKey(any(), anyString(), any(), any())).thenReturn(Optional.empty());
+        when(repository.insertIdempotencyKeyOrFindExisting(any())).thenReturn(Optional.empty());
+        when(repository.findActiveRefreshTokenFamiliesByOrganizationMembershipId(targetMembership))
+                .thenReturn(List.of());
+
+        service.revokeOrganizationSessions("token", org, targetMembership, "key-12345678");
+
+        verify(repository).isDeviceSessionRevokeAuthorized(actor, org);
+        verify(repository, never()).findActiveRolesByMembershipId(any());
+    }
+
+    @Test
     void platformDeviceRevokeRejectsOrganizationScopedAdminBeforeDatabaseMutation() {
         when(credentials.resolveCredential("token")).thenReturn(CredentialResolution.platformAccess(ActiveSession.organization(actor, UUID.randomUUID())));
         assertThatThrownBy(() -> service.revokePlatformDevice("token", UUID.randomUUID(), UUID.randomUUID(), "key-12345678"))
