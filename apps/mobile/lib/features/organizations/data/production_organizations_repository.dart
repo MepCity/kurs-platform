@@ -309,9 +309,11 @@ class ProductionOrganizationsRepository extends ChangeNotifier
 
     try {
       var response = await _session.run(send);
+      _requireJsonContentType(response);
       var error = _errorOf(response);
       if (error?.code == OrganizationsFailureCode.unauthenticated) {
         response = await _session.refreshAndRun(send);
+        _requireJsonContentType(response);
         error = _errorOf(response);
       }
       if (error != null) {
@@ -506,21 +508,52 @@ class ProductionOrganizationsRepository extends ChangeNotifier
     );
   }
 
-  Duration? _retryAfter(String? value) {
-    if (value == null || value.length > 128) return null;
+  void _requireJsonContentType(SafeHttpResponse response) {
+    final value = response.headers['content-type'];
+    if (value == null ||
+        value.isEmpty ||
+        value.length > 128 ||
+        value.contains(',')) {
+      throw const FormatException();
+    }
+    final parts = value.split(';');
+    if (parts.isEmpty ||
+        parts.first.trim().toLowerCase() != 'application/json') {
+      throw const FormatException();
+    }
+    if (parts.length == 1) return;
+    if (parts.length != 2) throw const FormatException();
+    final parameter = parts[1].trim().split('=');
+    var charset = parameter.length == 2 ? parameter[1].trim() : '';
+    if (charset.length >= 2 &&
+        charset.startsWith('"') &&
+        charset.endsWith('"')) {
+      charset = charset.substring(1, charset.length - 1);
+    }
+    if (parameter.length != 2 ||
+        parameter[0].trim().toLowerCase() != 'charset' ||
+        charset.toLowerCase() != 'utf-8') {
+      throw const FormatException();
+    }
+  }
+
+  Duration _retryAfter(String? value) {
+    if (value == null || value.isEmpty || value.length > 128) {
+      throw const FormatException();
+    }
     final seconds = int.tryParse(value.trim());
-    if (seconds != null && seconds >= 0 && seconds <= 60) {
+    if (seconds != null && seconds > 0 && seconds <= 60) {
       return Duration(seconds: seconds);
     }
     try {
       final duration = HttpDate.parse(value).difference(_now().toUtc());
-      if (!duration.isNegative && duration <= const Duration(seconds: 60)) {
+      if (duration > Duration.zero && duration <= const Duration(seconds: 60)) {
         return duration;
       }
     } on Object {
-      return null;
+      throw const FormatException();
     }
-    return null;
+    throw const FormatException();
   }
 }
 

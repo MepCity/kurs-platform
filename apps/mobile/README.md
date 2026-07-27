@@ -71,7 +71,12 @@ ORG-009C, doğrulanmış platform oturumunu sekiz dosyasız ORG ucuna bağlayan 
 adapterını ekler. Ortak taşıma katmanı redirect izlemez, yanıt boyutunu sınırlar ve her fiziksel
 istekte yeni `X-Request-Id` üretir. Yazma denemeleri kendi stabil `Idempotency-Key` değerini,
 marka/palet/modül güncellemeleri ise `If-Match-Row-Version` ve doğrulanmış `ETag` eşleşmesini
-korur. Production composition mock repository kullanmaz; PLAT-01, PLAT-02 ve ORG-008 ekranları
+korur. Yanıt gövdesi mutlak toplam deadline ile okunur; başarı ve hata cevaplarında tek, geçerli
+JSON `Content-Type` zorunludur ve `429 RATE_LIMITED` yalnız pozitif, sınırlandırılmış
+`Retry-After` ile kabul edilir. API refresh cevabı güvenli depoya yazılmadan önce yeni access
+tokenla `/sessions/me` üzerinden kanonikleştirilir; rol veya görünür kurum bilgisi değişirse eski
+workspace ve bekleyen ORG sonucu kapatılır. Production composition mock repository kullanmaz;
+PLAT-01, PLAT-02 ve ORG-008 ekranları
 UI-004 rota kataloğu üzerinden açılır. IAM sözleşmesi öğretmenin bağımsız izinlerini henüz
 `sessions/me` içinde yayımlamadığından öğretmen yönetim menüsü production'da fail-closed kalır;
 rota kataloğu doğrulanmış izin kaynağı enjekte edildiğinde bağımsız marka ve modül yetkilerini

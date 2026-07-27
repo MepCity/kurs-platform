@@ -23,6 +23,21 @@ SecureSession _session(String suffix, {required bool expired}) => SecureSession(
   sessionGeneration: 2,
 );
 
+SecureSession _refreshed(SecureSession candidate, String suffix) =>
+    SecureSession(
+      userId: candidate.userId,
+      deviceId: candidate.deviceId,
+      scope: candidate.scope,
+      accessToken: 'access-$suffix',
+      refreshToken: 'refresh-$suffix',
+      expiresAt: DateTime.utc(2026, 7, 27, 10),
+      refreshExpiresAt: DateTime.utc(2026, 8, 27, 10),
+      authenticatedAt: candidate.authenticatedAt,
+      organizationMembershipId: candidate.organizationMembershipId,
+      organizationId: candidate.organizationId,
+      sessionGeneration: candidate.sessionGeneration,
+    );
+
 ActivatedSession _activated(SecureSession session) => ActivatedSession(
   scope: ActivatedSessionScope.organization,
   displayName: session.userId,
@@ -161,12 +176,21 @@ class _Repository implements SessionRepository {
   SessionFailure? logoutFailure;
   Completer<void>? logoutBlock;
   Completer<void>? refreshBlock;
+  Completer<void>? validationBlock;
   SecureSession? replacement;
+  final activatedSessions = <ActivatedSession>[];
+  final validationFailures = <SessionFailure?>[];
 
   @override
   Future<ActivatedSession> validate(SecureSession candidate) async {
     validations++;
+    await validationBlock?.future;
+    if (validationFailures.isNotEmpty) {
+      final failure = validationFailures.removeAt(0);
+      if (failure != null) throw failure;
+    }
     if (validateFailure != null) throw validateFailure!;
+    if (activatedSessions.isNotEmpty) return activatedSessions.removeAt(0);
     return _activated(candidate);
   }
 
@@ -261,7 +285,7 @@ void main() {
 
   test('expired access refreshes, CAS replaces, then validates', () async {
     final old = _session('old', expired: true);
-    final replacement = _session('new', expired: false);
+    final replacement = _refreshed(old, 'new');
     final store = _Store()..value = old;
     final repository = _Repository()..replacement = replacement;
     final controller = _controller(store, repository);
@@ -279,7 +303,7 @@ void main() {
     'refresh replaceIfCurrent storage hatası adayı korur ve retryableError üretir',
     () async {
       final candidate = _session('replace-error', expired: true);
-      final replacement = _session('replacement', expired: false);
+      final replacement = _refreshed(candidate, 'replacement');
       final store = _Store()
         ..value = candidate
         ..replaceIfCurrentError = StateError('secure storage write failed');
@@ -399,7 +423,7 @@ void main() {
 
   test('parallel ORG refresh uses one request and replacement token', () async {
     final current = _session('current', expired: false);
-    final replacement = _session('replacement', expired: false);
+    final replacement = _refreshed(current, 'replacement');
     final store = _Store()..value = current;
     final block = Completer<void>();
     final repository = _Repository()
@@ -419,7 +443,202 @@ void main() {
       'access-replacement',
     ]);
     expect(store.replacements, 1);
+    expect(repository.validations, 2);
   });
+
+  test(
+    'replacement tokens are stored only after sessions/me validation',
+    () async {
+      final current = _session('validation-order', expired: false);
+      final replacement = _refreshed(current, 'validation-order-new');
+      final store = _Store()..value = current;
+      final repository = _Repository()..replacement = replacement;
+      final controller = _controller(store, repository);
+      await controller.start();
+      final validationBlock = Completer<void>();
+      repository.validationBlock = validationBlock;
+
+      final refresh = controller.refreshAndRun((token) async => token);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(repository.refreshes, 1);
+      expect(repository.validations, 2);
+      expect(store.value, same(current));
+      expect(store.replacements, 0);
+
+      validationBlock.complete();
+      expect(await refresh, replacement.accessToken);
+      expect(store.value?.accessToken, replacement.accessToken);
+      expect(store.replacements, 1);
+    },
+  );
+
+  test(
+    'refresh canonical role loss closes old ORG_ADMIN authority before retry',
+    () async {
+      final current = _session('role-loss', expired: false);
+      final replacement = _refreshed(current, 'role-loss-new');
+      final store = _Store()..value = current;
+      final repository = _Repository()
+        ..replacement = replacement
+        ..activatedSessions.addAll(<ActivatedSession>[
+          ActivatedSession(
+            scope: ActivatedSessionScope.organization,
+            displayName: 'Yönetici Hoca',
+            organizationMembership: AuthOrganizationMembership(
+              id: current.organizationMembershipId!,
+              organizationId: current.organizationId!,
+              organizationName: 'Eski Kurs',
+              roleCodes: const <String>['ORG_ADMIN', 'TEACHER'],
+            ),
+          ),
+          ActivatedSession(
+            scope: ActivatedSessionScope.organization,
+            displayName: 'Yönetici Hoca',
+            organizationMembership: AuthOrganizationMembership(
+              id: current.organizationMembershipId!,
+              organizationId: current.organizationId!,
+              organizationName: 'Yeni Kurs',
+              roleCodes: const <String>['TEACHER'],
+            ),
+          ),
+        ]);
+      final controller = _controller(store, repository);
+      await controller.start();
+      final oldIdentity = controller.identityKey;
+      var oldOrgRetryCalls = 0;
+      final staleResponse = Completer<String>();
+      final staleRequest = controller.run((_) => staleResponse.future);
+
+      await expectLater(
+        controller.refreshAndRun((_) async {
+          oldOrgRetryCalls++;
+          return 'stale-org-success';
+        }),
+        throwsA(isA<AuthenticatedApiSessionUnavailable>()),
+      );
+      staleResponse.complete('stale-org-success');
+      await expectLater(
+        staleRequest,
+        throwsA(isA<AuthenticatedApiSessionUnavailable>()),
+      );
+
+      expect(oldOrgRetryCalls, 0);
+      expect(controller.status, BootstrapStatus.authenticated);
+      expect(controller.session?.organizationMembership?.roleCodes, [
+        'TEACHER',
+      ]);
+      expect(
+        controller.session?.organizationMembership?.organizationName,
+        'Yeni Kurs',
+      );
+      expect(controller.identityKey, isNot(oldIdentity));
+      expect(store.value?.accessToken, 'access-role-loss-new');
+    },
+  );
+
+  test(
+    'refresh canonical divergence fails closed and clears workspace',
+    () async {
+      for (final kind in <SessionFailureKind>[
+        SessionFailureKind.malformed,
+        SessionFailureKind.terminal,
+      ]) {
+        final current = _session('canonical-$kind', expired: false);
+        final store = _Store()..value = current;
+        final repository = _Repository()
+          ..replacement = _refreshed(current, 'canonical-new-$kind')
+          ..validationFailures.addAll(<SessionFailure?>[
+            null,
+            SessionFailure(kind, 'canonical user/scope/membership mismatch'),
+          ]);
+        final controller = _controller(store, repository);
+        await controller.start();
+
+        await expectLater(
+          controller.refreshAndRun((_) async => 'must-not-run'),
+          throwsA(
+            isA<AuthenticatedApiSessionUnavailable>().having(
+              (failure) => failure.terminal,
+              'terminal',
+              isTrue,
+            ),
+          ),
+        );
+        expect(controller.status, BootstrapStatus.unauthenticated);
+        expect(controller.session, isNull);
+        expect(store.value, isNull);
+      }
+    },
+  );
+
+  test(
+    'transient canonical validation closes workspace and reuses pending tokens',
+    () async {
+      final current = _session('canonical-transient', expired: false);
+      final replacement = _refreshed(current, 'canonical-retry');
+      final store = _Store()..value = current;
+      final repository = _Repository()
+        ..replacement = replacement
+        ..validationFailures.addAll(<SessionFailure?>[
+          null,
+          const SessionFailure(SessionFailureKind.transient, 'network'),
+          null,
+        ]);
+      final controller = _controller(store, repository);
+      await controller.start();
+
+      await expectLater(
+        controller.refreshAndRun((_) async => 'must-not-run'),
+        throwsA(isA<AuthenticatedApiSessionUnavailable>()),
+      );
+      expect(controller.status, BootstrapStatus.retryableError);
+      expect(controller.session, isNull);
+      expect(store.value, same(current));
+
+      await controller.start();
+      expect(controller.status, BootstrapStatus.authenticated);
+      expect(repository.refreshes, 1);
+      expect(repository.validations, 3);
+      expect(store.value?.accessToken, replacement.accessToken);
+    },
+  );
+
+  test(
+    'API refresh storage failure closes workspace and never uses old authority',
+    () async {
+      final current = _session('api-storage', expired: false);
+      final replacement = _refreshed(current, 'api-storage-new');
+      final store = _Store()..value = current;
+      final repository = _Repository()..replacement = replacement;
+      final controller = _controller(store, repository);
+      await controller.start();
+      store.replaceIfCurrentError = const SecureSessionStoreFailure(
+        SecureSessionStoreFailureReason.unavailable,
+      );
+      var operationCalls = 0;
+
+      await expectLater(
+        controller.refreshAndRun((_) async {
+          operationCalls++;
+          return 'must-not-run';
+        }),
+        throwsA(isA<AuthenticatedApiSessionUnavailable>()),
+      );
+
+      expect(operationCalls, 0);
+      expect(controller.status, BootstrapStatus.retryableError);
+      expect(controller.session, isNull);
+      expect(store.value, same(current));
+      expect(repository.refreshes, 1);
+
+      store.replaceIfCurrentError = null;
+      await controller.start();
+      expect(controller.status, BootstrapStatus.authenticated);
+      expect(repository.refreshes, 1);
+      expect(store.value?.accessToken, replacement.accessToken);
+    },
+  );
 
   test('ORG response completing after logout cannot publish success', () async {
     final current = _session('logout-race', expired: false);
@@ -450,7 +669,7 @@ void main() {
     'refresh completing after logout cannot replace cleared session',
     () async {
       final current = _session('refresh-logout', expired: false);
-      final replacement = _session('refresh-after-logout', expired: false);
+      final replacement = _refreshed(current, 'refresh-after-logout');
       final store = _Store()..value = current;
       final refreshBlock = Completer<void>();
       final repository = _Repository()

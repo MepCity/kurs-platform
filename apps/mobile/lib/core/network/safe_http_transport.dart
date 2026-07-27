@@ -61,13 +61,7 @@ class DartIoSafeHttpTransport implements SafeHttpTransport {
       if (request.body != null) outgoing.write(request.body);
       final incoming = await outgoing.close().timeout(responseTimeout);
       if (incoming.isRedirect) throw const SafeHttpTransportException();
-      final bytes = <int>[];
-      await for (final chunk in incoming.timeout(responseTimeout)) {
-        bytes.addAll(chunk);
-        if (bytes.length > maxResponseBytes) {
-          throw const SafeHttpTransportException();
-        }
-      }
+      final bytes = await _readBody(incoming).timeout(responseTimeout);
       final body = utf8.decode(bytes, allowMalformed: false);
       final headers = <String, String>{};
       incoming.headers.forEach((name, values) {
@@ -90,5 +84,16 @@ class DartIoSafeHttpTransport implements SafeHttpTransport {
     } finally {
       client.close(force: true);
     }
+  }
+
+  Future<List<int>> _readBody(HttpClientResponse incoming) async {
+    final bytes = <int>[];
+    await for (final chunk in incoming) {
+      bytes.addAll(chunk);
+      if (bytes.length > maxResponseBytes) {
+        throw const SafeHttpTransportException();
+      }
+    }
+    return bytes;
   }
 }

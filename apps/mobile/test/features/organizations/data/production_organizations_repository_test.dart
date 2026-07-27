@@ -81,7 +81,7 @@ SafeHttpResponse _response(
   Map<String, String> headers = const {},
 }) => SafeHttpResponse(
   statusCode: status,
-  headers: headers,
+  headers: <String, String>{'content-type': 'application/json', ...headers},
   body: body is String ? body : jsonEncode(body),
 );
 
@@ -478,7 +478,13 @@ void main() {
     for (final entry in cases) {
       final repository = _repository(
         _Session(),
-        _Transport((_) => _response(entry.$1, _error(entry.$2))),
+        _Transport(
+          (_) => _response(
+            entry.$1,
+            _error(entry.$2),
+            headers: entry.$1 == 429 ? const {'retry-after': '17'} : const {},
+          ),
+        ),
       );
       await expectLater(
         repository.listOrganizations(const OrganizationListQuery()),
@@ -520,6 +526,124 @@ void main() {
             ),
       ),
     );
+  });
+
+  test(
+    'success and error responses require one valid JSON Content-Type',
+    () async {
+      for (final contentType in <String>[
+        'application/json',
+        'application/json; charset=UTF-8',
+        'Application/JSON; charset="utf-8"',
+      ]) {
+        final repository = _repository(
+          _Session(),
+          _Transport(
+            (_) => _response(
+              200,
+              {
+                'items': [_org],
+                'page': {'nextCursor': null, 'hasNextPage': false},
+              },
+              headers: {'content-type': contentType},
+            ),
+          ),
+        );
+        expect(
+          (await repository.listOrganizations(
+            const OrganizationListQuery(),
+          )).items,
+          hasLength(1),
+        );
+      }
+
+      for (final contentType in <String?>[
+        null,
+        'text/plain',
+        'text/html',
+        'application/json, text/plain',
+        'application/json; charset=utf-8; charset=iso-8859-1',
+        'application/json; broken',
+      ]) {
+        final headers = <String, String>{};
+        if (contentType != null) headers['content-type'] = contentType;
+        final response = SafeHttpResponse(
+          statusCode: 403,
+          headers: headers,
+          body: jsonEncode(_error('FORBIDDEN')),
+        );
+        final repository = _repository(_Session(), _Transport((_) => response));
+        await expectLater(
+          repository.listOrganizations(const OrganizationListQuery()),
+          throwsA(
+            isA<OrganizationsFailure>().having(
+              (failure) => failure.code,
+              'code',
+              OrganizationsFailureCode.internalError,
+            ),
+          ),
+        );
+      }
+    },
+  );
+
+  test('429 accepts only positive bounded Retry-After values', () async {
+    for (final entry in <(String, Duration)>[
+      ('1', const Duration(seconds: 1)),
+      ('60', const Duration(seconds: 60)),
+      ('Mon, 27 Jul 2026 08:00:30 GMT', const Duration(seconds: 30)),
+    ]) {
+      final repository = _repository(
+        _Session(),
+        _Transport(
+          (_) => _response(
+            429,
+            _error('RATE_LIMITED'),
+            headers: {'retry-after': entry.$1},
+          ),
+        ),
+      );
+      await expectLater(
+        repository.listOrganizations(const OrganizationListQuery()),
+        throwsA(
+          isA<OrganizationsFailure>()
+              .having(
+                (failure) => failure.code,
+                'code',
+                OrganizationsFailureCode.rateLimited,
+              )
+              .having((failure) => failure.retryAfter, 'retryAfter', entry.$2),
+        ),
+      );
+    }
+
+    for (final value in <String?>[
+      null,
+      '0',
+      '-1',
+      '61',
+      'not-a-date',
+      'Mon, 27 Jul 2026 07:59:59 GMT',
+    ]) {
+      final headers = <String, String>{};
+      if (value != null) headers['retry-after'] = value;
+      final repository = _repository(
+        _Session(),
+        _Transport(
+          (_) => _response(429, _error('RATE_LIMITED'), headers: headers),
+        ),
+      );
+      await expectLater(
+        repository.listOrganizations(const OrganizationListQuery()),
+        throwsA(
+          isA<OrganizationsFailure>().having(
+            (failure) => failure.code,
+            'code',
+            OrganizationsFailureCode.internalError,
+          ),
+        ),
+      );
+    }
   });
 
   test(
