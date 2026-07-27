@@ -34,9 +34,11 @@ class AesGcmDeviceCursorCodecTests {
     void rejectsTamperedAndExpiredCursors() {
         UUID actor = UUID.randomUUID();
         String cursor = codec(NOW, Duration.ofSeconds(1)).encode(actor, 10, NOW, UUID.randomUUID());
+        byte[] tampered = java.util.Base64.getUrlDecoder().decode(cursor);
+        tampered[tampered.length - 1] ^= 1;
 
         assertInvalid(() -> codec(NOW, Duration.ofMinutes(1)).decode(actor, 10,
-                cursor.substring(0, cursor.length() - 1) + "A"));
+                java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(tampered)));
         assertInvalid(() -> codec(NOW.plusSeconds(2), Duration.ofMinutes(1)).decode(actor, 10, cursor));
     }
 
