@@ -25,9 +25,7 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 
 ## REVIEW
 
-| Kimlik | Görev | Pull Request | Not |
-|---|---|---|---|
-| IAM-009 | Entegrasyon, izolasyon, olay kaybı ve iptal gecikmesi testleri | PR #60 | CloudTrail olay semantiği, kalıcı `PENDING_MAPPING` yeniden işleme ve production lag alarmı için inceleme düzeltmeleri bekleniyor |
+İncelemede görev yok.
 
 ## BLOCKED
 
@@ -37,11 +35,6 @@ Bloke görev yok.
 
 | Kimlik | Görev | Tamamlanma tarihi | Teslim |
 |---|---|---|---|
-| ORG-009A | Backend kurum listeleme API'sini tamamla | 27 Temmuz 2026 | GLOBAL/ORGANIZATION kapsamlı kurum listeleme; Türkçe arama ve durum filtreleri, AES-GCM opak keyset cursor ve rotation, kalıcı aktör bazlı rate-limit, dar `iam_runtime → org_runtime` FORCE RLS sınırı, atomik audit ve gerçek HTTP→PostgreSQL kabul matrisi; 491 backend test ve tüm kalite kapıları PASS — PR #59 |
-| IAM-006 | Cihaz kaydı, DEVICE_SESSION_REVOKE ve yeniden doğrulamayı uygula | 27 Temmuz 2026 | Cihaz listeleme ve kendi/kurum/platform oturum iptali; AES-GCM opak cursor, kalıcı rate-limit, sürümlü idempotent snapshot replay, dar FORCE RLS/SECURITY DEFINER sınırları, advisory-lock eşzamanlılık ve gerçek HTTP→PostgreSQL kabul kanıtları; 451 backend test ve tüm kalite kapıları PASS — PR #57 |
-| ORG-008 | Kurum adı ve renk ayarı mobil akışı (dosyasız) | 27 Temmuz 2026 | Marka, yardımcı palet ve etkin modül ayarları için bağımsız draft/snapshot/idempotency yaşam döngüsü, ortak `rowVersion` uzlaştırması, ACTIVE/SUSPENDED/ARCHIVED ve platform-support erişim matrisi, salt-okunur arşiv görünümü ve erişilebilir mobil durum testleri; 540 mobil test, Android/iOS kalite kapıları PASS — PR #58 |
-| IAM-008 | Mobil güvenli oturum saklamayı uygula | 24 Temmuz 2026 | Keychain/Android Keystore tabanlı güvenli oturum saklama, fail-closed bütünlük/kurulum işaretçisi, ortak fiziksel işlem kuyruğu ve 483 mobil test; Android/iOS kalite kapıları PASS — PR #56 |
-| PLAN-006 | Belge ve sözleşme senkronizasyonunu tamamla | 24 Temmuz 2026 | Cognito veri modeli, karar günlüğü/metaveri, CTX-01, program durumu, görev bölme kuralı ve A-005 deney belgesi senkronizasyonu — PR #55 |
 | PLAN-001 | Ana ürün ve mimari planını oluştur | 13 Temmuz 2026 | `URUN_VE_UYGULAMA_PLANI.md` |
 | PLAN-002 | Agent odaklı görev planını oluştur | 13 Temmuz 2026 | `AGENT_GOREV_PLANI.md` |
 | PLAN-003 | Repo agent kurallarını oluştur | 13 Temmuz 2026 | `AGENTS.md` |
@@ -97,6 +90,12 @@ Bloke görev yok.
 | ORG-006 | Platform yöneticisi kurum listeleme ekranı | 20 Temmuz 2026 | `apps/mobile/lib/features/organizations` — PLAT-01 arama/durum filtresi, aktör ve kapsama bağlı opak keyset cursor, Y/B/H/Z durumları ve 273 mobil test; Android/iOS kalite kapıları PASS — PR #47 |
 | ORG-007 | Mobil kurum oluşturma akışı | 20 Temmuz 2026 | `apps/mobile/lib/features/organizations` — PLAT-02 alan doğrulama, güvenli idempotency yaşam döngüsü, yapılandırılmış 422 hataları, gerçek ekran ölçülü erişilebilirlik testleri ve 368 mobil test; Android/iOS kalite kapıları PASS — PR #48 |
 | UI-004 | Rol bazlı mobil kabuk ve navigasyon | 20 Temmuz 2026 | `apps/mobile/lib/features/bootstrap/presentation` — rol ve bağlam bazlı mobil kabuk, tek kaynak rota politikası, sınıf seçimi, güvenli istek kuyruğu, identity/generation uzlaştırması ve markersız rota fail-closed temizliği; 458 mobil test, Android/iOS kalite kapıları PASS — PR #44 |
+| PLAN-006 | Belge ve sözleşme senkronizasyonunu tamamla | 24 Temmuz 2026 | Cognito veri modeli, karar günlüğü/metaveri, CTX-01, program durumu, görev bölme kuralı ve A-005 deney belgesi senkronizasyonu — PR #55 |
+| IAM-008 | Mobil güvenli oturum saklamayı uygula | 24 Temmuz 2026 | Keychain/Android Keystore tabanlı güvenli oturum saklama, fail-closed bütünlük/kurulum işaretçisi, ortak fiziksel işlem kuyruğu ve 483 mobil test; Android/iOS kalite kapıları PASS — PR #56 |
+| ORG-008 | Kurum adı ve renk ayarı mobil akışı (dosyasız) | 27 Temmuz 2026 | Marka, yardımcı palet ve etkin modül ayarları için bağımsız draft/snapshot/idempotency yaşam döngüsü, ortak `rowVersion` uzlaştırması, ACTIVE/SUSPENDED/ARCHIVED ve platform-support erişim matrisi, salt-okunur arşiv görünümü ve erişilebilir mobil durum testleri; 540 mobil test, Android/iOS kalite kapıları PASS — PR #58 |
+| IAM-006 | Cihaz kaydı, DEVICE_SESSION_REVOKE ve yeniden doğrulamayı uygula | 27 Temmuz 2026 | Cihaz listeleme ve kendi/kurum/platform oturum iptali; AES-GCM opak cursor, kalıcı rate-limit, sürümlü idempotent snapshot replay, dar FORCE RLS/SECURITY DEFINER sınırları, advisory-lock eşzamanlılık ve gerçek HTTP→PostgreSQL kabul kanıtları; 451 backend test ve tüm kalite kapıları PASS — PR #57 |
+| ORG-009A | Backend kurum listeleme API'sini tamamla | 27 Temmuz 2026 | GLOBAL/ORGANIZATION kapsamlı kurum listeleme; Türkçe arama ve durum filtreleri, AES-GCM opak keyset cursor ve rotation, kalıcı aktör bazlı rate-limit, dar `iam_runtime → org_runtime` FORCE RLS sınırı, atomik audit ve gerçek HTTP→PostgreSQL kabul matrisi; 491 backend test ve tüm kalite kapıları PASS — PR #59 |
+| IAM-009 | Entegrasyon, izolasyon, olay kaybı ve iptal gecikmesi testleri | 27 Temmuz 2026 | CloudTrail güvenlik olaylarının fail-closed ayrıştırılması, kalıcı `PENDING_MAPPING` yeniden işleme, lease/fencing ve reconciliation yarış güvenliği, NULL sistem aktörlü audit, iki/beş dakikalık kalıcı lag alarmı ve dar FORCE RLS sınırları; 526 backend test ve tüm kalite kapıları PASS — PR #60 |
 
 ## Sonraki görev nasıl READY yapılır?
 
