@@ -2164,6 +2164,16 @@ classes 0..1—n sync_changes (scope_class_id; değişiklik anındaki yayın kap
 
 ---
 
+### IAM-009 — `iam_cognito_security_events`
+
+CloudTrail/EventBridge/SQS tesliminin ham gövdesi tutulmaz. Tablo yalnız `provider='COGNITO'`,
+`user_pool_id`, `event_id`, allow-list event adı, subject, event time, deneme sayısı ve terminal
+durumu taşır. Birincil anahtar `(provider, user_pool_id, event_id)`dir; `event_time` sıralama veya
+tamlık kanıtı değildir. `PENDING_MAPPING` bilinmeyen subject için completion yazılmadan korunur;
+`COMPLETED` yalnız aile iptali ve audit aynı transaction'da başarılıysa, `TERMINAL` ise sınırlı
+retry sonrası yazılır. Tablo FORCE RLS'tir ve yalnız `GLOBAL/COGNITO_SECURITY_EVENT_PROCESS`
+işlem kodu altında `iam_runtime` tarafından erişilir.
+
 ## 21. Kapsam dışı bırakılanlar
 
 - API istek/cevap sözleşmesi ve sayfalama/filtreleme standardı `API_GENEL_KURALLARI.md`de

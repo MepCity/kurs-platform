@@ -855,3 +855,20 @@ yetkili kimlik/secret sözleşmesi ile yeni bütçe/alarm kapısı tamamlanmadan
   kalıcı user pool/realm, container image, tema,
   kullanıcı migrasyonu, mobil SDK ve backend endpointleri eklenmez.
 - Hukuki saklama süreleri ve KVKK uyum değerlendirmesi yapılmaz.
+
+### IAM-009 — Cognito güvenlik olayı ve uzlaştırma sınırı
+
+V1 hızlı yol `CloudTrail management events → EventBridge → SQS Standard → DLQ → backend
+scheduled consumer` zinciridir. Teslim at-least-once, sıra dışı ve eksik kabul edilir; kanonik
+dedupe anahtarı `provider + userPoolId + CloudTrail eventID`dir. Yalnız
+`AdminDisableUser`, `AdminUserGlobalSignOut`, `RevokeToken`, `AdminResetUserPassword` ve
+`AdminSetUserPassword` allow-listtedir. Ham event gövdesi, token veya parola saklanmaz.
+
+Event completion, yerel aile iptali ve audit ile aynı transaction'da yazılır. Bilinmeyen subject
+`PENDING_MAPPING`te kalır; eşleme sonradan oluştuğunda yeniden işlenir. Poison olaylar sınırlı
+retry sonrası DLQ/terminal alarm üretir. Aktif aileli kimlikler ayrıca `AdminGetUser` kanonik
+durum sweep'iyle uzlaştırılır; `UNKNOWN` yeni aileyi engeller, ancak kaçırılmış global sign-out'u
+kanıtlayamaz. Bu nedenle production Cognito güvenlik mutasyonları yalnız dar IAM worker rolüyle
+yapılır; insan console/doğrudan API erişimi yasaktır. Lag 2 dakikada WARNING, 5 dakikada CRITICAL
+olur. `SecurityAlertSink` mevcut güvenli structured-log sınırına yazar; CloudWatch/SNS hedefi
+OPS-003 kapsamındadır.
