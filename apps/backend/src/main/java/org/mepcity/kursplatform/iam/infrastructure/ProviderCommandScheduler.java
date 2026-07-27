@@ -1,6 +1,11 @@
-package org.mepcity.kursplatform.iam.application;
+package org.mepcity.kursplatform.iam.infrastructure;
 
+import org.mepcity.kursplatform.iam.application.IamAuthRepository;
+import org.mepcity.kursplatform.iam.application.IamServiceSettings;
+import org.mepcity.kursplatform.iam.application.IamTransactionExecutor;
 import org.mepcity.kursplatform.iam.application.IamTransactionExecutor.IamAuthScopeContext;
+import org.mepcity.kursplatform.iam.application.ProviderCommandService;
+import org.mepcity.kursplatform.iam.application.ProviderCommandWorker;
 import org.mepcity.kursplatform.iam.domain.OperationCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -83,6 +83,23 @@ public final class SafeLogEvent {
 				occurredAt, requestId, operation, error, SafeLogSeverity.FATAL);
 	}
 
+	/** Security operation events admit only pre-validated opaque identifiers, never payloads. */
+	public static SafeLogEvent securityAlert(String name, SafeLogSeverity severity, Instant occurredAt,
+			Map<String, String> attributes) {
+		if (name == null || !name.matches("iam\\.security\\.[a-z_]{1,64}")) {
+			throw new IllegalArgumentException("Invalid security alert name");
+		}
+		if (severity != SafeLogSeverity.WARNING && severity != SafeLogSeverity.ERROR) {
+			throw new IllegalArgumentException("Invalid security alert severity");
+		}
+		if (attributes == null || attributes.entrySet().stream().anyMatch(entry ->
+				!entry.getKey().matches("[a-zA-Z][a-zA-Z0-9]{0,63}")
+						|| !entry.getValue().matches("[A-Za-z0-9._:-]{1,128}"))) {
+			throw new IllegalArgumentException("Invalid security alert attributes");
+		}
+		return new SafeLogEvent(name, severity, occurredAt, new LinkedHashMap<>(attributes));
+	}
+
 	private static SafeLogEvent applicationError(
 			Instant occurredAt,
 			String requestId,

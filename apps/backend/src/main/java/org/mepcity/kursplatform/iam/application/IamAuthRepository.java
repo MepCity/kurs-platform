@@ -22,6 +22,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import org.mepcity.kursplatform.iam.domain.CognitoSecurityEvent;
+import org.mepcity.kursplatform.iam.domain.CognitoSecurityEventClaim;
+import org.mepcity.kursplatform.iam.domain.CognitoReconciliationClaim;
 
 public interface IamAuthRepository {
 
@@ -184,4 +187,41 @@ public interface IamAuthRepository {
     Optional<ProviderCommand> findProviderCommandByIdempotencyKey(String idempotencyKey);
 
     List<ContextSelectionSummary> findContextSelectionSummaries(UUID userId);
+
+    /** Inserts only opaque CloudTrail routing fields; false means the canonical event already exists. */
+    boolean recordCognitoSecurityEvent(CognitoSecurityEvent event);
+
+    Optional<CognitoSecurityEventClaim> claimCognitoSecurityEvent(
+            CognitoSecurityEvent event, String workerId, Instant now, Instant leaseExpiresAt);
+
+    Optional<CognitoSecurityEventClaim> claimNextCognitoSecurityEvent(
+            String userPoolId, String workerId, Instant now, Instant leaseExpiresAt);
+
+    Optional<UserIdentity> revalidateCognitoEventSubject(
+            String issuer, String subject, String userPoolId);
+
+    void completeCognitoSecurityEvent(CognitoSecurityEventClaim claim, Instant now);
+
+    void releaseCognitoSecurityEvent(CognitoSecurityEventClaim claim, Instant nextAttemptAt);
+
+    Optional<Instant> findOldestPendingCognitoEventTime(String userPoolId);
+
+    void discoverCognitoReconciliationTargets(String issuer, String userPoolId);
+
+    Optional<CognitoReconciliationClaim> claimCognitoReconciliationTarget(
+            String userPoolId, String workerId, Instant now, Instant leaseExpiresAt);
+
+    void completeCognitoReconciliationTarget(
+            CognitoReconciliationClaim claim, String providerStatus, Instant now, Instant nextCheckAt);
+
+    void releaseCognitoReconciliationTarget(CognitoReconciliationClaim claim, Instant nextCheckAt);
+
+    Optional<Instant> findOldestDueReconciliationTime(String userPoolId, Instant now);
+
+    boolean claimCognitoLagAlarm(
+            String userPoolId,
+            String checkpoint,
+            String severity,
+            Instant now,
+            Instant cooldownSince);
 }

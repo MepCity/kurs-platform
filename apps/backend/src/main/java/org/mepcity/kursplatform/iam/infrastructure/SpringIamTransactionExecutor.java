@@ -137,6 +137,7 @@ public class SpringIamTransactionExecutor implements IamTransactionExecutor {
         if (context.actorUserId() != null) {
             vars.put("app.iam_actor_user_id", context.actorUserId().toString());
         }
+        vars.put("app.iam_system_actor", Boolean.toString(context.actorUserId() == null));
         if (context.currentTrustedDeviceId() != null) {
             vars.put("app.iam_current_trusted_device_id", context.currentTrustedDeviceId().toString());
         }
@@ -206,6 +207,7 @@ public class SpringIamTransactionExecutor implements IamTransactionExecutor {
             // Fresh, unguessable sentinels cannot authorize a real row and are overwritten by
             // every operation-specific value below.
             UUID_SESSION_VARS.forEach(key -> safeVars.put(key, UUID.randomUUID().toString()));
+            safeVars.put("app.iam_system_actor", "false");
             safeVars.putAll(vars);
             applySessionVarsToBoundConnection(safeVars);
             if (isMutationScope) {

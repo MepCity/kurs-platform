@@ -17,7 +17,7 @@ import org.mepcity.kursplatform.iam.application.IamTransactionExecutor;
 import org.mepcity.kursplatform.iam.application.ProviderCommandOutcome;
 import org.mepcity.kursplatform.iam.application.ProviderCommandResult;
 import org.mepcity.kursplatform.iam.application.ProviderCommandRetryPolicy;
-import org.mepcity.kursplatform.iam.application.ProviderCommandScheduler;
+import org.mepcity.kursplatform.iam.infrastructure.ProviderCommandScheduler;
 import org.mepcity.kursplatform.iam.application.ProviderCommandService;
 import org.mepcity.kursplatform.iam.application.ProviderCommandWorker;
 import org.mepcity.kursplatform.iam.application.ProviderTokenExchangeResult;

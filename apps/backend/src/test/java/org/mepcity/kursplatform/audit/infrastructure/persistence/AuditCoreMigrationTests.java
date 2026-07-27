@@ -521,13 +521,13 @@ class AuditCoreMigrationTests {
             rows.next();
             assertThat(rows.getInt(1)).isEqualTo(4);
         }
-        // IAM-004 (V7) adds its own narrow INSERT policies for iam_runtime, same pattern as
-        // org_runtime above — three policies: GLOBAL events, ORGANIZATION events, provider-command.
+        // IAM runtime has the original auth/provider-command policies plus the separately
+        // operation-gated IAM-006 device and IAM-009 event/reconciliation security policies.
         try (var statement = connection.prepareStatement(
                 "SELECT count(*) FROM pg_policies WHERE tablename='audit_logs' AND cmd = 'INSERT' AND roles = '{iam_runtime}'");
                 var rows = statement.executeQuery()) {
             rows.next();
-            assertThat(rows.getInt(1)).isEqualTo(4);
+            assertThat(rows.getInt(1)).isEqualTo(6);
         }
         try (var statement = connection.prepareStatement(
                 "SELECT count(*) FROM pg_policies WHERE tablename='audit_logs' AND cmd IN ('SELECT','UPDATE','DELETE')");
