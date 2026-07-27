@@ -5,6 +5,7 @@ import org.mepcity.kursplatform.iam.application.CognitoTokenVerifier;
 import org.mepcity.kursplatform.iam.application.CognitoUserStatusChecker;
 import org.mepcity.kursplatform.iam.application.ContextSelectionService;
 import org.mepcity.kursplatform.iam.application.DeviceSessionService;
+import org.mepcity.kursplatform.iam.application.DeviceCursorCodec;
 import org.mepcity.kursplatform.iam.application.DeviceSessionSnapshotSerializer;
 import org.mepcity.kursplatform.iam.application.IamAuditWriter;
 import org.mepcity.kursplatform.iam.application.IamDeviceRateLimiter;
@@ -76,6 +77,12 @@ public class IamInfrastructureConfiguration {
     @Bean
     DeviceSessionSnapshotSerializer deviceSessionSnapshotSerializer() {
         return new JacksonDeviceSessionSnapshotSerializer(new ObjectMapper().findAndRegisterModules());
+    }
+
+    @Bean
+    DeviceCursorCodec deviceCursorCodec(TokenHasher tokenHasher, Clock clock, IamServiceSettings settings,
+                                        SecureRandom secureRandom) {
+        return new AesGcmDeviceCursorCodec(tokenHasher, clock, settings.deviceCursorTtl(), secureRandom);
     }
 
     @Bean
@@ -174,9 +181,9 @@ public class IamInfrastructureConfiguration {
                                               ActiveSessionResolver credentials, SessionInfoService sessionInfoService,
                                               TokenHasher tokenHasher, IamAuditWriter auditWriter,
                                               IamServiceSettings settings, Clock clock, IamDeviceRateLimiter rateLimiter,
-                                              DeviceSessionSnapshotSerializer snapshots) {
+                                              DeviceSessionSnapshotSerializer snapshots, DeviceCursorCodec cursorCodec) {
         return new DeviceSessionService(repository, transactions, credentials, sessionInfoService, tokenHasher,
-                auditWriter, settings, clock, rateLimiter, snapshots);
+                auditWriter, settings, clock, rateLimiter, snapshots, cursorCodec);
     }
 
     @Bean

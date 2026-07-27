@@ -459,8 +459,8 @@ sunucu bunu öğrenmeden kilidi üretemez. Bu nedenle bu iki işlem dört fazlı
   yoksa (0 satır) istek burada `404 RESOURCE_NOT_FOUND` ile biter.
 - **Faz B — mantıksal kilit:** Faz A'da keşfedilen `(user_id, device_identifier)` ile yukarıdaki
   `pg_advisory_xact_lock` alınır.
-- **Faz C — kilit-sonrası yeniden okuma ve doğrulama:** aynı `deviceId` satırı `SELECT ... FOR
-  UPDATE` ile yeniden okunur; okunan satırın `user_id`si **hâlâ** beklenen kullanıcıyla (aktör
+- **Faz C — kilit-sonrası yeniden okuma ve doğrulama:** aynı `deviceId` satırı normal `SELECT` ile
+  yeniden okunur; okunan satırın `user_id`si **hâlâ** beklenen kullanıcıyla (aktör
   veya hedef kullanıcı) ve `device_identifier`i Faz A'da keşfedilen değerle eşleşmiyorsa istek
   fail-closed `404 RESOURCE_NOT_FOUND` ile durur (satır silinmiş/taşınmış gibi imkânsız ama
   savunma amaçlı bir durumu yakalar; `device_identifier` zaten immutable olduğundan bu normal
@@ -482,7 +482,7 @@ başlar. Kilit sırası, kilidi alan işlem için **bağlayıcıdır ve sabittir
 kilidi (yalnız üç işlem, yukarıda), (1) `trusted_devices` satırı (varsa; Faz A/C ayrımı yukarıda
 tanımlıdır), (2) `organization_memberships` (varsa), (3) `refresh_token_families`, (4)
 `refresh_tokens`. Ters sırayla kilitleme deadlock riski taşıdığından uygulama kodunda yasaktır.
-Adım (1) uygulanabiliyorsa kilit (`SELECT ... FOR UPDATE`, Faz C) alındıktan **sonra** aktif
+Adım (1) uygulanabiliyorsa mantıksal cihaz kilidi (Faz C) alındıktan **sonra** aktif
 aile/token/`session_generation`/`revoked_at`/**`MAX(revoked_at)`** durumu **yeniden okunur**;
 karar ilk (kilitsiz veya Faz A) okumaya değil bu ikinci okumaya göre verilir.
 `PROVIDER_TOKEN_EXCHANGE`in `WITH CHECK`i, doğrulanmış `auth_time`i yalnız bu kilit-sonrası
@@ -581,7 +581,7 @@ IAM-009, IAM-001'in yukarıdaki test listesine ek olarak en az şunları kanıtl
   `DEVICE_SELF_REVOKE` girip aynı cihazı iptal edip commit ederse, ilk işlemin Faz C yeniden
   okuması bu güncel `revoked_at`ı görür ve karar/mutasyon buna göre (no-op veya fail-closed)
   verilir; Faz A'nın kilitsiz okuduğu eski durum hiçbir karara girmez.
-- **Faz C yeniden okumanın güncelliği:** Faz C'nin `SELECT ... FOR UPDATE`i, Faz A'dan sonra
+- **Faz C yeniden okumanın güncelliği:** Faz C'nin mantıksal kilit sonrası yeniden okuması, Faz A'dan sonra
   başka bir transaction tarafından commit edilmiş bir `revoked_at` değişikliğini **her zaman**
   görür (kilit + `FOR UPDATE` snapshot garantisi); karar hiçbir koşulda Faz A'nın önbelleğe
   alınmış değerine dayanmaz.

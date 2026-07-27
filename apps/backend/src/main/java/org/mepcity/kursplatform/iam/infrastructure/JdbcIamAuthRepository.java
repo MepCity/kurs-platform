@@ -163,14 +163,6 @@ public class JdbcIamAuthRepository implements IamAuthRepository {
     }
 
     @Override
-    public Optional<TrustedDevice> findTrustedDeviceByIdForUpdate(UUID userId, UUID deviceId) {
-        List<TrustedDevice> results = jdbcTemplate.query("SELECT id, user_id, device_identifier, device_name, platform, trusted_at, last_seen_at, revoked_at "
-                        + "FROM trusted_devices WHERE user_id = ? AND id = ? FOR UPDATE",
-                (rs, rowNum) -> mapTrustedDevice(rs), userId, deviceId);
-        return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
-    }
-
-    @Override
     public boolean revokeTrustedDeviceIfActive(UUID userId, UUID deviceId) {
         return jdbcTemplate.update("UPDATE trusted_devices SET revoked_at = transaction_timestamp() "
                 + "WHERE user_id = ? AND id = ? AND revoked_at IS NULL", userId, deviceId) == 1;
