@@ -217,6 +217,15 @@ class ArchitectureBoundariesTests {
 				"class Rule { org.springframework.http.HttpStatus status; }");
 	}
 
+	@Test
+	void rejectsApplicationJdbcTransactionSqlAndInfrastructureCryptoReferences() {
+		assertForbidden("org/application/OrganizationListService.java", "import org.springframework.jdbc.core.JdbcTemplate;");
+		assertForbidden("org/application/OrganizationListService.java", "import org.springframework.transaction.support.TransactionTemplate;");
+		assertForbidden("org/application/OrganizationListService.java", "import javax.sql.DataSource;");
+		assertForbidden("org/application/OrganizationListService.java", "import java.sql.Connection;");
+		assertForbidden("org/application/OrganizationListService.java", "import org.mepcity.kursplatform.org.infrastructure.persistence.AesGcmOrganizationListCursorCodec;");
+	}
+
 	private void assertForbidden(String path, String source) {
 		assertThat(violations(path, source)).as(path).isNotEmpty();
 	}
@@ -246,6 +255,11 @@ class ArchitectureBoundariesTests {
 				if (source.contains(prefix)) {
 					violations.add(path + ": domain framework reference: " + prefix);
 				}
+			}
+		}
+		if ("org/application/OrganizationListService.java".equals(path)) {
+			for (String forbidden : List.of("org.springframework.jdbc.", "org.springframework.transaction.", "javax.sql.", "java.sql.", ".infrastructure.persistence.AesGcm")) {
+				if (source.contains(forbidden)) violations.add(path + ": list application implementation must remain framework-free: " + forbidden);
 			}
 		}
 

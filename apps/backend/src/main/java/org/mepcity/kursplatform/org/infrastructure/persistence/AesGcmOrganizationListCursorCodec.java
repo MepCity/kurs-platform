@@ -21,21 +21,21 @@ public final class AesGcmOrganizationListCursorCodec implements OrganizationList
     private static final int NONCE_LENGTH = 12;
     private static final int TAG_LENGTH = 128;
     private static final String PURPOSE = "org-list-cursor-v1";
+    private static final int MAX_TOKEN_LENGTH = 4096;
+    private final String keyId;
     private final SecretKeySpec key;
+    private final String previousKeyId;
+    private final SecretKeySpec previousKey;
     private final Clock clock;
     private final SecureRandom random;
 
-    public AesGcmOrganizationListCursorCodec(String secret, Clock clock, SecureRandom random) {
+    public AesGcmOrganizationListCursorCodec(String keyId, String secret, String previousKeyId, String previousSecret,
+            Clock clock, SecureRandom random) {
         try {
-            // Local/test deployments that have no secret manager still get a process-local random
-            // key. A restart invalidates cursors safely; production supplies the external secret.
-            if (secret == null || secret.isBlank()) {
-                byte[] generated = new byte[32];
-                random.nextBytes(generated);
-                secret = Base64.getEncoder().encodeToString(generated);
-            }
-            key = new SecretKeySpec(MessageDigest.getInstance("SHA-256")
-                    .digest((PURPOSE + "|" + secret).getBytes(StandardCharsets.UTF_8)), "AES");
+            this.keyId = keyId;
+            key = key(secret);
+            this.previousKeyId = previousKeyId;
+            previousKey = previousSecret == null || previousSecret.isBlank() ? null : key(previousSecret);
         } catch (Exception exception) { throw new IllegalStateException("Cursor anahtarı üretilemedi", exception); }
         this.clock = clock;
         this.random = random;
@@ -54,7 +54,7 @@ public final class AesGcmOrganizationListCursorCodec implements OrganizationList
             plaintext.putLong(cursor.lastOrganizationId().getMostSignificantBits()).putLong(cursor.lastOrganizationId().getLeastSignificantBits());
             Cipher cipher = cipher(Cipher.ENCRYPT_MODE, nonce, cursor.context());
             byte[] encrypted = cipher.doFinal(plaintext.array());
-            return Base64.getUrlEncoder().withoutPadding().encodeToString(ByteBuffer.allocate(nonce.length + encrypted.length)
+            return keyId + "." + Base64.getUrlEncoder().withoutPadding().encodeToString(ByteBuffer.allocate(nonce.length + encrypted.length)
                     .put(nonce).put(encrypted).array());
         } catch (Exception exception) { throw new IllegalStateException("Cursor oluşturulamadı", exception); }
     }
@@ -62,11 +62,17 @@ public final class AesGcmOrganizationListCursorCodec implements OrganizationList
     @Override
     public OrganizationListCursor decode(String token, OrganizationListCursor.Context expected) {
         try {
-            byte[] input = Base64.getUrlDecoder().decode(token);
+            if (token == null || token.length() > MAX_TOKEN_LENGTH) throw invalid();
+            String[] parts = token.split("\\.", -1);
+            if (parts.length != 2 || parts[0].isBlank()) throw invalid();
+            SecretKeySpec selected = parts[0].equals(keyId) ? key
+                    : parts[0].equals(previousKeyId) && previousKey != null ? previousKey : null;
+            if (selected == null) throw invalid();
+            byte[] input = Base64.getUrlDecoder().decode(parts[1]);
             if (input.length <= NONCE_LENGTH) throw invalid();
             ByteBuffer source = ByteBuffer.wrap(input);
             byte[] nonce = new byte[NONCE_LENGTH]; source.get(nonce);
-            byte[] plaintext = cipher(Cipher.DECRYPT_MODE, nonce, expected)
+            byte[] plaintext = cipher(Cipher.DECRYPT_MODE, nonce, expected, selected)
                     .doFinal(source.array(), source.position(), source.remaining());
             ByteBuffer value = ByteBuffer.wrap(plaintext);
             Instant expiresAt = Instant.ofEpochMilli(value.getLong());
@@ -95,9 +101,18 @@ public final class AesGcmOrganizationListCursorCodec implements OrganizationList
         return bytes.array();
     }
 
+    private static SecretKeySpec key(String secret) throws Exception {
+        return new SecretKeySpec(MessageDigest.getInstance("SHA-256")
+                .digest((PURPOSE + "|" + secret).getBytes(StandardCharsets.UTF_8)), "AES");
+    }
+
     private Cipher cipher(int mode, byte[] nonce, OrganizationListCursor.Context context) throws Exception {
+        return cipher(mode, nonce, context, key);
+    }
+
+    private Cipher cipher(int mode, byte[] nonce, OrganizationListCursor.Context context, SecretKeySpec selected) throws Exception {
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        cipher.init(mode, key, new GCMParameterSpec(TAG_LENGTH, nonce));
+        cipher.init(mode, selected, new GCMParameterSpec(TAG_LENGTH, nonce));
         cipher.updateAAD((PURPOSE + "|" + context.actorUserId() + "|" + context.scope() + "|" + context.status()
                 + "|" + context.search() + "|" + context.sort() + "|" + context.order() + "|" + context.limit())
                 .getBytes(StandardCharsets.UTF_8));

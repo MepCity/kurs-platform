@@ -30,22 +30,36 @@ public final class OrganizationListService {
         return actor.isGlobalPlatformAdmin() ? global(actor,query,requestId) : organization(actor,query);
     }
     private Result global(ActiveSession actor, Query query, String requestId) {
-        OrganizationListCursor.Context context=query.context(actor.userId(), OrganizationListTransaction.Scope.GLOBAL);
-        OrganizationListCursor decoded=query.cursor()==null?null:cursors.decode(query.cursor(),context);
+        OrganizationListCursor.Context context = query.context(actor.userId(), OrganizationListTransaction.Scope.GLOBAL);
+        OrganizationListCursor decoded = query.cursor() == null ? null : cursors.decode(query.cursor(), context);
         return transactions.execute(actor.userId(), OrganizationListTransaction.Scope.GLOBAL, null, () -> {
             rateLimiter.check(actor.userId());
-            List<Organization> rows=organizations.list(query.repositoryQuery(decoded, query.limit()+1)); boolean hasNext=rows.size()>query.limit();
-            List<Organization> items=hasNext?rows.subList(0,query.limit()):rows;
-            for(Organization item:items) audits.write(new AuditEvent.Factory(requestId).platformAdminOrgAccess(UUID.randomUUID(),item.id(),actor.userId(),item.id(),"ORG_LIST","ALLOWED",null));
-            String next=hasNext?cursors.encode(new OrganizationListCursor(context,query.lastValue(items.getLast()),items.getLast().id(),clock.instant().plus(CURSOR_TTL))):null;
-            return new Result(List.copyOf(items),next,hasNext);
+            List<Organization> rows = organizations.list(query.repositoryQuery(decoded, query.limit() + 1));
+            boolean hasNext = rows.size() > query.limit();
+            List<Organization> items = hasNext ? rows.subList(0, query.limit()) : rows;
+            for (Organization item : items) {
+                audits.write(new AuditEvent.Factory(requestId).platformAdminOrgAccess(UUID.randomUUID(), item.id(), actor.userId(), item.id(), "ORG_LIST", "ALLOWED", null));
+            }
+            String next = hasNext ? cursors.encode(new OrganizationListCursor(context, query.lastValue(items.getLast()), items.getLast().id(), clock.instant().plus(CURSOR_TTL))) : null;
+            return new Result(List.copyOf(items), next, hasNext);
         });
     }
-    private Result organization(ActiveSession actor, Query query) { return transactions.execute(actor.userId(), OrganizationListTransaction.Scope.ORGANIZATION, actor.organizationId(), () -> {
-        rateLimiter.check(actor.userId()); Organization value=organizations.findById(actor.organizationId()).orElseThrow(ForbiddenException::new); if(!value.isActive()) throw new ForbiddenException(); return new Result(List.of(value),null,false); }); }
+    private Result organization(ActiveSession actor, Query query) {
+        return transactions.execute(actor.userId(), OrganizationListTransaction.Scope.ORGANIZATION, actor.organizationId(), () -> {
+            rateLimiter.check(actor.userId());
+            Organization value = organizations.findById(actor.organizationId()).orElseThrow(ForbiddenException::new);
+            if (!value.isActive()) throw new ForbiddenException();
+            return new Result(List.of(value), null, false);
+        });
+    }
     public record Query(org.mepcity.kursplatform.org.domain.OrganizationStatus status,String search,OrganizationListQuery.Sort sort,OrganizationListQuery.Order order,int limit,String cursor,boolean supplied) {
         OrganizationListCursor.Context context(UUID actor, OrganizationListTransaction.Scope scope){return new OrganizationListCursor.Context(actor,scope,status,search,sort,order,limit);}
-        OrganizationListQuery repositoryQuery(OrganizationListCursor cursor,int size){return new OrganizationListQuery(status,search,sort,order,size,cursor==null?null:cursor.lastValue(),cursor==null?null:cursor.lastOrganizationId());}
+        OrganizationListQuery repositoryQuery(OrganizationListCursor cursor, int size) {
+            OrganizationListQuery.Position position = cursor == null ? null : sort == OrganizationListQuery.Sort.NAME
+                    ? new OrganizationListQuery.NamePosition(((OrganizationListCursor.Name) cursor.lastValue()).value(), cursor.lastOrganizationId())
+                    : new OrganizationListQuery.CreatedAtPosition(((OrganizationListCursor.CreatedAt) cursor.lastValue()).value(), cursor.lastOrganizationId());
+            return new OrganizationListQuery(status, search, sort, order, size, position);
+        }
         OrganizationListCursor.LastValue lastValue(Organization organization){ return sort==OrganizationListQuery.Sort.NAME ? new OrganizationListCursor.Name(organization.name()) : new OrganizationListCursor.CreatedAt(organization.createdAt()); }
     }
     public record Result(List<Organization> items,String nextCursor,boolean hasNextPage) { }

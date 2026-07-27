@@ -43,16 +43,37 @@ class AesGcmOrganizationListCursorCodecTests {
         var context = context(ACTOR, null, null, OrganizationListQuery.Sort.CREATED_AT, OrganizationListQuery.Order.DESC, 10);
         var cursor = new OrganizationListCursor(context, new OrganizationListCursor.CreatedAt(NOW), UUID.randomUUID(), NOW.plusSeconds(1));
         String encoded = codec(NOW).encode(cursor);
-        byte[] bytes = java.util.Base64.getUrlDecoder().decode(encoded);
+        String[] parts = encoded.split("\\.", -1);
+        byte[] bytes = java.util.Base64.getUrlDecoder().decode(parts[1]);
         bytes[bytes.length - 1] ^= 1;
-        String tampered = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        String tampered = parts[0] + "." + java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
 
         assertThatThrownBy(() -> codec(NOW).decode(tampered, context)).isInstanceOf(InvalidCursorException.class);
-        assertThatThrownBy(() -> codec(NOW.plusSeconds(2)).decode(encoded, context)).isInstanceOf(InvalidCursorException.class);
+        assertThatThrownBy(() -> codec(NOW.plusSeconds(1)).decode(encoded, context)).isInstanceOf(InvalidCursorException.class);
+        assertThatThrownBy(() -> codec(NOW).decode("v1.a", context)).isInstanceOf(InvalidCursorException.class);
+        assertThatThrownBy(() -> codec(NOW).decode("x".repeat(4097), context)).isInstanceOf(InvalidCursorException.class);
+    }
+
+    @Test
+    void supportsRestartAndConfiguredPreviousKeyOnly() {
+        var context = context(ACTOR, null, "I|İ_%\\", OrganizationListQuery.Sort.NAME, OrganizationListQuery.Order.ASC, 10);
+        var current = new AesGcmOrganizationListCursorCodec("v2", "current-cursor-secret-with-at-least-32", "v1",
+                "previous-cursor-secret-with-at-least32", Clock.fixed(NOW, ZoneOffset.UTC), new SecureRandom());
+        var previous = new AesGcmOrganizationListCursorCodec("v1", "previous-cursor-secret-with-at-least32", null, null,
+                Clock.fixed(NOW, ZoneOffset.UTC), new SecureRandom());
+        var value = new OrganizationListCursor(context, new OrganizationListCursor.Name("İ|_%\\"), UUID.randomUUID(), NOW.plusSeconds(60));
+        String oldCursor = previous.encode(value);
+
+        assertThat(current.decode(oldCursor, context)).isEqualTo(value);
+        assertThat(new AesGcmOrganizationListCursorCodec("v2", "other-cursor-secret-with-at-least-32", null, null,
+                Clock.fixed(NOW, ZoneOffset.UTC), new SecureRandom()).encode(value)).doesNotContain("İ|_%\\");
+        assertThatThrownBy(() -> new AesGcmOrganizationListCursorCodec("v2", "other-cursor-secret-with-at-least-32", null, null,
+                Clock.fixed(NOW, ZoneOffset.UTC), new SecureRandom()).decode(oldCursor, context)).isInstanceOf(InvalidCursorException.class);
     }
 
     private static AesGcmOrganizationListCursorCodec codec(Instant now) {
-        return new AesGcmOrganizationListCursorCodec("cursor-test-secret", Clock.fixed(now, ZoneOffset.UTC), new SecureRandom());
+        return new AesGcmOrganizationListCursorCodec("test-v1", "cursor-test-secret-with-at-least-32-bytes", null, null,
+                Clock.fixed(now, ZoneOffset.UTC), new SecureRandom());
     }
 
     private static OrganizationListCursor.Context context(UUID actor, org.mepcity.kursplatform.org.domain.OrganizationStatus status,

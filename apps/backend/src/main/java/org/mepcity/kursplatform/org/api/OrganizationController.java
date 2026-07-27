@@ -14,6 +14,7 @@ import org.mepcity.kursplatform.org.application.OrganizationListService;
 import org.mepcity.kursplatform.org.domain.OrganizationListQuery;
 import org.mepcity.kursplatform.org.domain.OrganizationStatus;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,45 +32,49 @@ public class OrganizationController {
     private final ObjectMapper objectMapper;
     private final OrganizationListService listService;
 
-    @org.springframework.beans.factory.annotation.Autowired
     public OrganizationController(OrganizationCreationService creationService, OrganizationListService listService, ObjectMapper objectMapper) {
         this.creationService = creationService;
         this.listService = listService;
         this.objectMapper = objectMapper;
     }
 
-    /** Compatibility constructor retained for command-only standalone controller contract tests. */
-    public OrganizationController(OrganizationCreationService creationService, ObjectMapper objectMapper) {
-        this(creationService, null, objectMapper);
+    @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
+    public OrganizationListResponse list(@RequestHeader("Authorization") String authorization,
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "search", required = false) String search,
+            @RequestParam(value = "sort", required = false) String sort,
+            @RequestParam(value = "order", required = false) String order,
+            @RequestParam(value = "limit", required = false) String limit,
+            @RequestParam(value = "cursor", required = false) String cursor) {
+        OrganizationListService.Query query = query(status, search, sort, order, limit, cursor);
+        OrganizationListService.Result result = listService.list(bearerToken(authorization), query, requestId());
+        return new OrganizationListResponse(result.items().stream().map(OrganizationResponse::from).toList(),
+                new OrganizationListPageResponse(result.nextCursor(), result.hasNextPage()));
     }
 
-    @GetMapping(produces = org.springframework.http.MediaType.APPLICATION_JSON_VALUE)
-    public java.util.Map<String,Object> list(@RequestHeader("Authorization") String authorization,
-            @RequestParam(value="status", required=false) String status, @RequestParam(value="search", required=false) String search,
-            @RequestParam(value="sort", required=false) String sort, @RequestParam(value="order", required=false) String order,
-            @RequestParam(value="limit", required=false) String limit, @RequestParam(value="cursor", required=false) String cursor,
-            jakarta.servlet.http.HttpServletRequest request) {
-        OrganizationListService.Query query=query(status,search,sort,order,limit,cursor,request);
-        var result=listService.list(bearerToken(authorization),query,requestId());
-        java.util.Map<String,Object> page=new java.util.LinkedHashMap<>();
-        page.put("nextCursor", result.nextCursor()); page.put("hasNextPage", result.hasNextPage());
-        return java.util.Map.of("items", result.items().stream().map(OrganizationResponse::from).toList(), "page", page);
-    }
-
-    private static OrganizationListService.Query query(String status, String search, String sort, String order, String limit, String cursor, jakarta.servlet.http.HttpServletRequest request) {
+    private static OrganizationListService.Query query(String status, String search, String sort, String order, String limit, String cursor) {
         try {
             OrganizationStatus parsedStatus=status==null?null:OrganizationStatus.valueOf(status);
-            String normalized=search==null?null:java.text.Normalizer.normalize(search.trim(),java.text.Normalizer.Form.NFKC).toLowerCase(java.util.Locale.ROOT);
+            String normalized = normalizeSearch(search);
             if(normalized != null && normalized.length()>200) throw new IllegalArgumentException();
             OrganizationListQuery.Sort parsedSort=sort==null?OrganizationListQuery.Sort.NAME:switch(sort){case "name"->OrganizationListQuery.Sort.NAME;case "createdAt"->OrganizationListQuery.Sort.CREATED_AT;default->throw new IllegalArgumentException();};
             OrganizationListQuery.Order parsedOrder=order==null?OrganizationListQuery.Order.ASC:OrganizationListQuery.Order.valueOf(order);
             int parsedLimit=limit==null?50:Integer.parseInt(limit); if(parsedLimit<1||parsedLimit>100) throw new IllegalArgumentException();
-            boolean supplied=status!=null||search!=null||sort!=null||order!=null||limit!=null||cursor!=null;
+            boolean supplied = status != null || search != null || sort != null || order != null || limit != null || cursor != null;
             return new OrganizationListService.Query(parsedStatus,normalized,parsedSort,parsedOrder,parsedLimit,cursor,supplied);
         } catch(RuntimeException ex) { throw new org.mepcity.kursplatform.org.application.OrganizationListValidationException(); }
     }
 
-    @PostMapping(produces = org.springframework.http.MediaType.APPLICATION_JSON_VALUE)
+    private static String normalizeSearch(String search) {
+        if (search == null) return null;
+        String normalized = java.text.Normalizer.normalize(search.trim(), java.text.Normalizer.Form.NFKC)
+                .replace('I', 'ı').replace('İ', 'i').toLowerCase(java.util.Locale.ROOT);
+        if (normalized.isEmpty()) return null;
+        if (normalized.length() > 200) throw new IllegalArgumentException();
+        return normalized;
+    }
+
+    @PostMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<?> create(
             @RequestHeader("Authorization") String authorization,
             @RequestHeader("Idempotency-Key") String idempotencyKey,
@@ -91,7 +96,7 @@ public class OrganizationController {
         try {
             String response = validReplay(replayed.result());
             return ResponseEntity.status(replayed.result().terminalHttpStatus())
-                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                    .contentType(MediaType.APPLICATION_JSON)
                     .header("Location", location(replayed.result().resultEntityId()))
                     .body(response);
         } catch (JsonProcessingException | IllegalArgumentException | NullPointerException exception) {
@@ -165,8 +170,8 @@ public class OrganizationController {
 
     private static void requireJsonContentType(String contentType) {
         try {
-            if (contentType == null || !org.springframework.http.MediaType.parseMediaType(contentType)
-                    .isCompatibleWith(org.springframework.http.MediaType.APPLICATION_JSON)) {
+            if (contentType == null || !MediaType.parseMediaType(contentType)
+                    .isCompatibleWith(MediaType.APPLICATION_JSON)) {
                 throw new OrganizationApiException("INVALID_REQUEST", "Content-Type application/json olmalıdır.");
             }
         } catch (org.springframework.http.InvalidMediaTypeException exception) {

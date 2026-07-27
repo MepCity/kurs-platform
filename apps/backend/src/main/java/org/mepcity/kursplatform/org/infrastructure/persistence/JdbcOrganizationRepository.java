@@ -147,7 +147,12 @@ public class JdbcOrganizationRepository implements OrganizationRepository {
         List<Object> values = new ArrayList<>();
         if (query.status() != null) { sql.append(" AND status = ?::organization_status_enum"); values.add(query.status().name()); }
         if (query.search() != null) { sql.append(" AND (lower(name) LIKE ? ESCAPE '\\\\' OR lower(coalesce(short_name, '')) LIKE ? ESCAPE '\\\\')"); values.add("%" + escapeLike(query.search()) + "%"); values.add("%" + escapeLike(query.search()) + "%"); }
-        if (query.lastValue() != null) { sql.append(" AND (").append(key).append(" ").append(comparator).append(" ? OR (").append(key).append(" = ? AND id > ?))"); values.add(query.lastValue()); values.add(query.lastValue()); values.add(query.lastId()); }
+        if (query.position() != null) {
+            Object value = query.position() instanceof OrganizationListQuery.NamePosition name ? name.value()
+                    : ((OrganizationListQuery.CreatedAtPosition) query.position()).value();
+            sql.append(" AND (").append(key).append(" ").append(comparator).append(" ? OR (").append(key).append(" = ? AND id > ?))");
+            values.add(value); values.add(value); values.add(query.position().id());
+        }
         sql.append(" ORDER BY ").append(key).append(" ").append(direction).append(", id ASC LIMIT ?"); values.add(query.limit());
         try (PreparedStatement statement = connection.prepareStatement(sql.toString())) {
             for (int i = 0; i < values.size(); i++) {
