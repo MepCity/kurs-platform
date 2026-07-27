@@ -6,6 +6,9 @@ import org.mepcity.kursplatform.org.application.OrganizationBrandAuthentication;
 import org.mepcity.kursplatform.org.application.OrganizationCreationService;
 import org.mepcity.kursplatform.org.application.OrganizationLifecycleService;
 import org.mepcity.kursplatform.org.application.OrganizationListService;
+import org.mepcity.kursplatform.org.application.OrganizationListCursorCodec;
+import org.mepcity.kursplatform.org.application.OrganizationListRateLimiter;
+import org.mepcity.kursplatform.org.application.OrganizationListTransaction;
 import org.mepcity.kursplatform.org.application.AuditWriter;
 import org.mepcity.kursplatform.org.domain.OrganizationRepository;
 import org.springframework.context.annotation.Bean;
@@ -26,10 +29,14 @@ public class OrganizationCompositionConfiguration {
     }
 
     @Bean
-    OrganizationListService organizationListService(OrganizationRepository organizations, ActiveSessionResolver sessions,
-            AuditWriter audits, org.mepcity.kursplatform.org.application.OrganizationListTransaction transactions,
-            org.mepcity.kursplatform.org.application.OrganizationListCursorCodec cursors,
-            org.mepcity.kursplatform.org.application.OrganizationListRateLimiter rateLimiter, Clock clock) {
+    OrganizationListService organizationListService(
+            OrganizationRepository organizations,
+            ActiveSessionResolver sessions,
+            AuditWriter audits,
+            OrganizationListTransaction transactions,
+            OrganizationListCursorCodec cursors,
+            OrganizationListRateLimiter rateLimiter,
+            Clock clock) {
         return new OrganizationListService(organizations, sessions, audits, transactions, cursors, rateLimiter, clock);
     }
 }

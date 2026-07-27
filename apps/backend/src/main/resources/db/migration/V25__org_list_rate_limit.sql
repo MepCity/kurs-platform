@@ -25,3 +25,35 @@ WITH CHECK (
     AND current_setting('app.iam_operation_scope', true) IN ('GLOBAL', 'ORGANIZATION')
     AND actor_user_id = current_setting('app.iam_actor_user_id', true)::uuid
 );
+
+-- An ORGANIZATION-scoped access token is rechecked against live membership state inside the
+-- ORG_LIST transaction. This closes the window between token issuance and membership/role
+-- revocation and prevents a forged actor/organization GUC pair from opening a tenant row.
+CREATE POLICY organization_memberships_select_org_list
+    ON organization_memberships FOR SELECT TO org_runtime
+    USING (
+        current_user = 'org_runtime'
+        AND current_setting('app.iam_operation_scope', true) = 'ORGANIZATION'
+        AND current_setting('app.iam_operation_code', true) = 'ORG_LIST'
+        AND organization_id = current_setting('app.organization_id', true)::uuid
+        AND user_id = current_setting('app.iam_actor_user_id', true)::uuid
+        AND status = 'ACTIVE'
+    );
+
+CREATE POLICY organization_membership_roles_select_org_list
+    ON organization_membership_roles FOR SELECT TO org_runtime
+    USING (
+        current_user = 'org_runtime'
+        AND current_setting('app.iam_operation_scope', true) = 'ORGANIZATION'
+        AND current_setting('app.iam_operation_code', true) = 'ORG_LIST'
+        AND organization_id = current_setting('app.organization_id', true)::uuid
+        AND revoked_at IS NULL
+        AND EXISTS (
+            SELECT 1
+            FROM organization_memberships membership
+            WHERE membership.id = organization_membership_roles.organization_membership_id
+              AND membership.organization_id = organization_membership_roles.organization_id
+              AND membership.user_id = current_setting('app.iam_actor_user_id', true)::uuid
+              AND membership.status = 'ACTIVE'
+        )
+    );

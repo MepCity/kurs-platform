@@ -36,7 +36,9 @@ public final class AesGcmOrganizationListCursorCodec implements OrganizationList
             key = key(secret);
             this.previousKeyId = previousKeyId;
             previousKey = previousSecret == null || previousSecret.isBlank() ? null : key(previousSecret);
-        } catch (Exception exception) { throw new IllegalStateException("Cursor anahtarı üretilemedi", exception); }
+        } catch (Exception exception) {
+            throw new IllegalStateException("Cursor anahtarı üretilemedi", exception);
+        }
         this.clock = clock;
         this.random = random;
     }
@@ -56,20 +58,30 @@ public final class AesGcmOrganizationListCursorCodec implements OrganizationList
             byte[] encrypted = cipher.doFinal(plaintext.array());
             return keyId + "." + Base64.getUrlEncoder().withoutPadding().encodeToString(ByteBuffer.allocate(nonce.length + encrypted.length)
                     .put(nonce).put(encrypted).array());
-        } catch (Exception exception) { throw new IllegalStateException("Cursor oluşturulamadı", exception); }
+        } catch (Exception exception) {
+            throw new IllegalStateException("Cursor oluşturulamadı", exception);
+        }
     }
 
     @Override
     public OrganizationListCursor decode(String token, OrganizationListCursor.Context expected) {
         try {
-            if (token == null || token.length() > MAX_TOKEN_LENGTH) throw invalid();
+            if (token == null || token.length() > MAX_TOKEN_LENGTH) {
+                throw invalid();
+            }
             String[] parts = token.split("\\.", -1);
-            if (parts.length != 2 || parts[0].isBlank()) throw invalid();
+            if (parts.length != 2 || parts[0].isBlank()) {
+                throw invalid();
+            }
             SecretKeySpec selected = parts[0].equals(keyId) ? key
                     : parts[0].equals(previousKeyId) && previousKey != null ? previousKey : null;
-            if (selected == null) throw invalid();
+            if (selected == null) {
+                throw invalid();
+            }
             byte[] input = Base64.getUrlDecoder().decode(parts[1]);
-            if (input.length <= NONCE_LENGTH) throw invalid();
+            if (input.length <= NONCE_LENGTH) {
+                throw invalid();
+            }
             ByteBuffer source = ByteBuffer.wrap(input);
             byte[] nonce = new byte[NONCE_LENGTH]; source.get(nonce);
             byte[] plaintext = cipher(Cipher.DECRYPT_MODE, nonce, expected, selected)
@@ -78,10 +90,16 @@ public final class AesGcmOrganizationListCursorCodec implements OrganizationList
             Instant expiresAt = Instant.ofEpochMilli(value.getLong());
             byte type = value.get();
             int length = value.getInt();
-            if (length < 0 || length > value.remaining() - 16 || !expiresAt.isAfter(clock.instant())) throw invalid();
+            if (length < 0
+                    || length > value.remaining() - 16
+                    || !expiresAt.isAfter(clock.instant())) {
+                throw invalid();
+            }
             byte[] raw = new byte[length]; value.get(raw);
             UUID id = new UUID(value.getLong(), value.getLong());
-            if (value.hasRemaining()) throw invalid();
+            if (value.hasRemaining()) {
+                throw invalid();
+            }
             OrganizationListCursor.LastValue last;
             if (type == 1 && expected.sort() == OrganizationListQuery.Sort.NAME) {
                 last = new OrganizationListCursor.Name(new String(raw, StandardCharsets.UTF_8));
@@ -91,13 +109,19 @@ public final class AesGcmOrganizationListCursorCodec implements OrganizationList
                 throw invalid();
             }
             return new OrganizationListCursor(expected, last, id, expiresAt);
-        } catch (InvalidCursorException exception) { throw exception;
-        } catch (Exception exception) { throw invalid(); }
+        } catch (InvalidCursorException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw invalid();
+        }
     }
 
     private static byte[] value(OrganizationListCursor.LastValue value) {
-        if (value instanceof OrganizationListCursor.Name name) return name.value().getBytes(StandardCharsets.UTF_8);
-        ByteBuffer bytes = ByteBuffer.allocate(8); bytes.putLong(((OrganizationListCursor.CreatedAt) value).value().toEpochMilli());
+        if (value instanceof OrganizationListCursor.Name name) {
+            return name.value().getBytes(StandardCharsets.UTF_8);
+        }
+        ByteBuffer bytes = ByteBuffer.allocate(8);
+        bytes.putLong(((OrganizationListCursor.CreatedAt) value).value().toEpochMilli());
         return bytes.array();
     }
 
@@ -119,5 +143,7 @@ public final class AesGcmOrganizationListCursorCodec implements OrganizationList
         return cipher;
     }
 
-    private static InvalidCursorException invalid() { return new InvalidCursorException(); }
+    private static InvalidCursorException invalid() {
+        return new InvalidCursorException();
+    }
 }

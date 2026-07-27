@@ -11,8 +11,6 @@ import java.util.UUID;
 import org.mepcity.kursplatform.org.application.LifecycleResult;
 import org.mepcity.kursplatform.org.application.OrganizationCreationService;
 import org.mepcity.kursplatform.org.application.OrganizationListService;
-import org.mepcity.kursplatform.org.domain.OrganizationListQuery;
-import org.mepcity.kursplatform.org.domain.OrganizationStatus;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -24,7 +22,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Platform-admin-only organization creation endpoint. */
+/** Organization creation and listing HTTP adapter. */
 @RestController
 @RequestMapping("/api/v1/organizations")
 public class OrganizationController {
@@ -46,32 +44,11 @@ public class OrganizationController {
             @RequestParam(value = "order", required = false) String order,
             @RequestParam(value = "limit", required = false) String limit,
             @RequestParam(value = "cursor", required = false) String cursor) {
-        OrganizationListService.Query query = query(status, search, sort, order, limit, cursor);
+        OrganizationListService.Query query =
+                OrganizationListQueryParser.parse(status, search, sort, order, limit, cursor);
         OrganizationListService.Result result = listService.list(bearerToken(authorization), query, requestId());
         return new OrganizationListResponse(result.items().stream().map(OrganizationResponse::from).toList(),
                 new OrganizationListPageResponse(result.nextCursor(), result.hasNextPage()));
-    }
-
-    private static OrganizationListService.Query query(String status, String search, String sort, String order, String limit, String cursor) {
-        try {
-            OrganizationStatus parsedStatus=status==null?null:OrganizationStatus.valueOf(status);
-            String normalized = normalizeSearch(search);
-            if(normalized != null && normalized.length()>200) throw new IllegalArgumentException();
-            OrganizationListQuery.Sort parsedSort=sort==null?OrganizationListQuery.Sort.NAME:switch(sort){case "name"->OrganizationListQuery.Sort.NAME;case "createdAt"->OrganizationListQuery.Sort.CREATED_AT;default->throw new IllegalArgumentException();};
-            OrganizationListQuery.Order parsedOrder=order==null?OrganizationListQuery.Order.ASC:OrganizationListQuery.Order.valueOf(order);
-            int parsedLimit=limit==null?50:Integer.parseInt(limit); if(parsedLimit<1||parsedLimit>100) throw new IllegalArgumentException();
-            boolean supplied = status != null || search != null || sort != null || order != null || limit != null || cursor != null;
-            return new OrganizationListService.Query(parsedStatus,normalized,parsedSort,parsedOrder,parsedLimit,cursor,supplied);
-        } catch(RuntimeException ex) { throw new org.mepcity.kursplatform.org.application.OrganizationListValidationException(); }
-    }
-
-    private static String normalizeSearch(String search) {
-        if (search == null) return null;
-        String normalized = java.text.Normalizer.normalize(search.trim(), java.text.Normalizer.Form.NFKC)
-                .replace('I', 'ı').replace('İ', 'i').toLowerCase(java.util.Locale.ROOT);
-        if (normalized.isEmpty()) return null;
-        if (normalized.length() > 200) throw new IllegalArgumentException();
-        return normalized;
     }
 
     @PostMapping(produces = MediaType.APPLICATION_JSON_VALUE)

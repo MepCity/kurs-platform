@@ -12,18 +12,55 @@ public class OrganizationRateLimitProperties {
     private Duration brandWindow = Duration.ofMinutes(1);
     private int listLimit = 120;
     private Duration listWindow = Duration.ofMinutes(1);
-    public int getLimit() { return limit; }
-    public void setLimit(int limit) { this.limit = limit; }
-    public Duration getWindow() { return window; }
-    public void setWindow(Duration window) { this.window = window; }
-    public int getBrandLimit() { return brandLimit; }
-    public void setBrandLimit(int brandLimit) { this.brandLimit = brandLimit; }
-    public Duration getBrandWindow() { return brandWindow; }
-    public void setBrandWindow(Duration brandWindow) { this.brandWindow = brandWindow; }
-    public int getListLimit() { return listLimit; }
-    public void setListLimit(int listLimit) { this.listLimit = listLimit; }
-    public Duration getListWindow() { return listWindow; }
-    public void setListWindow(Duration listWindow) { this.listWindow = listWindow; }
+
+    public int getLimit() {
+        return limit;
+    }
+
+    public void setLimit(int limit) {
+        this.limit = limit;
+    }
+
+    public Duration getWindow() {
+        return window;
+    }
+
+    public void setWindow(Duration window) {
+        this.window = window;
+    }
+
+    public int getBrandLimit() {
+        return brandLimit;
+    }
+
+    public void setBrandLimit(int brandLimit) {
+        this.brandLimit = brandLimit;
+    }
+
+    public Duration getBrandWindow() {
+        return brandWindow;
+    }
+
+    public void setBrandWindow(Duration brandWindow) {
+        this.brandWindow = brandWindow;
+    }
+
+    public int getListLimit() {
+        return listLimit;
+    }
+
+    public void setListLimit(int listLimit) {
+        this.listLimit = listLimit;
+    }
+
+    public Duration getListWindow() {
+        return listWindow;
+    }
+
+    public void setListWindow(Duration listWindow) {
+        this.listWindow = listWindow;
+    }
+
     public void validate() {
         if (limit < 1 || window == null || window.isZero() || window.isNegative()
                 || window.toSeconds() < 1 || !window.minusSeconds(window.toSeconds()).isZero()) {

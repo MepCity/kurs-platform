@@ -29,7 +29,8 @@ public final class JdbcOrganizationListRateLimiter implements OrganizationListRa
         String sql = """
                 INSERT INTO organization_list_rate_limits (actor_user_id, window_started_at, request_count)
                 VALUES (?, date_trunc('second', transaction_timestamp()) -
-                    mod(extract(epoch FROM transaction_timestamp())::bigint, ?) * interval '1 second', 1)
+                    mod(floor(extract(epoch FROM transaction_timestamp()))::bigint, ?)
+                        * interval '1 second', 1)
                 ON CONFLICT (actor_user_id, window_started_at) DO UPDATE
                     SET request_count = organization_list_rate_limits.request_count + 1
                 RETURNING request_count, extract(epoch FROM (window_started_at + ? * interval '1 second' - transaction_timestamp()))::bigint

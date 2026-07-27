@@ -1,6 +1,6 @@
 package org.mepcity.kursplatform.org.application;
 
-/** Raised before the ORG transaction when an authenticated actor exhausted the create quota. */
+/** Raised when an authenticated actor exhausts an ORG operation's configured quota. */
 public final class RateLimitExceededException extends RuntimeException {
     private final long retryAfterSeconds;
     public RateLimitExceededException(long retryAfterSeconds) {
