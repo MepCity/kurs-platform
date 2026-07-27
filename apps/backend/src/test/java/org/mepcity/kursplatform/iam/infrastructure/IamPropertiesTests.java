@@ -33,6 +33,7 @@ class IamPropertiesTests {
         properties.getCognito().setIssuer("https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_real");
         properties.getCognito().setClientId("real-client-id");
         properties.getCognito().setUserPoolId("eu-central-1_real");
+        properties.getCognito().setAccountId("111122223333");
         properties.getCognito().getManagementApi().setAccessKeyId("AKIA-real");
         properties.getCognito().getManagementApi().setSecretAccessKey("real-secret");
     }
