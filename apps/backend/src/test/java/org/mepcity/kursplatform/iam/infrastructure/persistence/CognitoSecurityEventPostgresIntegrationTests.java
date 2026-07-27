@@ -23,6 +23,7 @@ import org.mepcity.kursplatform.iam.application.CognitoReconciliationService;
 import org.mepcity.kursplatform.iam.application.IamAuthRepository;
 import org.mepcity.kursplatform.iam.application.IamTransactionExecutor;
 import org.mepcity.kursplatform.iam.application.SecurityAlertSink;
+import org.mepcity.kursplatform.iam.application.ReconciliationLagMonitor;
 import org.mepcity.kursplatform.iam.domain.CognitoSecurityEvent;
 import org.mepcity.kursplatform.iam.domain.OperationCode;
 import org.mepcity.kursplatform.iam.domain.ProviderUserStatus;
@@ -60,7 +61,12 @@ class CognitoSecurityEventPostgresIntegrationTests {
     @AfterAll static void stop() { POSTGRES.stop(); }
 
     @BeforeEach void clean() {
-        owner.execute("TRUNCATE iam_cognito_security_events, iam_cognito_reconciliation_targets, audit_logs, refresh_tokens, refresh_token_families, trusted_devices, user_identities, users RESTART IDENTITY CASCADE");
+        owner.execute("""
+                TRUNCATE iam_cognito_security_events, iam_cognito_reconciliation_targets,
+                    iam_cognito_lag_alarm_state, audit_logs, refresh_tokens,
+                    refresh_token_families, trusted_devices, user_identities, users
+                RESTART IDENTITY CASCADE
+                """);
     }
 
     @Test void duplicateDeliveryRevokesOnlyMappedUserAndCompletesOnce() {
@@ -69,10 +75,11 @@ class CognitoSecurityEventPostgresIntegrationTests {
         var event = event("event-1", "subject-a");
         SecurityAlertSink alerts = alert -> { };
         var service = new CognitoSecurityEventService(repository, transactions,
-                new JdbcIamAuditWriter(runtimeDataSource), alerts, Clock.fixed(NOW, ZoneOffset.UTC));
+                new JdbcIamAuditWriter(runtimeDataSource), alerts, Clock.fixed(NOW, ZoneOffset.UTC),
+                issuer(), "eu-central-1_pool");
 
-        service.process(event, issuer(), "worker-a");
-        service.process(event, issuer(), "worker-b");
+        service.ingest(event, "worker-a");
+        service.ingest(event, "worker-b");
 
         assertThat(count("refresh_token_families WHERE user_id='" + target + "' AND revoked_at IS NOT NULL")).isEqualTo(1);
         assertThat(count("refresh_token_families WHERE user_id='" + other + "' AND revoked_at IS NULL")).isEqualTo(1);
@@ -114,20 +121,129 @@ class CognitoSecurityEventPostgresIntegrationTests {
         var event=event("event-rollback","subject-rollback");
         var service=new CognitoSecurityEventService(repository,transactions,
                 ignored -> { throw new IllegalStateException("synthetic audit failure"); },
-                ignored -> { },Clock.fixed(NOW,ZoneOffset.UTC));
-        assertThatThrownBy(() -> service.process(event,issuer(),"rollback-worker"))
+                ignored -> { },Clock.fixed(NOW,ZoneOffset.UTC), issuer(), "eu-central-1_pool");
+        assertThatThrownBy(() -> service.ingest(event,"rollback-worker"))
                 .isInstanceOf(IllegalStateException.class);
         assertThat(count("refresh_token_families WHERE user_id='"+target+"' AND revoked_at IS NULL")).isEqualTo(1);
         assertThat(count("iam_cognito_security_events WHERE event_id='event-rollback' AND status='PENDING_MAPPING'")).isEqualTo(1);
         assertThat(count("audit_logs WHERE target_entity_id='"+target+"'")).isZero();
     }
 
+    @Test
+    void unknownSubjectIsAckSafePersistentWorkAndCompletesAfterIdentityAppears() {
+        var event = event("event-late-mapping", "subject-late");
+        var service = new CognitoSecurityEventService(
+                repository,
+                transactions,
+                new JdbcIamAuditWriter(runtimeDataSource),
+                ignored -> { },
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                issuer(),
+                "eu-central-1_pool");
+
+        assertThat(service.ingest(event, "delivery-worker"))
+                .isEqualTo(org.mepcity.kursplatform.iam.application.CognitoEventProcessingResult.PERSISTED_PENDING);
+        assertThat(count("iam_cognito_security_events WHERE event_id='event-late-mapping'"
+                + " AND status='PENDING_MAPPING' AND lease_owner IS NULL")).isEqualTo(1);
+
+        UUID target = seedIdentityWithFamily("subject-late", "late");
+        owner.update("UPDATE iam_cognito_security_events SET next_attempt_at=? WHERE event_id=?",
+                Timestamp.from(NOW), event.eventId());
+
+        assertThat(service.processNextPending("database-worker")).isTrue();
+        assertThat(count("iam_cognito_security_events WHERE event_id='event-late-mapping'"
+                + " AND status='COMPLETED'")).isEqualTo(1);
+        assertThat(count("refresh_token_families WHERE user_id='" + target
+                + "' AND revoked_at IS NOT NULL")).isEqualTo(1);
+        assertThat(count("audit_logs WHERE target_entity_id='" + target + "'")).isEqualTo(1);
+    }
+
+    @Test
+    void persistentLagCooldownEmitsAtExactTwoAndFiveMinuteThresholdsWithoutStorm() {
+        var lagged = new CognitoSecurityEvent(
+                "eu-central-1_pool",
+                "event-lag",
+                "AdminDisableUser",
+                "subject-lag",
+                NOW.minusSeconds(120));
+        inEventScope(() -> repository.recordCognitoSecurityEvent(lagged));
+        var alerts = new java.util.ArrayList<SecurityAlertSink.SecurityAlert>();
+        var warningMonitor = new ReconciliationLagMonitor(
+                repository,
+                transactions,
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                alerts::add,
+                "eu-central-1_pool");
+
+        warningMonitor.inspectEvents();
+        warningMonitor.inspectEvents();
+
+        var criticalMonitor = new ReconciliationLagMonitor(
+                repository,
+                transactions,
+                Clock.fixed(NOW.plusSeconds(180), ZoneOffset.UTC),
+                alerts::add,
+                "eu-central-1_pool");
+        criticalMonitor.inspectEvents();
+        criticalMonitor.inspectEvents();
+
+        assertThat(alerts).extracting(SecurityAlertSink.SecurityAlert::severity)
+                .containsExactly(
+                        SecurityAlertSink.Severity.WARNING,
+                        SecurityAlertSink.Severity.CRITICAL);
+        assertThat(count("iam_cognito_lag_alarm_state WHERE user_pool_id='eu-central-1_pool'"))
+                .isEqualTo(2);
+        assertThat(alerts).allSatisfy(alert -> assertThat(alert.attributes())
+                .containsOnlyKeys("checkpoint", "lagSeconds"));
+    }
+
     @Test void runtimeRolesAndPoolContextRemainFailClosed() {
         assertThat(owner.queryForObject("SELECT rolcanlogin AND NOT rolsuper AND NOT rolbypassrls FROM pg_roles WHERE rolname='iam_runtime'", Boolean.class)).isTrue();
         assertThat(owner.queryForObject("SELECT tableowner <> 'iam_runtime' FROM pg_tables WHERE tablename='iam_cognito_security_events'", Boolean.class)).isTrue();
         assertThat(owner.queryForObject("SELECT relforcerowsecurity FROM pg_class WHERE relname='iam_cognito_security_events'", Boolean.class)).isTrue();
+        assertThat(owner.queryForObject("SELECT relforcerowsecurity FROM pg_class WHERE relname='iam_cognito_reconciliation_targets'", Boolean.class)).isTrue();
+        assertThat(owner.queryForObject("SELECT relforcerowsecurity FROM pg_class WHERE relname='iam_cognito_lag_alarm_state'", Boolean.class)).isTrue();
         assertThat(owner.queryForObject("SELECT has_table_privilege('app_runtime','iam_cognito_security_events','SELECT')", Boolean.class)).isFalse();
+        assertThat(owner.queryForObject("SELECT has_table_privilege('app_runtime','iam_cognito_reconciliation_targets','SELECT')", Boolean.class)).isFalse();
+        assertThat(owner.queryForObject("SELECT has_table_privilege('app_runtime','iam_cognito_lag_alarm_state','SELECT')", Boolean.class)).isFalse();
         assertThat(runtime.queryForObject("SELECT count(*) FROM iam_cognito_security_events", Long.class)).isZero();
+    }
+
+    @Test
+    void reconciliationRlsRejectsWrongOperationAndHidesAnotherPool() {
+        UUID correct = seedIdentityWithFamily("subject-correct-pool", "correct-pool");
+        UUID other = seedIdentityWithFamily("subject-other-pool", "other-pool");
+        UUID otherIdentity = owner.queryForObject(
+                "SELECT id FROM user_identities WHERE user_id=?",
+                UUID.class,
+                other);
+        owner.update("""
+                INSERT INTO iam_cognito_reconciliation_targets
+                    (identity_id,user_id,issuer,subject,user_pool_id,next_check_at)
+                VALUES (?,?,?,?,?,?)
+                """, otherIdentity, other,
+                "https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_other",
+                "subject-other-pool", "eu-central-1_other", Timestamp.from(NOW));
+        inSweepScope(() -> {
+            repository.discoverCognitoReconciliationTargets(issuer(), "eu-central-1_pool");
+            return null;
+        });
+
+        var wrongOperation = transactions.executeInGlobalScope(
+                OperationCode.COGNITO_SECURITY_EVENT_PROCESS,
+                IamTransactionExecutor.IamAuthScopeContext.actorOnly(UUID.randomUUID()),
+                () -> repository.claimCognitoReconciliationTarget(
+                        "eu-central-1_pool", "wrong-operation", NOW, NOW.plusSeconds(120)));
+        assertThat(wrongOperation).isEmpty();
+
+        var claimed = inSweepScope(() -> repository.claimCognitoReconciliationTarget(
+                "eu-central-1_pool", "correct-operation", NOW, NOW.plusSeconds(120)))
+                .orElseThrow();
+        assertThat(claimed.userId()).isEqualTo(correct);
+        assertThat(claimed.userPoolId()).isEqualTo("eu-central-1_pool");
+        assertThat(runtime.queryForObject(
+                "SELECT count(*) FROM iam_cognito_reconciliation_targets",
+                Long.class)).isZero();
     }
 
     @Test void canonicalSweepFindsMissedDisableAndPersistentCheckpointPreventsDoubleWork() {
@@ -147,9 +263,174 @@ class CognitoSecurityEventPostgresIntegrationTests {
         assertThat(alerts).isEmpty();
     }
 
+    @Test
+    void reconciliationWorkersCannotClaimSameTargetConcurrently() throws Exception {
+        seedIdentityWithFamily("subject-recon-race", "recon-race");
+        inSweepScope(() -> {
+            repository.discoverCognitoReconciliationTargets(issuer(), "eu-central-1_pool");
+            return null;
+        });
+        var gate = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> {
+                gate.await();
+                return inSweepScope(() -> repository.claimCognitoReconciliationTarget(
+                        "eu-central-1_pool", "recon-a", NOW, NOW.plusSeconds(120)));
+            });
+            var second = executor.submit(() -> {
+                gate.await();
+                return inSweepScope(() -> repository.claimCognitoReconciliationTarget(
+                        "eu-central-1_pool", "recon-b", NOW, NOW.plusSeconds(120)));
+            });
+            gate.countDown();
+
+            assertThat(List.of(first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS)))
+                    .filteredOn(java.util.Optional::isPresent)
+                    .hasSize(1);
+        }
+    }
+
+    @Test
+    void expiredReconciliationLeaseUsesHigherFenceAndRejectsStaleCompletion() {
+        seedIdentityWithFamily("subject-recon-lease", "recon-lease");
+        var first = inSweepScope(() -> {
+            repository.discoverCognitoReconciliationTargets(issuer(), "eu-central-1_pool");
+            return repository.claimCognitoReconciliationTarget(
+                    "eu-central-1_pool", "recon-a", NOW, NOW.plusSeconds(120));
+        }).orElseThrow();
+        owner.update("""
+                UPDATE iam_cognito_reconciliation_targets
+                SET lease_expires_at=?
+                WHERE identity_id=?
+                """, Timestamp.from(NOW.minusSeconds(1)), first.identityId());
+        var second = inSweepScope(() -> repository.claimCognitoReconciliationTarget(
+                "eu-central-1_pool", "recon-b", NOW, NOW.plusSeconds(120))).orElseThrow();
+
+        assertThat(second.fencingToken()).isGreaterThan(first.fencingToken());
+        assertThatThrownBy(() -> inSweepScope(() -> {
+            repository.completeCognitoReconciliationTarget(
+                    first, "ACTIVE", NOW, NOW.plusSeconds(60));
+            return null;
+        })).isInstanceOf(IllegalStateException.class);
+        inSweepScope(() -> {
+            repository.completeCognitoReconciliationTarget(
+                    second, "ACTIVE", NOW, NOW.plusSeconds(60));
+            return null;
+        });
+    }
+
+    @Test
+    void providerExceptionReleasesTargetForPersistentRetry() {
+        UUID target = seedIdentityWithFamily("subject-provider-down", "provider-down");
+        var alerts = new java.util.ArrayList<SecurityAlertSink.SecurityAlert>();
+        var service = new CognitoReconciliationService(
+                repository,
+                transactions,
+                (user, issuer, subject) -> {
+                    throw new IllegalStateException("provider unavailable");
+                },
+                new JdbcIamAuditWriter(runtimeDataSource),
+                alerts::add,
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                issuer(),
+                "eu-central-1_pool");
+
+        assertThat(service.pollOne("provider-down-worker")).isTrue();
+
+        assertThat(count("iam_cognito_reconciliation_targets WHERE user_id='" + target
+                + "' AND lease_owner IS NULL AND last_checked_at IS NULL")).isEqualTo(1);
+        assertThat(count("refresh_token_families WHERE user_id='" + target
+                + "' AND revoked_at IS NULL")).isEqualTo(1);
+        assertThat(alerts).extracting(SecurityAlertSink.SecurityAlert::type)
+                .containsExactly(SecurityAlertSink.Type.PROVIDER_UNAVAILABLE);
+    }
+
+    @Test
+    void reconciliationAuditFailureRollsBackFamilyBarrierAndCompletion() {
+        UUID target = seedIdentityWithFamily("subject-recon-rollback", "recon-rollback");
+        Instant barrierBefore = owner.queryForObject(
+                "SELECT reauthentication_required_after FROM users WHERE id=?",
+                Timestamp.class,
+                target).toInstant();
+        var service = new CognitoReconciliationService(
+                repository,
+                transactions,
+                (user, issuer, subject) -> ProviderUserStatus.DISABLED,
+                ignored -> {
+                    throw new IllegalStateException("synthetic audit failure");
+                },
+                ignored -> { },
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                issuer(),
+                "eu-central-1_pool");
+
+        assertThatThrownBy(() -> service.pollOne("recon-rollback-worker"))
+                .isInstanceOf(IllegalStateException.class);
+
+        assertThat(count("refresh_token_families WHERE user_id='" + target
+                + "' AND revoked_at IS NULL")).isEqualTo(1);
+        assertThat(owner.queryForObject(
+                "SELECT reauthentication_required_after FROM users WHERE id=?",
+                Timestamp.class,
+                target).toInstant()).isEqualTo(barrierBefore);
+        assertThat(count("iam_cognito_reconciliation_targets WHERE user_id='" + target
+                + "' AND last_checked_at IS NULL AND last_provider_status IS NULL")).isEqualTo(1);
+        assertThat(count("audit_logs WHERE target_entity_id='" + target + "'")).isZero();
+    }
+
+    @Test
+    void activeStatusDoesNotRevokeOrAuditAndRepeatedDisabledStatusHasOneSideEffect() {
+        UUID active = seedIdentityWithFamily("subject-active", "active");
+        var activeService = new CognitoReconciliationService(
+                repository,
+                transactions,
+                (user, issuer, subject) -> ProviderUserStatus.ACTIVE,
+                new JdbcIamAuditWriter(runtimeDataSource),
+                ignored -> { },
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                issuer(),
+                "eu-central-1_pool");
+        assertThat(activeService.pollOne("active-worker")).isTrue();
+        assertThat(count("refresh_token_families WHERE user_id='" + active
+                + "' AND revoked_at IS NULL")).isEqualTo(1);
+        assertThat(count("audit_logs WHERE target_entity_id='" + active + "'")).isZero();
+
+        owner.execute("TRUNCATE iam_cognito_reconciliation_targets, audit_logs CASCADE");
+        owner.update("UPDATE refresh_token_families SET revoked_at=? WHERE user_id=?",
+                Timestamp.from(NOW), active);
+        UUID disabled = seedIdentityWithFamily("subject-disabled-once", "disabled-once");
+        var disabledService = new CognitoReconciliationService(
+                repository,
+                transactions,
+                (user, issuer, subject) -> ProviderUserStatus.DISABLED,
+                new JdbcIamAuditWriter(runtimeDataSource),
+                ignored -> { },
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                issuer(),
+                "eu-central-1_pool");
+        assertThat(disabledService.pollOne("disabled-worker-a")).isTrue();
+        owner.update("""
+                UPDATE iam_cognito_reconciliation_targets
+                SET next_check_at=?
+                WHERE user_id=?
+                """, Timestamp.from(NOW), disabled);
+        assertThat(disabledService.pollOne("disabled-worker-b")).isTrue();
+
+        assertThat(count("refresh_token_families WHERE user_id='" + disabled
+                + "' AND revoked_at IS NOT NULL")).isEqualTo(1);
+        assertThat(count("audit_logs WHERE target_entity_id='" + disabled + "'")).isEqualTo(1);
+    }
+
     private <T> T inEventScope(java.util.function.Supplier<T> work) {
         return transactions.executeInGlobalScope(OperationCode.COGNITO_SECURITY_EVENT_PROCESS,
                 IamTransactionExecutor.IamAuthScopeContext.actorOnly(UUID.randomUUID()), work);
+    }
+
+    private <T> T inSweepScope(java.util.function.Supplier<T> work) {
+        return transactions.executeInGlobalScope(
+                OperationCode.COGNITO_RECONCILIATION_SWEEP,
+                IamTransactionExecutor.IamAuthScopeContext.actorOnly(UUID.randomUUID()),
+                work);
     }
 
     private UUID seedIdentityWithFamily(String subject, String suffix) {

@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -28,7 +29,14 @@ class CognitoSecurityEventServiceTests {
     private final CognitoSecurityEvent event = new CognitoSecurityEvent("eu-central-1_pool", "event-1", "AdminDisableUser", "subject-1", Instant.EPOCH);
 
     @BeforeEach void setUp() {
-        service = new CognitoSecurityEventService(repository, transactions, audit, alerts, Clock.fixed(Instant.EPOCH, ZoneOffset.UTC));
+        service = new CognitoSecurityEventService(
+                repository,
+                transactions,
+                audit,
+                alerts,
+                Clock.fixed(Instant.EPOCH, ZoneOffset.UTC),
+                "issuer",
+                "eu-central-1_pool");
         doAnswer(invocation -> invocation.getArgument(2, java.util.function.Supplier.class).get())
                 .when(transactions).executeInGlobalScope(any(), any(), any());
         doAnswer(invocation -> invocation.getArgument(3, java.util.function.Supplier.class).get())
@@ -39,9 +47,15 @@ class CognitoSecurityEventServiceTests {
         UUID user = UUID.randomUUID();
         var claim = new CognitoSecurityEventClaim(event, "direct-consumer", 1, Instant.EPOCH.plusSeconds(120));
         when(repository.claimCognitoSecurityEvent(any(), any(), any(), any())).thenReturn(Optional.of(claim));
+        var identity = new UserIdentity(
+                UUID.randomUUID(), user, "issuer", "subject-1", Instant.EPOCH, null);
         when(repository.findUserIdentityByIssuerAndSubject("issuer", "subject-1"))
-                .thenReturn(Optional.of(new UserIdentity(UUID.randomUUID(), user, "issuer", "subject-1", Instant.EPOCH, null)));
-        service.process(event, "issuer");
+                .thenReturn(Optional.of(identity));
+        when(repository.revalidateCognitoEventSubject(
+                "issuer", "subject-1", "eu-central-1_pool"))
+                .thenReturn(Optional.of(identity));
+        assertThat(service.ingest(event, "direct-consumer"))
+                .isEqualTo(CognitoEventProcessingResult.COMPLETED);
         verify(repository).revokeAllActorFamilies(any(), any(), any());
         verify(audit).write(any());
         verify(repository).completeCognitoSecurityEvent(any(CognitoSecurityEventClaim.class), any());
@@ -51,9 +65,25 @@ class CognitoSecurityEventServiceTests {
         var claim = new CognitoSecurityEventClaim(event, "direct-consumer", 1, Instant.EPOCH.plusSeconds(120));
         when(repository.claimCognitoSecurityEvent(any(), any(), any(), any())).thenReturn(Optional.of(claim));
         when(repository.findUserIdentityByIssuerAndSubject("issuer", "subject-1")).thenReturn(Optional.empty());
-        service.process(event, "issuer");
-        verify(repository, never()).completeCognitoSecurityEvent(event);
-        verify(repository).releaseCognitoSecurityEvent(claim);
+        assertThat(service.ingest(event, "direct-consumer"))
+                .isEqualTo(CognitoEventProcessingResult.PERSISTED_PENDING);
+        verify(repository, never()).completeCognitoSecurityEvent(any(), any());
+        verify(repository).releaseCognitoSecurityEvent(claim, Instant.EPOCH.plusSeconds(30));
         verify(alerts).emit(any());
+    }
+
+    @Test
+    void alertSinkFailureDoesNotUndoDurablePendingOwnership() {
+        var claim = new CognitoSecurityEventClaim(
+                event, "direct-consumer", 1, Instant.EPOCH.plusSeconds(120));
+        when(repository.claimCognitoSecurityEvent(any(), any(), any(), any()))
+                .thenReturn(Optional.of(claim));
+        when(repository.findUserIdentityByIssuerAndSubject("issuer", "subject-1"))
+                .thenReturn(Optional.empty());
+        org.mockito.Mockito.doThrow(new IllegalStateException("alert unavailable"))
+                .when(alerts).emit(any());
+
+        assertThat(service.ingest(event, "direct-consumer"))
+                .isEqualTo(CognitoEventProcessingResult.PERSISTED_PENDING);
     }
 }

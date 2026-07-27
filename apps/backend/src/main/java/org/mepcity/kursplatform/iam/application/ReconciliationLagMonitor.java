@@ -4,33 +4,94 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import org.mepcity.kursplatform.iam.domain.OperationCode;
 
-/** Deterministic 2/5 minute operational gate shared by event and canonical sweep schedulers. */
+/** Persistent, deterministic 2/5-minute operational gate shared by both schedulers. */
 public final class ReconciliationLagMonitor {
-    static final Duration WARNING_AFTER = Duration.ofMinutes(2);
-    static final Duration CRITICAL_AFTER = Duration.ofMinutes(5);
+    static final Duration WARNING_AT = Duration.ofMinutes(2);
+    static final Duration CRITICAL_AT = Duration.ofMinutes(5);
+    static final Duration ALARM_COOLDOWN = Duration.ofMinutes(5);
+
+    private final IamAuthRepository repository;
+    private final IamTransactionExecutor transactions;
     private final Clock clock;
     private final SecurityAlertSink alerts;
+    private final String userPoolId;
 
-    public ReconciliationLagMonitor(Clock clock, SecurityAlertSink alerts) {
+    public ReconciliationLagMonitor(
+            IamAuthRepository repository,
+            IamTransactionExecutor transactions,
+            Clock clock,
+            SecurityAlertSink alerts,
+            String userPoolId) {
+        this.repository = repository;
+        this.transactions = transactions;
         this.clock = clock;
         this.alerts = alerts;
+        this.userPoolId = userPoolId;
     }
 
-    public void inspect(Instant checkpointAt, String checkpoint) {
-        Duration lag = Duration.between(checkpointAt, clock.instant());
-        if (lag.compareTo(CRITICAL_AFTER) > 0) {
-            emit(SecurityAlertSink.Severity.CRITICAL, checkpoint, lag);
-        } else if (lag.compareTo(WARNING_AFTER) > 0) {
-            emit(SecurityAlertSink.Severity.WARNING, checkpoint, lag);
+    public void inspectEvents() {
+        inspectPersistent("EVENT", OperationCode.COGNITO_SECURITY_EVENT_PROCESS);
+    }
+
+    public void inspectReconciliation() {
+        inspectPersistent("RECONCILIATION", OperationCode.COGNITO_RECONCILIATION_SWEEP);
+    }
+
+    private void inspectPersistent(String checkpoint, OperationCode operationCode) {
+        Instant now = clock.instant();
+        Optional<Instant> oldest = transactions.executeInGlobalScope(
+                operationCode,
+                IamTransactionExecutor.IamAuthScopeContext.actorOnly(UUID.randomUUID()),
+                () -> "EVENT".equals(checkpoint)
+                        ? repository.findOldestPendingCognitoEventTime(userPoolId)
+                        : repository.findOldestDueReconciliationTime(userPoolId, now));
+        oldest.flatMap(value -> severity(Duration.between(value, now)))
+                .ifPresent(severity -> emitIfDue(checkpoint, operationCode, oldest.orElseThrow(), severity));
+    }
+
+    private void emitIfDue(
+            String checkpoint,
+            OperationCode operationCode,
+            Instant checkpointAt,
+            SecurityAlertSink.Severity severity) {
+        Instant now = clock.instant();
+        boolean claimed = transactions.executeInGlobalScope(
+                operationCode,
+                IamTransactionExecutor.IamAuthScopeContext.actorOnly(UUID.randomUUID()),
+                () -> repository.claimCognitoLagAlarm(
+                        userPoolId,
+                        checkpoint,
+                        severity.name(),
+                        now,
+                        now.minus(ALARM_COOLDOWN)));
+        if (!claimed) {
+            return;
+        }
+        try {
+            alerts.emit(new SecurityAlertSink.SecurityAlert(
+                    SecurityAlertSink.Type.RECONCILIATION_LAG,
+                    severity,
+                    now,
+                    Map.of(
+                            "checkpoint", checkpoint,
+                            "lagSeconds",
+                            Long.toString(Duration.between(checkpointAt, now).toSeconds()))));
+        } catch (RuntimeException ignored) {
+            // Monitoring failure cannot alter the durable worker state.
         }
     }
 
-    private void emit(SecurityAlertSink.Severity severity, String checkpoint, Duration lag) {
-        alerts.emit(new SecurityAlertSink.SecurityAlert(
-                SecurityAlertSink.Type.RECONCILIATION_LAG,
-                severity,
-                clock.instant(),
-                Map.of("checkpoint", checkpoint, "lagSeconds", Long.toString(lag.toSeconds()))));
+    static Optional<SecurityAlertSink.Severity> severity(Duration lag) {
+        if (lag.compareTo(CRITICAL_AT) >= 0) {
+            return Optional.of(SecurityAlertSink.Severity.CRITICAL);
+        }
+        if (lag.compareTo(WARNING_AT) >= 0) {
+            return Optional.of(SecurityAlertSink.Severity.WARNING);
+        }
+        return Optional.empty();
     }
 }

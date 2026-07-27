@@ -1,7 +1,6 @@
 package org.mepcity.kursplatform.iam.infrastructure;
 
 import org.junit.jupiter.api.Test;
-import org.mepcity.kursplatform.iam.application.ProviderCommandScheduler;
 import org.mepcity.kursplatform.core.observability.SafeEventLogger;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.ComponentScan;
@@ -51,6 +50,7 @@ class ProviderCommandSchedulerRegistrationTests {
                     "iam.cognito.issuer=https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_real",
                     "iam.cognito.client-id=real-client-id",
                     "iam.cognito.user-pool-id=eu-central-1_real",
+                    "iam.cognito.account-id=111122223333",
                     "iam.cognito.management-api.access-key-id=real-access-key",
                     "iam.cognito.management-api.secret-access-key=real-secret-key",
                     "iam.provider-command.worker.enabled=true");
@@ -87,6 +87,7 @@ class ProviderCommandSchedulerRegistrationTests {
                         "iam.cognito.issuer=https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_real",
                         "iam.cognito.client-id=real-client-id",
                         "iam.cognito.user-pool-id=eu-central-1_real",
+                        "iam.cognito.account-id=111122223333",
                         "iam.cognito.management-api.access-key-id=real-access-key",
                         "iam.cognito.management-api.secret-access-key=real-secret-key",
                         "iam.provider-command.worker.enabled=true");

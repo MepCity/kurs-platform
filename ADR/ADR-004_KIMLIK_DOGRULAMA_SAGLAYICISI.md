@@ -860,17 +860,33 @@ yetkili kimlik/secret sözleşmesi ile yeni bütçe/alarm kapısı tamamlanmadan
 
 V1 hızlı yol `CloudTrail management events → EventBridge → SQS Standard → DLQ → backend
 scheduled consumer` zinciridir. Teslim at-least-once, sıra dışı ve eksik kabul edilir; kanonik
-dedupe anahtarı `provider + userPoolId + CloudTrail eventID`dir. Yalnız
-`AdminDisableUser`, `AdminUserGlobalSignOut`, `RevokeToken`, `AdminResetUserPassword` ve
-`AdminSetUserPassword` allow-listtedir. Ham event gövdesi, token veya parola saklanmaz.
+dedupe anahtarı `provider + userPoolId + CloudTrail eventID`dir. Yalnız başarılı
+`AdminDisableUser`, `AdminUserGlobalSignOut`, `AdminResetUserPassword` ve
+`AdminSetUserPassword` çağrıları allow-listtedir. AWS'nin
+[Cognito CloudTrail belgesi](https://docs.aws.amazon.com/cognito/latest/developerguide/logging-using-cloudtrail.html)
+kullanıcıya özgü kayıtlarda `UserName` yerine `UserSub` bulunduğunu belirtir; eşleme yalnız
+`additionalEventData.sub` ile platform `user_identities.subject` arasında yapılır.
+`eventSource`, `eventType=AwsApiCall`, management/yazma niteliği, hatasız sonuç, AWS account,
+bölge ve beklenen pool eşleşmeden olay güvenilir sayılmaz. Ham event gövdesi, username, token
+veya parola saklanmaz.
+
+`RevokeToken` hızlı allow-listte değildir. Resmî
+[RevokeToken API sözleşmesi](https://docs.aws.amazon.com/cognito-user-identity-pools/latest/APIReference/API_RevokeToken.html)
+isteğin yalnız `ClientId` ve hassas refresh tokenı zorunlu tuttuğunu; güvenli `UserSub`/pool
+eşlemesi sunmadığını gösterir. Token açılarak kullanıcı türetmek yasaktır. Platformun kendi
+IAM-005 logout/reuse iptal akışı ve aşağıdaki kanonik reconciliation sweep bu boşluğu kapatır.
 
 Event completion, yerel aile iptali ve audit ile aynı transaction'da yazılır. Bilinmeyen subject
-`PENDING_MAPPING`te kalır; eşleme sonradan oluştuğunda yeniden işlenir. Poison olaylar sınırlı
-retry sonrası DLQ/terminal alarm üretir. Aktif aileli kimlikler ayrıca `AdminGetUser` kanonik
+`PENDING_MAPPING`te kalır; SQS ACK sonrasında dahi kalıcı DB worker tarafından backoff ile yeniden
+claim edilir ve eşleme sonradan oluştuğunda tamamlanır. Kanonik event durumunda kullanılmayan bir
+`TERMINAL` yoktur. Ham/şema dışı teslimler sınırlı queue retry sonrası DLQ ve `POISON_EVENT`
+alarmı üretir. Aktif aileli kimlikler ayrıca `AdminGetUser` kanonik
 durum sweep'iyle uzlaştırılır; `UNKNOWN` yeni aileyi engeller, ancak kaçırılmış global sign-out'u
 kanıtlayamaz. Bu nedenle production Cognito güvenlik mutasyonları yalnız dar IAM worker rolüyle
-yapılır; insan console/doğrudan API erişimi yasaktır. Lag 2 dakikada WARNING, 5 dakikada CRITICAL
-olur. `SecurityAlertSink` mevcut güvenli structured-log sınırına yazar; CloudWatch/SNS hedefi
+yapılır; insan console/doğrudan API erişimi yasaktır. En eski kalıcı bekleyen event/checkpoint
+lagı tam 2 dakikada WARNING, tam 5 dakikada CRITICAL olur; pool/checkpoint/severity başına kalıcı
+5 dakikalık cooldown alarm fırtınasını engeller. `SecurityAlertSink` mevcut güvenli structured-log
+sınırına yazar; CloudWatch/SNS hedefi
 OPS-003 kapsamındadır.
 
 Consumer ve sweep sahipliği PostgreSQL'de transaction-scoped claim ile değil, crash sonrası

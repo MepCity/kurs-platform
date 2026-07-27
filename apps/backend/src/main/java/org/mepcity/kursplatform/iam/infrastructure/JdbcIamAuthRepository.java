@@ -71,14 +71,6 @@ public class JdbcIamAuthRepository implements IamAuthRepository {
     }
 
     @Override
-    public void completeCognitoSecurityEvent(CognitoSecurityEvent event) {
-        setCognitoEventPoolContext(event);
-        if (jdbcTemplate.update("UPDATE iam_cognito_security_events SET status='COMPLETED', completed_at=transaction_timestamp() WHERE provider='COGNITO' AND user_pool_id=? AND event_id=? AND status='PENDING_MAPPING'", event.userPoolId(), event.eventId()) != 1) {
-            throw new IllegalStateException("Cognito event completion yazılamadı.");
-        }
-    }
-
-    @Override
     public Optional<CognitoSecurityEventClaim> claimCognitoSecurityEvent(
             CognitoSecurityEvent event, String workerId, Instant now, Instant leaseExpiresAt) {
         setCognitoEventPoolContext(event);
@@ -89,12 +81,77 @@ public class JdbcIamAuthRepository implements IamAuthRepository {
                     attempt_count=attempt_count+1, last_attempt_at=transaction_timestamp()
                 WHERE provider='COGNITO' AND user_pool_id=? AND event_id=?
                   AND status='PENDING_MAPPING'
+                  AND next_attempt_at<=?
                   AND (lease_owner IS NULL OR lease_expires_at < ?)
                 RETURNING fencing_token, lease_expires_at
                 """, (rs, row) -> new CognitoSecurityEventClaim(event, workerId,
                         rs.getLong("fencing_token"), toInstant(rs.getTimestamp("lease_expires_at"))),
-                workerId, Timestamp.from(leaseExpiresAt), event.userPoolId(), event.eventId(), Timestamp.from(now));
+                workerId, Timestamp.from(leaseExpiresAt), event.userPoolId(), event.eventId(),
+                Timestamp.from(now), Timestamp.from(now));
         return claims.stream().findFirst();
+    }
+
+    @Override
+    public Optional<CognitoSecurityEventClaim> claimNextCognitoSecurityEvent(
+            String userPoolId, String workerId, Instant now, Instant leaseExpiresAt) {
+        setProviderPoolContext(userPoolId);
+        List<CognitoSecurityEventClaim> claims = jdbcTemplate.query("""
+                WITH candidate AS (
+                    SELECT event_id
+                    FROM iam_cognito_security_events
+                    WHERE provider='COGNITO' AND user_pool_id=? AND status='PENDING_MAPPING'
+                      AND next_attempt_at<=?
+                      AND (lease_owner IS NULL OR lease_expires_at<?)
+                    ORDER BY next_attempt_at,event_time,event_id
+                    FOR UPDATE SKIP LOCKED LIMIT 1)
+                UPDATE iam_cognito_security_events event
+                SET lease_owner=?,lease_expires_at=?,fencing_token=fencing_token+1,
+                    attempt_count=attempt_count+1,last_attempt_at=transaction_timestamp()
+                FROM candidate
+                WHERE event.provider='COGNITO' AND event.user_pool_id=?
+                  AND event.event_id=candidate.event_id
+                RETURNING event.event_id,event.event_name,event.subject,event.event_time,
+                          event.fencing_token,event.lease_expires_at
+                """, (rs, row) -> new CognitoSecurityEventClaim(
+                        new CognitoSecurityEvent(
+                                userPoolId,
+                                rs.getString("event_id"),
+                                rs.getString("event_name"),
+                                rs.getString("subject"),
+                                toInstant(rs.getTimestamp("event_time"))),
+                        workerId,
+                        rs.getLong("fencing_token"),
+                        toInstant(rs.getTimestamp("lease_expires_at"))),
+                userPoolId, Timestamp.from(now), Timestamp.from(now), workerId,
+                Timestamp.from(leaseExpiresAt), userPoolId);
+        return claims.stream().findFirst();
+    }
+
+    @Override
+    public Optional<UserIdentity> revalidateCognitoEventSubject(
+            String issuer, String subject, String userPoolId) {
+        setProviderPoolContext(userPoolId);
+        jdbcTemplate.queryForObject(
+                "SELECT set_config('app.iam_provider_issuer', ?, true)",
+                String.class,
+                issuer);
+        jdbcTemplate.queryForObject(
+                "SELECT set_config('app.iam_provider_subject', ?, true)",
+                String.class,
+                subject);
+        List<UserIdentity> identities = jdbcTemplate.query("""
+                SELECT id,user_id,issuer,subject,created_at,disabled_at
+                FROM user_identities
+                WHERE issuer=? AND subject=? AND disabled_at IS NULL
+                """, (rs, row) -> new UserIdentity(
+                        rs.getObject("id", UUID.class),
+                        rs.getObject("user_id", UUID.class),
+                        rs.getString("issuer"),
+                        rs.getString("subject"),
+                        toInstant(rs.getTimestamp("created_at")),
+                        toInstant(rs.getTimestamp("disabled_at"))),
+                issuer, subject);
+        return identities.stream().findFirst();
     }
 
     @Override
@@ -113,13 +170,30 @@ public class JdbcIamAuthRepository implements IamAuthRepository {
     }
 
     @Override
-    public void releaseCognitoSecurityEvent(CognitoSecurityEventClaim claim) {
+    public void releaseCognitoSecurityEvent(CognitoSecurityEventClaim claim, Instant nextAttemptAt) {
         setCognitoEventPoolContext(claim.event());
-        jdbcTemplate.update("""
-                UPDATE iam_cognito_security_events SET lease_owner=NULL, lease_expires_at=NULL
+        int updated = jdbcTemplate.update("""
+                UPDATE iam_cognito_security_events
+                SET lease_owner=NULL, lease_expires_at=NULL, next_attempt_at=?
                 WHERE provider='COGNITO' AND user_pool_id=? AND event_id=?
                   AND status='PENDING_MAPPING' AND lease_owner=? AND fencing_token=?
-                """, claim.event().userPoolId(), claim.event().eventId(), claim.workerId(), claim.fencingToken());
+                """, Timestamp.from(nextAttemptAt), claim.event().userPoolId(), claim.event().eventId(),
+                claim.workerId(), claim.fencingToken());
+        if (updated != 1) {
+            throw new IllegalStateException("Cognito event retry lease/fencing doğrulanamadı.");
+        }
+    }
+
+    @Override
+    public Optional<Instant> findOldestPendingCognitoEventTime(String userPoolId) {
+        setProviderPoolContext(userPoolId);
+        return jdbcTemplate.query("""
+                SELECT min(event_time) AS oldest
+                FROM iam_cognito_security_events
+                WHERE provider='COGNITO' AND user_pool_id=? AND status='PENDING_MAPPING'
+                """, rs -> rs.next() && rs.getTimestamp("oldest") != null
+                        ? Optional.of(toInstant(rs.getTimestamp("oldest")))
+                        : Optional.empty(), userPoolId);
     }
 
     private void setCognitoEventPoolContext(CognitoSecurityEvent event) {
@@ -155,11 +229,13 @@ public class JdbcIamAuthRepository implements IamAuthRepository {
                 UPDATE iam_cognito_reconciliation_targets t
                 SET lease_owner=?,lease_expires_at=?,fencing_token=fencing_token+1
                 FROM candidate c WHERE t.identity_id=c.identity_id
-                RETURNING t.identity_id,t.user_id,t.issuer,t.subject,t.user_pool_id,t.fencing_token,t.lease_expires_at
+                RETURNING t.identity_id,t.user_id,t.issuer,t.subject,t.user_pool_id,
+                          t.last_provider_status,t.fencing_token,t.lease_expires_at
                 """, (rs, row) -> new CognitoReconciliationClaim(
                         rs.getObject("identity_id", UUID.class), rs.getObject("user_id", UUID.class),
                         rs.getString("issuer"), rs.getString("subject"), rs.getString("user_pool_id"),
-                        workerId, rs.getLong("fencing_token"), toInstant(rs.getTimestamp("lease_expires_at"))),
+                        rs.getString("last_provider_status"), workerId, rs.getLong("fencing_token"),
+                        toInstant(rs.getTimestamp("lease_expires_at"))),
                 userPoolId, Timestamp.from(now), Timestamp.from(now), workerId, Timestamp.from(leaseExpiresAt));
         return rows.stream().findFirst();
     }
@@ -175,6 +251,52 @@ public class JdbcIamAuthRepository implements IamAuthRepository {
                 """, providerStatus, Timestamp.from(now), Timestamp.from(nextCheckAt), claim.identityId(),
                 claim.userPoolId(), claim.workerId(), claim.fencingToken(), Timestamp.from(now));
         if (updated != 1) throw new IllegalStateException("Reconciliation lease/fencing doğrulanamadı.");
+    }
+
+    @Override
+    public void releaseCognitoReconciliationTarget(
+            CognitoReconciliationClaim claim, Instant nextCheckAt) {
+        setProviderPoolContext(claim.userPoolId());
+        int updated = jdbcTemplate.update("""
+                UPDATE iam_cognito_reconciliation_targets
+                SET next_check_at=?,lease_owner=NULL,lease_expires_at=NULL
+                WHERE identity_id=? AND user_pool_id=? AND lease_owner=? AND fencing_token=?
+                """, Timestamp.from(nextCheckAt), claim.identityId(), claim.userPoolId(),
+                claim.workerId(), claim.fencingToken());
+        if (updated != 1) {
+            throw new IllegalStateException("Reconciliation retry lease/fencing doğrulanamadı.");
+        }
+    }
+
+    @Override
+    public Optional<Instant> findOldestDueReconciliationTime(String userPoolId, Instant now) {
+        setProviderPoolContext(userPoolId);
+        return jdbcTemplate.query("""
+                SELECT min(next_check_at) AS oldest
+                FROM iam_cognito_reconciliation_targets
+                WHERE user_pool_id=? AND next_check_at<=?
+                """, rs -> rs.next() && rs.getTimestamp("oldest") != null
+                        ? Optional.of(toInstant(rs.getTimestamp("oldest")))
+                        : Optional.empty(), userPoolId, Timestamp.from(now));
+    }
+
+    @Override
+    public boolean claimCognitoLagAlarm(
+            String userPoolId,
+            String checkpoint,
+            String severity,
+            Instant now,
+            Instant cooldownSince) {
+        setProviderPoolContext(userPoolId);
+        return jdbcTemplate.update("""
+                INSERT INTO iam_cognito_lag_alarm_state
+                    (provider,user_pool_id,checkpoint,severity,last_emitted_at)
+                VALUES ('COGNITO',?,?,?,?)
+                ON CONFLICT (provider,user_pool_id,checkpoint,severity)
+                DO UPDATE SET last_emitted_at=EXCLUDED.last_emitted_at
+                WHERE iam_cognito_lag_alarm_state.last_emitted_at<=?
+                """, userPoolId, checkpoint, severity, Timestamp.from(now),
+                Timestamp.from(cooldownSince)) == 1;
     }
 
     private void setProviderPoolContext(String userPoolId) {

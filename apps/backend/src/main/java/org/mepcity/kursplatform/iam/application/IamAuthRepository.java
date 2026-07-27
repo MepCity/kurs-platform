@@ -188,17 +188,23 @@ public interface IamAuthRepository {
 
     List<ContextSelectionSummary> findContextSelectionSummaries(UUID userId);
 
-    /** Inserts only opaque CloudTrail routing fields; false means an already terminal event. */
+    /** Inserts only opaque CloudTrail routing fields; false means the canonical event already exists. */
     boolean recordCognitoSecurityEvent(CognitoSecurityEvent event);
-
-    void completeCognitoSecurityEvent(CognitoSecurityEvent event);
 
     Optional<CognitoSecurityEventClaim> claimCognitoSecurityEvent(
             CognitoSecurityEvent event, String workerId, Instant now, Instant leaseExpiresAt);
 
+    Optional<CognitoSecurityEventClaim> claimNextCognitoSecurityEvent(
+            String userPoolId, String workerId, Instant now, Instant leaseExpiresAt);
+
+    Optional<UserIdentity> revalidateCognitoEventSubject(
+            String issuer, String subject, String userPoolId);
+
     void completeCognitoSecurityEvent(CognitoSecurityEventClaim claim, Instant now);
 
-    void releaseCognitoSecurityEvent(CognitoSecurityEventClaim claim);
+    void releaseCognitoSecurityEvent(CognitoSecurityEventClaim claim, Instant nextAttemptAt);
+
+    Optional<Instant> findOldestPendingCognitoEventTime(String userPoolId);
 
     void discoverCognitoReconciliationTargets(String issuer, String userPoolId);
 
@@ -207,4 +213,15 @@ public interface IamAuthRepository {
 
     void completeCognitoReconciliationTarget(
             CognitoReconciliationClaim claim, String providerStatus, Instant now, Instant nextCheckAt);
+
+    void releaseCognitoReconciliationTarget(CognitoReconciliationClaim claim, Instant nextCheckAt);
+
+    Optional<Instant> findOldestDueReconciliationTime(String userPoolId, Instant now);
+
+    boolean claimCognitoLagAlarm(
+            String userPoolId,
+            String checkpoint,
+            String severity,
+            Instant now,
+            Instant cooldownSince);
 }

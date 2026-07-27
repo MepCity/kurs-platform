@@ -26,6 +26,8 @@ class ArchitectureBoundariesTests {
 	private static final Pattern PACKAGE_DECLARATION = Pattern.compile("(?m)^package\\s+([^;]+);");
 	private static final List<String> DOMAIN_FRAMEWORK_PREFIXES = List.of(
 			"org.springframework.", "jakarta.persistence.", "jakarta.servlet.", "java.net.http.");
+	private static final List<String> APPLICATION_SCHEDULER_PREFIXES = List.of(
+			"org.springframework.scheduling.", "org.springframework.scheduling.annotation.Scheduled");
 
 	@Test
 	void requiredModuleBoundariesAreVisible() {
@@ -217,6 +219,13 @@ class ArchitectureBoundariesTests {
 				"class Rule { org.springframework.http.HttpStatus status; }");
 	}
 
+	@Test
+	void rejectsApplicationSpringSchedulerReference() {
+		assertForbidden(
+				"iam/application/UseCase.java",
+				"import org.springframework.scheduling.annotation.Scheduled; @Scheduled class UseCase {}");
+	}
+
 	private void assertForbidden(String path, String source) {
 		assertThat(violations(path, source)).as(path).isNotEmpty();
 	}
@@ -245,6 +254,13 @@ class ArchitectureBoundariesTests {
 			for (String prefix : DOMAIN_FRAMEWORK_PREFIXES) {
 				if (source.contains(prefix)) {
 					violations.add(path + ": domain framework reference: " + prefix);
+				}
+			}
+		}
+		if (location.kind() == SourceKind.BUSINESS && "application".equals(location.layer())) {
+			for (String prefix : APPLICATION_SCHEDULER_PREFIXES) {
+				if (source.contains(prefix)) {
+					violations.add(path + ": application scheduler framework reference: " + prefix);
 				}
 			}
 		}

@@ -2167,11 +2167,16 @@ classes 0..1—n sync_changes (scope_class_id; değişiklik anındaki yayın kap
 ### IAM-009 — `iam_cognito_security_events`
 
 CloudTrail/EventBridge/SQS tesliminin ham gövdesi tutulmaz. Tablo yalnız `provider='COGNITO'`,
-`user_pool_id`, `event_id`, allow-list event adı, subject, event time, deneme sayısı ve terminal
-durumu taşır. Birincil anahtar `(provider, user_pool_id, event_id)`dir; `event_time` sıralama veya
-tamlık kanıtı değildir. `PENDING_MAPPING` bilinmeyen subject için completion yazılmadan korunur;
-`COMPLETED` yalnız aile iptali ve audit aynı transaction'da başarılıysa, `TERMINAL` ise sınırlı
-retry sonrası yazılır. Tablo FORCE RLS'tir ve yalnız `GLOBAL/COGNITO_SECURITY_EVENT_PROCESS`
+`user_pool_id`, `event_id`, allow-list event adı, subject, event time ve deneme sayısı taşır.
+Birincil anahtar `(provider, user_pool_id, event_id)`dir; `event_time` sıralama veya tamlık kanıtı
+değildir. `PENDING_MAPPING` bilinmeyen subject için completion yazılmadan korunur ve
+`next_attempt_at` üzerinden kalıcı DB worker tarafından sınırlı üstel backoff
+(30 saniye–5 dakika) ile yeniden claim edilir. `COMPLETED` yalnız aile iptali ve audit aynı
+transaction'da başarılıysa yazılır. Kanonik DB eventinde `TERMINAL` durumu yoktur; şema dışı ham
+queue tesliminin sınırlı retry/DLQ semantiği bu durum makinesinden ayrıdır. `RevokeToken`, yalnız
+`ClientId` ve hassas token taşıdığı için subject/pool'a güvenli bağlanamaz ve allow-listte değildir;
+IAM-005 ile kanonik sweep tarafından ele alınır. Tablo FORCE RLS'tir ve yalnız
+`GLOBAL/COGNITO_SECURITY_EVENT_PROCESS`
 işlem kodu altında `iam_runtime` tarafından erişilir.
 
 Event satırındaki `lease_owner`, `lease_expires_at` ve monoton `fencing_token`, eşzamanlı
@@ -2181,6 +2186,9 @@ tarafından daha yüksek fencing tokenıyla alınabilir; eski worker completion 
 kalıcı `next_check_at` checkpoint'i ve aynı lease/fencing modeliyle tarar. `last_provider_status`
 yalnız `ACTIVE`, `DISABLED`, `REVOKED` veya `UNKNOWN` olabilir. Her iki tablo FORCE RLS altında,
 ayrı operation code ve doğrulanmış pool/target-user GUC bağlamıyla sınırlandırılır.
+`iam_cognito_lag_alarm_state`, en eski bekleyen event/reconciliation checkpoint'inden üretilen
+WARNING/CRITICAL alarmını `(provider,user_pool_id,checkpoint,severity)` anahtarında kalıcı cooldown
+ile tekilleştirir; ham payload veya kullanıcı PII'si taşımaz.
 
 ## 21. Kapsam dışı bırakılanlar
 

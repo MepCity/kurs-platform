@@ -34,6 +34,7 @@ class IamProfileGatingTests {
                     "iam.cognito.issuer=https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_real",
                     "iam.cognito.client-id=real-client-id",
                     "iam.cognito.user-pool-id=eu-central-1_real",
+                    "iam.cognito.account-id=111122223333",
                     "iam.cognito.management-api.access-key-id=real-access-key",
                     "iam.cognito.management-api.secret-access-key=real-secret-key");
 

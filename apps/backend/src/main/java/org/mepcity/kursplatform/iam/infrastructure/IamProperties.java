@@ -29,6 +29,7 @@ public class IamProperties {
         private String clientId;
         private String region = "eu-central-1";
         private String userPoolId;
+        private String accountId;
         private ManagementApi managementApi = new ManagementApi();
         /**
          * A-010 / ADR-004 gate: V1 runs an Amazon Cognito Essentials NATIVE user pool where the
@@ -51,6 +52,8 @@ public class IamProperties {
         public void setRegion(String region) { this.region = region; }
         public String getUserPoolId() { return userPoolId; }
         public void setUserPoolId(String userPoolId) { this.userPoolId = userPoolId; }
+        public String getAccountId() { return accountId; }
+        public void setAccountId(String accountId) { this.accountId = accountId; }
         public ManagementApi getManagementApi() { return managementApi; }
         public void setManagementApi(ManagementApi managementApi) { this.managementApi = managementApi; }
         public boolean isAllowFederatedIdp() { return allowFederatedIdp; }
@@ -182,6 +185,10 @@ public class IamProperties {
             if (cognito.userPoolId == null || cognito.userPoolId.isBlank()) {
                 throw new IllegalStateException(
                         "iam.cognito.user-pool-id must be set outside local-stub profile");
+            }
+            if (cognito.accountId == null || !cognito.accountId.matches("[0-9]{12}")) {
+                throw new IllegalStateException(
+                        "iam.cognito.account-id must be a 12-digit AWS account id outside local-stub profile");
             }
             if (cognito.managementApi.accessKeyId == null || cognito.managementApi.accessKeyId.isBlank()) {
                 throw new IllegalStateException(

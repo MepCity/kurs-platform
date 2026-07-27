@@ -10,9 +10,12 @@ public final class CognitoSecurityEventScheduler {
     private final int batchLimit;
 
     public CognitoSecurityEventScheduler(CognitoSecurityEventConsumer consumer, int batchLimit) {
-        this.consumer=consumer; this.batchLimit=batchLimit;
+        this.consumer = consumer;
+        this.batchLimit = batchLimit;
     }
 
-    @Scheduled(fixedDelayString="${iam.security-events.poll-interval:60s}")
-    public void poll() { consumer.poll(workerId,batchLimit); }
+    @Scheduled(fixedDelayString = "${iam.security-events.poll-interval:60s}")
+    public void poll() {
+        consumer.poll(workerId, batchLimit);
+    }
 }
