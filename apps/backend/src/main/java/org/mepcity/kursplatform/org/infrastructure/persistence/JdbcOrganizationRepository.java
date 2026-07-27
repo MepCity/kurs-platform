@@ -146,7 +146,7 @@ public class JdbcOrganizationRepository implements OrganizationRepository {
         StringBuilder sql = new StringBuilder("SELECT ").append(ORGANIZATION_COLUMNS).append(" FROM organizations WHERE 1=1");
         List<Object> values = new ArrayList<>();
         if (query.status() != null) { sql.append(" AND status = ?::organization_status_enum"); values.add(query.status().name()); }
-        if (query.search() != null) { sql.append(" AND (lower(name) LIKE ? ESCAPE '\\\\' OR lower(coalesce(short_name, '')) LIKE ? ESCAPE '\\\\')"); values.add("%" + escapeLike(query.search()) + "%"); values.add("%" + escapeLike(query.search()) + "%"); }
+        if (query.search() != null) { sql.append(" AND (lower(name) LIKE ? ESCAPE '\\' OR lower(coalesce(short_name, '')) LIKE ? ESCAPE '\\')"); values.add("%" + escapeLike(query.search()) + "%"); values.add("%" + escapeLike(query.search()) + "%"); }
         if (query.position() != null) {
             Object value = query.position() instanceof OrganizationListQuery.NamePosition name ? name.value()
                     : ((OrganizationListQuery.CreatedAtPosition) query.position()).value();
