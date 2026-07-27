@@ -30,10 +30,10 @@ public interface SecurityAlertSink {
     enum Type {
         RECONCILIATION_LAG,
         UNKNOWN_SUBJECT,
-        UNKNOWN_SECURITY_EVENT,
+        UNKNOWN_EVENT,
         POISON_EVENT,
         PROVIDER_UNAVAILABLE,
-        CURSOR_STALLED,
-        EVENT_REVOCATION_FAILED
+        CHECKPOINT_STALLED,
+        LOCAL_REVOCATION_FAILED
     }
 }

@@ -5,6 +5,8 @@ import org.mepcity.kursplatform.iam.domain.AuthReplayEscrow;
 import org.mepcity.kursplatform.iam.domain.AuthSession;
 import org.mepcity.kursplatform.iam.domain.ContextSelectionSummary;
 import org.mepcity.kursplatform.iam.domain.CognitoSecurityEvent;
+import org.mepcity.kursplatform.iam.domain.CognitoSecurityEventClaim;
+import org.mepcity.kursplatform.iam.domain.CognitoReconciliationClaim;
 import org.mepcity.kursplatform.iam.domain.ContextSelectionToken;
 import org.mepcity.kursplatform.iam.domain.DevicePlatform;
 import org.mepcity.kursplatform.iam.domain.EscrowStatus;
@@ -63,15 +65,120 @@ public class JdbcIamAuthRepository implements IamAuthRepository {
 
     @Override
     public boolean recordCognitoSecurityEvent(CognitoSecurityEvent event) {
-        return jdbcTemplate.update("INSERT INTO iam_cognito_security_events (provider,user_pool_id,event_id,event_name,subject,event_time) VALUES ('COGNITO',?,?,?,?,?) ON CONFLICT (provider,user_pool_id,event_id) DO UPDATE SET attempt_count=iam_cognito_security_events.attempt_count+1 WHERE iam_cognito_security_events.status='PENDING_MAPPING'",
+        setCognitoEventPoolContext(event);
+        return jdbcTemplate.update("INSERT INTO iam_cognito_security_events (provider,user_pool_id,event_id,event_name,subject,event_time) VALUES ('COGNITO',?,?,?,?,?) ON CONFLICT (provider,user_pool_id,event_id) DO NOTHING",
                 event.userPoolId(), event.eventId(), event.eventName(), event.subject(), Timestamp.from(event.eventTime())) == 1;
     }
 
     @Override
     public void completeCognitoSecurityEvent(CognitoSecurityEvent event) {
+        setCognitoEventPoolContext(event);
         if (jdbcTemplate.update("UPDATE iam_cognito_security_events SET status='COMPLETED', completed_at=transaction_timestamp() WHERE provider='COGNITO' AND user_pool_id=? AND event_id=? AND status='PENDING_MAPPING'", event.userPoolId(), event.eventId()) != 1) {
             throw new IllegalStateException("Cognito event completion yazılamadı.");
         }
+    }
+
+    @Override
+    public Optional<CognitoSecurityEventClaim> claimCognitoSecurityEvent(
+            CognitoSecurityEvent event, String workerId, Instant now, Instant leaseExpiresAt) {
+        setCognitoEventPoolContext(event);
+        recordCognitoSecurityEvent(event);
+        List<CognitoSecurityEventClaim> claims = jdbcTemplate.query("""
+                UPDATE iam_cognito_security_events
+                SET lease_owner=?, lease_expires_at=?, fencing_token=fencing_token+1,
+                    attempt_count=attempt_count+1, last_attempt_at=transaction_timestamp()
+                WHERE provider='COGNITO' AND user_pool_id=? AND event_id=?
+                  AND status='PENDING_MAPPING'
+                  AND (lease_owner IS NULL OR lease_expires_at < ?)
+                RETURNING fencing_token, lease_expires_at
+                """, (rs, row) -> new CognitoSecurityEventClaim(event, workerId,
+                        rs.getLong("fencing_token"), toInstant(rs.getTimestamp("lease_expires_at"))),
+                workerId, Timestamp.from(leaseExpiresAt), event.userPoolId(), event.eventId(), Timestamp.from(now));
+        return claims.stream().findFirst();
+    }
+
+    @Override
+    public void completeCognitoSecurityEvent(CognitoSecurityEventClaim claim, Instant now) {
+        setCognitoEventPoolContext(claim.event());
+        int updated = jdbcTemplate.update("""
+                UPDATE iam_cognito_security_events
+                SET status='COMPLETED', completed_at=transaction_timestamp(),
+                    lease_owner=NULL, lease_expires_at=NULL
+                WHERE provider='COGNITO' AND user_pool_id=? AND event_id=?
+                  AND status='PENDING_MAPPING' AND lease_owner=? AND fencing_token=?
+                  AND lease_expires_at >= ?
+                """, claim.event().userPoolId(), claim.event().eventId(), claim.workerId(),
+                claim.fencingToken(), Timestamp.from(now));
+        if (updated != 1) throw new IllegalStateException("Cognito event completion lease/fencing doğrulanamadı.");
+    }
+
+    @Override
+    public void releaseCognitoSecurityEvent(CognitoSecurityEventClaim claim) {
+        setCognitoEventPoolContext(claim.event());
+        jdbcTemplate.update("""
+                UPDATE iam_cognito_security_events SET lease_owner=NULL, lease_expires_at=NULL
+                WHERE provider='COGNITO' AND user_pool_id=? AND event_id=?
+                  AND status='PENDING_MAPPING' AND lease_owner=? AND fencing_token=?
+                """, claim.event().userPoolId(), claim.event().eventId(), claim.workerId(), claim.fencingToken());
+    }
+
+    private void setCognitoEventPoolContext(CognitoSecurityEvent event) {
+        jdbcTemplate.queryForObject("SELECT set_config('app.iam_provider_pool_id', ?, true)", String.class,
+                event.userPoolId());
+    }
+
+    @Override
+    public void discoverCognitoReconciliationTargets(String issuer, String userPoolId) {
+        setProviderPoolContext(userPoolId);
+        jdbcTemplate.update("""
+                INSERT INTO iam_cognito_reconciliation_targets
+                    (identity_id,user_id,issuer,subject,user_pool_id,next_check_at)
+                SELECT ui.id,ui.user_id,ui.issuer,ui.subject,?,transaction_timestamp()
+                FROM user_identities ui
+                WHERE ui.issuer=? AND ui.disabled_at IS NULL
+                  AND EXISTS (SELECT 1 FROM refresh_token_families f
+                              WHERE f.user_id=ui.user_id AND f.revoked_at IS NULL)
+                ON CONFLICT (identity_id) DO NOTHING
+                """, userPoolId, issuer);
+    }
+
+    @Override
+    public Optional<CognitoReconciliationClaim> claimCognitoReconciliationTarget(
+            String userPoolId, String workerId, Instant now, Instant leaseExpiresAt) {
+        setProviderPoolContext(userPoolId);
+        List<CognitoReconciliationClaim> rows = jdbcTemplate.query("""
+                WITH candidate AS (
+                  SELECT identity_id FROM iam_cognito_reconciliation_targets
+                  WHERE user_pool_id=? AND next_check_at<=?
+                    AND (lease_owner IS NULL OR lease_expires_at<?)
+                  ORDER BY next_check_at,identity_id FOR UPDATE SKIP LOCKED LIMIT 1)
+                UPDATE iam_cognito_reconciliation_targets t
+                SET lease_owner=?,lease_expires_at=?,fencing_token=fencing_token+1
+                FROM candidate c WHERE t.identity_id=c.identity_id
+                RETURNING t.identity_id,t.user_id,t.issuer,t.subject,t.user_pool_id,t.fencing_token,t.lease_expires_at
+                """, (rs, row) -> new CognitoReconciliationClaim(
+                        rs.getObject("identity_id", UUID.class), rs.getObject("user_id", UUID.class),
+                        rs.getString("issuer"), rs.getString("subject"), rs.getString("user_pool_id"),
+                        workerId, rs.getLong("fencing_token"), toInstant(rs.getTimestamp("lease_expires_at"))),
+                userPoolId, Timestamp.from(now), Timestamp.from(now), workerId, Timestamp.from(leaseExpiresAt));
+        return rows.stream().findFirst();
+    }
+
+    @Override
+    public void completeCognitoReconciliationTarget(
+            CognitoReconciliationClaim claim, String providerStatus, Instant now, Instant nextCheckAt) {
+        setProviderPoolContext(claim.userPoolId());
+        int updated = jdbcTemplate.update("""
+                UPDATE iam_cognito_reconciliation_targets
+                SET last_provider_status=?,last_checked_at=?,next_check_at=?,lease_owner=NULL,lease_expires_at=NULL
+                WHERE identity_id=? AND user_pool_id=? AND lease_owner=? AND fencing_token=? AND lease_expires_at>=?
+                """, providerStatus, Timestamp.from(now), Timestamp.from(nextCheckAt), claim.identityId(),
+                claim.userPoolId(), claim.workerId(), claim.fencingToken(), Timestamp.from(now));
+        if (updated != 1) throw new IllegalStateException("Reconciliation lease/fencing doğrulanamadı.");
+    }
+
+    private void setProviderPoolContext(String userPoolId) {
+        jdbcTemplate.queryForObject("SELECT set_config('app.iam_provider_pool_id', ?, true)", String.class, userPoolId);
     }
 
     @Override

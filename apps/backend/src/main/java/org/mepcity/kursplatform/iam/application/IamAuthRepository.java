@@ -23,6 +23,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.mepcity.kursplatform.iam.domain.CognitoSecurityEvent;
+import org.mepcity.kursplatform.iam.domain.CognitoSecurityEventClaim;
+import org.mepcity.kursplatform.iam.domain.CognitoReconciliationClaim;
 
 public interface IamAuthRepository {
 
@@ -190,4 +192,19 @@ public interface IamAuthRepository {
     boolean recordCognitoSecurityEvent(CognitoSecurityEvent event);
 
     void completeCognitoSecurityEvent(CognitoSecurityEvent event);
+
+    Optional<CognitoSecurityEventClaim> claimCognitoSecurityEvent(
+            CognitoSecurityEvent event, String workerId, Instant now, Instant leaseExpiresAt);
+
+    void completeCognitoSecurityEvent(CognitoSecurityEventClaim claim, Instant now);
+
+    void releaseCognitoSecurityEvent(CognitoSecurityEventClaim claim);
+
+    void discoverCognitoReconciliationTargets(String issuer, String userPoolId);
+
+    Optional<CognitoReconciliationClaim> claimCognitoReconciliationTarget(
+            String userPoolId, String workerId, Instant now, Instant leaseExpiresAt);
+
+    void completeCognitoReconciliationTarget(
+            CognitoReconciliationClaim claim, String providerStatus, Instant now, Instant nextCheckAt);
 }

@@ -3,6 +3,9 @@ package org.mepcity.kursplatform.iam.infrastructure;
 import org.mepcity.kursplatform.iam.application.AeadEscrowService;
 import org.mepcity.kursplatform.iam.application.CognitoTokenVerifier;
 import org.mepcity.kursplatform.iam.application.CognitoSecurityEventService;
+import org.mepcity.kursplatform.iam.application.CognitoReconciliationService;
+import org.mepcity.kursplatform.iam.application.CognitoReconciliationScheduler;
+import org.mepcity.kursplatform.iam.application.CognitoSecurityEventParser;
 import org.mepcity.kursplatform.iam.application.CognitoUserStatusChecker;
 import org.mepcity.kursplatform.iam.application.ContextSelectionService;
 import org.mepcity.kursplatform.iam.application.DeviceSessionService;
@@ -33,7 +36,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.JdbcTemplate;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -54,13 +56,42 @@ import java.time.Clock;
 public class IamInfrastructureConfiguration {
 
     @Bean
-    SecurityAlertSink securityAlertSink(ObjectProvider<SafeEventLogger> logger) {
-        return alert -> logger.ifAvailable(value -> new ObservabilitySecurityAlertSink(value).emit(alert));
+    SecurityAlertSink securityAlertSink(SafeEventLogger logger) {
+        return new ObservabilitySecurityAlertSink(logger);
     }
 
     @Bean
     CognitoSecurityEventService cognitoSecurityEventService(IamAuthRepository repository, IamTransactionExecutor transactions, IamAuditWriter audit, SecurityAlertSink alerts, Clock clock) {
         return new CognitoSecurityEventService(repository, transactions, audit, alerts, clock);
+    }
+
+    @Bean
+    CognitoReconciliationService cognitoReconciliationService(IamAuthRepository repository,
+            IamTransactionExecutor transactions, CognitoUserStatusChecker provider,
+            IamAuditWriter audit, SecurityAlertSink alerts, Clock clock, IamProperties properties) {
+        return new CognitoReconciliationService(repository, transactions, provider, audit, alerts,
+                clock, properties.getCognito().getIssuer(), properties.getCognito().getUserPoolId());
+    }
+
+    @Bean
+    CognitoSecurityEventParser cognitoSecurityEventParser() {
+        return new CognitoSecurityEventParser(new ObjectMapper());
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix="iam.security-events",name="enabled",havingValue="true")
+    CognitoSecurityEventScheduler cognitoSecurityEventScheduler(CognitoEventQueueClient queue,
+            CognitoSecurityEventParser parser,CognitoSecurityEventService service,
+            SecurityAlertSink alerts,Clock clock,IamProperties properties) {
+        var consumer=new CognitoSecurityEventConsumer(queue,parser,service,alerts,clock,
+                properties.getCognito().getIssuer(),5);
+        return new CognitoSecurityEventScheduler(consumer,20);
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix="iam.reconciliation",name="enabled",havingValue="true")
+    CognitoReconciliationScheduler cognitoReconciliationScheduler(CognitoReconciliationService service) {
+        return new CognitoReconciliationScheduler(service,20);
     }
 
     @Bean
