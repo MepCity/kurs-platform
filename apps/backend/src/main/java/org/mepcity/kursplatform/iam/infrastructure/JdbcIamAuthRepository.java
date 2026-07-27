@@ -64,21 +64,22 @@ public class JdbcIamAuthRepository implements IamAuthRepository {
     }
 
     @Override
-    public boolean recordCognitoSecurityEvent(CognitoSecurityEvent event) {
+    public boolean recordCognitoSecurityEvent(CognitoSecurityEvent event, Instant readyAt) {
         setCognitoEventPoolContext(event);
-        return jdbcTemplate.update("INSERT INTO iam_cognito_security_events (provider,user_pool_id,event_id,event_name,subject,event_time) VALUES ('COGNITO',?,?,?,?,?) ON CONFLICT (provider,user_pool_id,event_id) DO NOTHING",
-                event.userPoolId(), event.eventId(), event.eventName(), event.subject(), Timestamp.from(event.eventTime())) == 1;
+        return jdbcTemplate.update("INSERT INTO iam_cognito_security_events (provider,user_pool_id,event_id,event_name,subject,event_time,next_attempt_at) VALUES ('COGNITO',?,?,?,?,?,?) ON CONFLICT (provider,user_pool_id,event_id) DO NOTHING",
+                event.userPoolId(), event.eventId(), event.eventName(), event.subject(),
+                Timestamp.from(event.eventTime()), Timestamp.from(readyAt)) == 1;
     }
 
     @Override
     public Optional<CognitoSecurityEventClaim> claimCognitoSecurityEvent(
             CognitoSecurityEvent event, String workerId, Instant now, Instant leaseExpiresAt) {
         setCognitoEventPoolContext(event);
-        recordCognitoSecurityEvent(event);
+        recordCognitoSecurityEvent(event, now);
         List<CognitoSecurityEventClaim> claims = jdbcTemplate.query("""
                 UPDATE iam_cognito_security_events
                 SET lease_owner=?, lease_expires_at=?, fencing_token=fencing_token+1,
-                    attempt_count=attempt_count+1, last_attempt_at=transaction_timestamp()
+                    attempt_count=attempt_count+1, last_attempt_at=?
                 WHERE provider='COGNITO' AND user_pool_id=? AND event_id=?
                   AND status='PENDING_MAPPING'
                   AND next_attempt_at<=?
@@ -86,7 +87,8 @@ public class JdbcIamAuthRepository implements IamAuthRepository {
                 RETURNING fencing_token, lease_expires_at
                 """, (rs, row) -> new CognitoSecurityEventClaim(event, workerId,
                         rs.getLong("fencing_token"), toInstant(rs.getTimestamp("lease_expires_at"))),
-                workerId, Timestamp.from(leaseExpiresAt), event.userPoolId(), event.eventId(),
+                workerId, Timestamp.from(leaseExpiresAt), Timestamp.from(now),
+                event.userPoolId(), event.eventId(),
                 Timestamp.from(now), Timestamp.from(now));
         return claims.stream().findFirst();
     }
@@ -106,7 +108,7 @@ public class JdbcIamAuthRepository implements IamAuthRepository {
                     FOR UPDATE SKIP LOCKED LIMIT 1)
                 UPDATE iam_cognito_security_events event
                 SET lease_owner=?,lease_expires_at=?,fencing_token=fencing_token+1,
-                    attempt_count=attempt_count+1,last_attempt_at=transaction_timestamp()
+                    attempt_count=attempt_count+1,last_attempt_at=?
                 FROM candidate
                 WHERE event.provider='COGNITO' AND event.user_pool_id=?
                   AND event.event_id=candidate.event_id
@@ -123,7 +125,7 @@ public class JdbcIamAuthRepository implements IamAuthRepository {
                         rs.getLong("fencing_token"),
                         toInstant(rs.getTimestamp("lease_expires_at"))),
                 userPoolId, Timestamp.from(now), Timestamp.from(now), workerId,
-                Timestamp.from(leaseExpiresAt), userPoolId);
+                Timestamp.from(leaseExpiresAt), Timestamp.from(now), userPoolId);
         return claims.stream().findFirst();
     }
 
@@ -159,12 +161,12 @@ public class JdbcIamAuthRepository implements IamAuthRepository {
         setCognitoEventPoolContext(claim.event());
         int updated = jdbcTemplate.update("""
                 UPDATE iam_cognito_security_events
-                SET status='COMPLETED', completed_at=transaction_timestamp(),
+                SET status='COMPLETED', completed_at=?,
                     lease_owner=NULL, lease_expires_at=NULL
                 WHERE provider='COGNITO' AND user_pool_id=? AND event_id=?
                   AND status='PENDING_MAPPING' AND lease_owner=? AND fencing_token=?
                   AND lease_expires_at >= ?
-                """, claim.event().userPoolId(), claim.event().eventId(), claim.workerId(),
+                """, Timestamp.from(now), claim.event().userPoolId(), claim.event().eventId(), claim.workerId(),
                 claim.fencingToken(), Timestamp.from(now));
         if (updated != 1) throw new IllegalStateException("Cognito event completion lease/fencing doğrulanamadı.");
     }
@@ -202,18 +204,18 @@ public class JdbcIamAuthRepository implements IamAuthRepository {
     }
 
     @Override
-    public void discoverCognitoReconciliationTargets(String issuer, String userPoolId) {
+    public void discoverCognitoReconciliationTargets(String issuer, String userPoolId, Instant dueAt) {
         setProviderPoolContext(userPoolId);
         jdbcTemplate.update("""
                 INSERT INTO iam_cognito_reconciliation_targets
                     (identity_id,user_id,issuer,subject,user_pool_id,next_check_at)
-                SELECT ui.id,ui.user_id,ui.issuer,ui.subject,?,transaction_timestamp()
+                SELECT ui.id,ui.user_id,ui.issuer,ui.subject,?,?
                 FROM user_identities ui
                 WHERE ui.issuer=? AND ui.disabled_at IS NULL
                   AND EXISTS (SELECT 1 FROM refresh_token_families f
                               WHERE f.user_id=ui.user_id AND f.revoked_at IS NULL)
                 ON CONFLICT (identity_id) DO NOTHING
-                """, userPoolId, issuer);
+                """, userPoolId, Timestamp.from(dueAt), issuer);
     }
 
     @Override

@@ -189,7 +189,7 @@ public interface IamAuthRepository {
     List<ContextSelectionSummary> findContextSelectionSummaries(UUID userId);
 
     /** Inserts only opaque CloudTrail routing fields; false means the canonical event already exists. */
-    boolean recordCognitoSecurityEvent(CognitoSecurityEvent event);
+    boolean recordCognitoSecurityEvent(CognitoSecurityEvent event, Instant readyAt);
 
     Optional<CognitoSecurityEventClaim> claimCognitoSecurityEvent(
             CognitoSecurityEvent event, String workerId, Instant now, Instant leaseExpiresAt);
@@ -206,7 +206,7 @@ public interface IamAuthRepository {
 
     Optional<Instant> findOldestPendingCognitoEventTime(String userPoolId);
 
-    void discoverCognitoReconciliationTargets(String issuer, String userPoolId);
+    void discoverCognitoReconciliationTargets(String issuer, String userPoolId, Instant dueAt);
 
     Optional<CognitoReconciliationClaim> claimCognitoReconciliationTarget(
             String userPoolId, String workerId, Instant now, Instant leaseExpiresAt);
