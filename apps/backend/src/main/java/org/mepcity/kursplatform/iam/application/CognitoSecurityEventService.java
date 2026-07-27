@@ -16,13 +16,15 @@ public final class CognitoSecurityEventService {
         this.repository=repository; this.transactions=transactions; this.audit=audit; this.alerts=alerts; this.clock=clock;
     }
     public void process(CognitoSecurityEvent event, String issuer) {
+        boolean pending = transactions.executeInGlobalScope(OperationCode.COGNITO_SECURITY_EVENT_PROCESS,
+                IamTransactionExecutor.IamAuthScopeContext.actorOnly(UUID.randomUUID()), () -> repository.recordCognitoSecurityEvent(event));
+        if (!pending) return;
         var identity = transactions.executeInAuthenticationScope(UUID.randomUUID(), issuer, event.subject(),
                 () -> repository.findUserIdentityByIssuerAndSubject(issuer, event.subject()));
         if (identity.isEmpty()) { alerts.emit(new SecurityAlertSink.SecurityAlert(SecurityAlertSink.Type.UNKNOWN_SUBJECT, SecurityAlertSink.Severity.WARNING, clock.instant(), Map.of("eventId", event.eventId()))); return; }
         UserIdentity mapped=identity.get();
         transactions.executeInGlobalScope(OperationCode.COGNITO_SECURITY_EVENT_PROCESS,
                 IamTransactionExecutor.IamAuthScopeContext.actorOnly(mapped.userId()).withTargetUser(mapped.userId()), () -> {
-                    if (!repository.recordCognitoSecurityEvent(event)) return null;
                     repository.revokeAllActorFamilies(mapped.userId(), OperationCode.COGNITO_SECURITY_EVENT_PROCESS, clock.instant());
                     repository.elevateUserReauthenticationRequiredAfter(mapped.userId(), clock.instant());
                     audit.write(new IamAuditEvent(UUID.randomUUID(), null, mapped.userId(), null, "IAM_PROVIDER_SESSION_REVOKED", IamAuditEvent.EventScope.GLOBAL, "USER", IamAuditEvent.EventKind.SECURITY, mapped.userId(), Map.of("providerStatus", "REVOKED"), Map.of("operationCode", OperationCode.COGNITO_SECURITY_EVENT_PROCESS.name())));

@@ -63,7 +63,7 @@ public class JdbcIamAuthRepository implements IamAuthRepository {
 
     @Override
     public boolean recordCognitoSecurityEvent(CognitoSecurityEvent event) {
-        return jdbcTemplate.update("INSERT INTO iam_cognito_security_events (provider,user_pool_id,event_id,event_name,subject,event_time) VALUES ('COGNITO',?,?,?,?,?) ON CONFLICT (provider,user_pool_id,event_id) DO NOTHING",
+        return jdbcTemplate.update("INSERT INTO iam_cognito_security_events (provider,user_pool_id,event_id,event_name,subject,event_time) VALUES ('COGNITO',?,?,?,?,?) ON CONFLICT (provider,user_pool_id,event_id) DO UPDATE SET attempt_count=iam_cognito_security_events.attempt_count+1 WHERE iam_cognito_security_events.status='PENDING_MAPPING'",
                 event.userPoolId(), event.eventId(), event.eventName(), event.subject(), Timestamp.from(event.eventTime())) == 1;
     }
 
