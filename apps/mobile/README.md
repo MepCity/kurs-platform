@@ -59,10 +59,20 @@ algoritması geçişinde kullandığı yerel geri alma mekanizmasıdır. Oturum 
 kum havuzu kurulum işaretçisiyle bağlanır; Keychain/Keystore girdisi yeniden kurulumda kalsa bile
 işaretçi olmadan okunamaz. iOS eşzamanlaması kapalıdır (`synchronizable=false`) ve this-device-only
 erişilebilirlik kullanılır.
-Durum yönetimi, ağ istemcisi, şifreli yerel veritabanı ve kalıcı kuyruk hâlâ ilgili sonraki
-görevlerin karar alanıdır.
+Şifreli yerel iş veritabanı ve kalıcı çevrimdışı kuyruk hâlâ ilgili sonraki görevlerin karar
+alanıdır.
 
 ORG-009B, A-004R1'de doğrulanan `flutter_appauth 12.0.2` sürümünü production sistem-tarayıcısı
 Authorization Code + PKCE `S256` akışı için kullanır. WebView veya elle OAuth uygulamak yerine
 platform AppAuth kitaplıklarının state, nonce ve verifier doğrulaması yeniden kullanılır. IAM
 HTTP yüzeyi ek bir framework olmadan dar bir `dart:io` adaptörüdür.
+
+ORG-009C, doğrulanmış platform oturumunu sekiz dosyasız ORG ucuna bağlayan production
+adapterını ekler. Ortak taşıma katmanı redirect izlemez, yanıt boyutunu sınırlar ve her fiziksel
+istekte yeni `X-Request-Id` üretir. Yazma denemeleri kendi stabil `Idempotency-Key` değerini,
+marka/palet/modül güncellemeleri ise `If-Match-Row-Version` ve doğrulanmış `ETag` eşleşmesini
+korur. Production composition mock repository kullanmaz; PLAT-01, PLAT-02 ve ORG-008 ekranları
+UI-004 rota kataloğu üzerinden açılır. IAM sözleşmesi öğretmenin bağımsız izinlerini henüz
+`sessions/me` içinde yayımlamadığından öğretmen yönetim menüsü production'da fail-closed kalır;
+rota kataloğu doğrulanmış izin kaynağı enjekte edildiğinde bağımsız marka ve modül yetkilerini
+birleştirmeden değerlendirmeye hazırdır.

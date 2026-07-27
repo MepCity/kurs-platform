@@ -23,6 +23,7 @@ class PlatformOrganizationListScreen extends StatefulWidget {
     required this.repository,
     super.key,
     this.onOrganizationTap,
+    this.onCreateRequested,
     this.searchDebounce = const Duration(milliseconds: 350),
   });
 
@@ -32,6 +33,7 @@ class PlatformOrganizationListScreen extends StatefulWidget {
   /// target — PLAT-03 (Kurum Detayı) is a separate, not-yet-scheduled task,
   /// so this is a forward-compatible hook rather than a built-in navigation.
   final ValueChanged<Organization>? onOrganizationTap;
+  final VoidCallback? onCreateRequested;
 
   /// Debounce applied to search input before a reload is triggered.
   /// Overridable so widget tests do not need to wait 350 ms per keystroke.
@@ -58,6 +60,7 @@ class _PlatformOrganizationListScreenState
     // the user's scroll position and load-more listener for no reason.
     _scrollController = ScrollController()..addListener(_handleScroll);
     _controller.load();
+    _listenToRepository(widget.repository);
   }
 
   @override
@@ -74,6 +77,10 @@ class _PlatformOrganizationListScreenState
       _controller = _buildController();
       _controller.load();
     }
+    if (widget.repository != oldWidget.repository) {
+      _stopListeningToRepository(oldWidget.repository);
+      _listenToRepository(widget.repository);
+    }
   }
 
   OrganizationListController _buildController() {
@@ -85,11 +92,26 @@ class _PlatformOrganizationListScreenState
 
   @override
   void dispose() {
+    _stopListeningToRepository(widget.repository);
     _controller.removeListener(_handleControllerChanged);
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
   }
+
+  void _listenToRepository(OrganizationsRepository repository) {
+    if (repository case final Listenable listenable) {
+      listenable.addListener(_repositoryChanged);
+    }
+  }
+
+  void _stopListeningToRepository(OrganizationsRepository repository) {
+    if (repository case final Listenable listenable) {
+      listenable.removeListener(_repositoryChanged);
+    }
+  }
+
+  void _repositoryChanged() => _controller.load();
 
   void _handleControllerChanged() {
     final String? loadMoreError = _controller.loadMoreErrorMessage;
@@ -119,6 +141,13 @@ class _PlatformOrganizationListScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppTopBarFactory.platform(title: 'Kurumlar'),
+      floatingActionButton: widget.onCreateRequested == null
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: widget.onCreateRequested,
+              icon: const Icon(Icons.add),
+              label: const Text('Kurum Oluştur'),
+            ),
       body: SafeArea(
         top: false,
         child: ListenableBuilder(

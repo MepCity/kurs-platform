@@ -67,10 +67,28 @@ void main() {
       expect(transport, contains('outgoing.followRedirects = false'));
       expect(transport, contains('if (incoming.isRedirect)'));
       expect(composition, contains('ProductionIamRepository('));
+      expect(composition, contains('ProductionOrganizationsRepository('));
       expect(
         composition,
         isNot(contains('UnavailableAuthenticationRepository')),
       );
+      expect(composition, isNot(contains('OrganizationsMockRepository')));
+      expect(composition, isNot(contains('UnavailableOrganizations')));
+      final workspace = File(
+        'lib/features/bootstrap/presentation/session_bootstrap_gate.dart',
+      ).readAsStringSync();
+      for (final forbidden in ['accessToken', 'refreshToken', 'Bearer ']) {
+        expect(workspace, isNot(contains(forbidden)));
+      }
     },
   );
+
+  test('ORG transport rejects redirects and bounds response bodies', () {
+    final transport = File(
+      'lib/core/network/safe_http_transport.dart',
+    ).readAsStringSync();
+    expect(transport, contains('outgoing.followRedirects = false'));
+    expect(transport, contains('if (incoming.isRedirect)'));
+    expect(transport, contains('safeHttpMaxResponseBytes'));
+  });
 }

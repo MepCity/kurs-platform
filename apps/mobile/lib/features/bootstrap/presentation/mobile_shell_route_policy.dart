@@ -74,6 +74,11 @@ const _rules = <MobileShellRouteId, MobileShellRouteRule>{
     roles: {MobileShellRole.platformAdministrator},
     globalOnly: true,
   ),
+  MobileShellRouteId.platformOrganizationCreate: MobileShellRouteRule(
+    destination: MobileShellRouteId.platformOrganizations,
+    roles: {MobileShellRole.platformAdministrator},
+    globalOnly: true,
+  ),
   MobileShellRouteId.platformAudit: MobileShellRouteRule(
     destination: MobileShellRouteId.platformAudit,
     roles: {MobileShellRole.platformAdministrator},

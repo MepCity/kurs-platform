@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kurs_platform_mobile/core/network/authenticated_api_session.dart';
 import 'package:kurs_platform_mobile/features/auth/domain/authentication_repository.dart';
 import 'package:kurs_platform_mobile/features/auth/domain/secure_session_store.dart';
 import 'package:kurs_platform_mobile/features/auth/domain/session_repository.dart';
@@ -159,6 +160,7 @@ class _Repository implements SessionRepository {
   SessionFailure? refreshFailure;
   SessionFailure? logoutFailure;
   Completer<void>? logoutBlock;
+  Completer<void>? refreshBlock;
   SecureSession? replacement;
 
   @override
@@ -171,6 +173,7 @@ class _Repository implements SessionRepository {
   @override
   Future<SecureSession> refresh(SecureSession candidate) async {
     refreshes++;
+    await refreshBlock?.future;
     if (refreshFailure != null) throw refreshFailure!;
     return replacement!;
   }
@@ -393,4 +396,81 @@ void main() {
     expect(controller.status, BootstrapStatus.authenticated);
     expect(controller.session?.displayName, 'user-new');
   });
+
+  test('parallel ORG refresh uses one request and replacement token', () async {
+    final current = _session('current', expired: false);
+    final replacement = _session('replacement', expired: false);
+    final store = _Store()..value = current;
+    final block = Completer<void>();
+    final repository = _Repository()
+      ..replacement = replacement
+      ..refreshBlock = block;
+    final controller = _controller(store, repository);
+    await controller.start();
+
+    final first = controller.refreshAndRun((token) async => token);
+    final second = controller.refreshAndRun((token) async => token);
+    await Future<void>.delayed(Duration.zero);
+    expect(repository.refreshes, 1);
+    block.complete();
+
+    expect(await Future.wait([first, second]), [
+      'access-replacement',
+      'access-replacement',
+    ]);
+    expect(store.replacements, 1);
+  });
+
+  test('ORG response completing after logout cannot publish success', () async {
+    final current = _session('logout-race', expired: false);
+    final store = _Store()..value = current;
+    final repository = _Repository();
+    final controller = _controller(store, repository);
+    await controller.start();
+    final response = Completer<String>();
+
+    final request = controller.run((_) => response.future);
+    await controller.logout();
+    response.complete('stale-success');
+
+    await expectLater(
+      request,
+      throwsA(
+        isA<AuthenticatedApiSessionUnavailable>().having(
+          (failure) => failure.terminal,
+          'terminal',
+          isTrue,
+        ),
+      ),
+    );
+    expect(controller.status, BootstrapStatus.unauthenticated);
+  });
+
+  test(
+    'refresh completing after logout cannot replace cleared session',
+    () async {
+      final current = _session('refresh-logout', expired: false);
+      final replacement = _session('refresh-after-logout', expired: false);
+      final store = _Store()..value = current;
+      final refreshBlock = Completer<void>();
+      final repository = _Repository()
+        ..replacement = replacement
+        ..refreshBlock = refreshBlock;
+      final controller = _controller(store, repository);
+      await controller.start();
+
+      final refresh = controller.refreshAndRun((token) async => token);
+      await Future<void>.delayed(Duration.zero);
+      await controller.logout();
+      refreshBlock.complete();
+
+      await expectLater(
+        refresh,
+        throwsA(isA<AuthenticatedApiSessionUnavailable>()),
+      );
+      expect(store.value, isNull);
+      expect(store.replacements, 0);
+      expect(controller.status, BootstrapStatus.unauthenticated);
+    },
+  );
 }

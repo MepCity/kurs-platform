@@ -6,7 +6,11 @@ import 'package:kurs_platform_mobile/features/auth/domain/authentication_reposit
 import 'package:kurs_platform_mobile/features/auth/domain/secure_session_store.dart';
 import 'package:kurs_platform_mobile/features/auth/domain/session_repository.dart';
 import 'package:kurs_platform_mobile/features/bootstrap/presentation/session_bootstrap_gate.dart';
+import 'package:kurs_platform_mobile/features/bootstrap/domain/organization_repository_bundle.dart';
+import 'package:kurs_platform_mobile/features/organizations/data/organizations_mock_repository.dart';
+import 'package:kurs_platform_mobile/features/organizations/presentation/organization_brand_settings_screen.dart';
 import 'package:kurs_platform_mobile/core/theme/app_theme.dart';
+import 'package:kurs_platform_mobile/core/network/authenticated_api_session.dart';
 
 class _Auth implements AuthenticationRepository {
   @override
@@ -20,12 +24,13 @@ class _Auth implements AuthenticationRepository {
 }
 
 class _Sessions implements SessionRepository {
-  _Sessions({this.failure});
+  _Sessions({this.failure, this.activated});
   final SessionFailure? failure;
+  final ActivatedSession? activated;
   @override
   Future<ActivatedSession> validate(SecureSession candidate) async {
     if (failure != null) throw failure!;
-    throw UnimplementedError();
+    return activated ?? (throw UnimplementedError());
   }
 
   @override
@@ -87,6 +92,31 @@ final _candidate = SecureSession(
   authenticatedAt: DateTime.utc(2026, 7, 27, 8),
 );
 
+final _organizationCandidate = SecureSession(
+  userId: 'user',
+  deviceId: 'device',
+  scope: SecureSessionScope.organization,
+  accessToken: 'access',
+  refreshToken: 'refresh',
+  expiresAt: DateTime.utc(2027, 7, 27, 10),
+  refreshExpiresAt: DateTime.utc(2027, 8, 27, 10),
+  authenticatedAt: DateTime.utc(2026, 7, 27, 8),
+  organizationMembershipId: 'membership',
+  organizationId: 'organization',
+  sessionGeneration: 3,
+);
+
+OrganizationRepositoryBundle _organizationRepositories(
+  AuthenticatedApiSession _,
+  bool globalListScope,
+) {
+  final repository = OrganizationsMockRepository(latency: Duration.zero);
+  return OrganizationRepositoryBundle(
+    organizations: repository,
+    brand: repository,
+  );
+}
+
 Widget _app(_Store store, _Sessions sessions) => MaterialApp(
   theme: const AppTheme(
     primary: Color(0xFF2E7D32),
@@ -96,6 +126,7 @@ Widget _app(_Store store, _Sessions sessions) => MaterialApp(
     authenticationRepository: _Auth(),
     sessionRepository: sessions,
     sessionStore: store,
+    organizationRepositoryBuilder: _organizationRepositories,
   ),
 );
 
@@ -111,6 +142,67 @@ void main() {
     pending.complete(null);
     await tester.pumpAndSettle();
     expect(find.text('Giriş Yap'), findsOneWidget);
+  });
+
+  testWidgets(
+    'verified global session opens real list, create and support brand routes',
+    (tester) async {
+      final store = _Store()..value = _candidate;
+      final sessions = _Sessions(
+        activated: const ActivatedSession(
+          scope: ActivatedSessionScope.globalPlatformAdministrator,
+          displayName: 'Platform Yöneticisi',
+        ),
+      );
+
+      await tester.pumpWidget(_app(store, sessions));
+      await tester.pumpAndSettle();
+      expect(find.text('Kurumlar'), findsWidgets);
+      expect(find.text('Kurum Oluştur'), findsOneWidget);
+
+      await tester.tap(find.text('Kurum Oluştur'));
+      await tester.pumpAndSettle();
+      expect(find.text('Kurum Oluştur'), findsWidgets);
+      expect(find.text('Kurum Adı'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpWidget(_app(store, sessions));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text("Ahi Evran Kur'an Kursu"));
+      await tester.pumpAndSettle();
+      expect(find.byType(OrganizationBrandSettingsScreen), findsOneWidget);
+      expect(find.text('Etkin modüller'), findsNothing);
+    },
+  );
+
+  testWidgets('ORG_ADMIN and TEACHER require one explicit non-union role', (
+    tester,
+  ) async {
+    final store = _Store()..value = _organizationCandidate;
+    final sessions = _Sessions(
+      activated: const ActivatedSession(
+        scope: ActivatedSessionScope.organization,
+        displayName: 'Çok Rollü Kullanıcı',
+        organizationMembership: AuthOrganizationMembership(
+          id: 'membership',
+          organizationId: 'organization',
+          organizationName: 'Kurs',
+          roleCodes: <String>['ORG_ADMIN', 'TEACHER'],
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(_app(store, sessions));
+    await tester.pumpAndSettle();
+    expect(find.text('Rol Seçimi'), findsOneWidget);
+    expect(find.text('Kurum Yöneticisi'), findsOneWidget);
+    expect(find.text('Hoca'), findsOneWidget);
+
+    await tester.tap(find.text('Hoca'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Hoca'), findsWidgets);
+    expect(find.text('Marka Ayarları'), findsNothing);
+    expect(find.text('Etkin Modüller'), findsNothing);
   });
 
   testWidgets(

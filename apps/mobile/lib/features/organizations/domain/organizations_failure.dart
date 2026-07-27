@@ -9,6 +9,7 @@ import 'organization_create_request.dart';
 /// `403 ORGANIZATION_CONTEXT_REQUIRED` and `409 IDEMPOTENCY_KEY_REUSED`.
 enum OrganizationsFailureCode {
   unauthenticated,
+  sessionRevoked,
   forbidden,
 
   /// `403 ORGANIZATION_CONTEXT_REQUIRED` (§7.4) — the caller presented a
@@ -26,6 +27,7 @@ enum OrganizationsFailureCode {
   versionConflict,
   stateConflict,
   resourceNotFound,
+  transientNetwork,
 }
 
 /// Domain-level failure raised by [OrganizationsRepository.listOrganizations]
@@ -34,7 +36,12 @@ enum OrganizationsFailureCode {
 /// [code] drives whether the presentation layer renders the unauthorized (Z)
 /// or generic error (H) state; [message] is a safe, user-facing description.
 class OrganizationsFailure implements Exception {
-  const OrganizationsFailure(this.code, this.message, {this.fieldErrors});
+  const OrganizationsFailure(
+    this.code,
+    this.message, {
+    this.fieldErrors,
+    this.retryAfter,
+  });
 
   final OrganizationsFailureCode code;
   final String message;
@@ -47,11 +54,13 @@ class OrganizationsFailure implements Exception {
   /// create fields — the presentation layer falls back to showing [message]
   /// as a banner in that case.
   final OrganizationCreateFieldErrors? fieldErrors;
+  final Duration? retryAfter;
 
   /// Whether this failure should surface as the "Z" (yetkisiz) screen state
   /// rather than the generic "H" (hata) state.
   bool get isUnauthorized =>
       code == OrganizationsFailureCode.unauthenticated ||
+      code == OrganizationsFailureCode.sessionRevoked ||
       code == OrganizationsFailureCode.forbidden ||
       code == OrganizationsFailureCode.organizationContextRequired;
 

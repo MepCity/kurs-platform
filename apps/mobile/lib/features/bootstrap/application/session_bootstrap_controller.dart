@@ -1,12 +1,14 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/network/authenticated_api_session.dart';
 import '../../auth/domain/authentication_repository.dart';
 import '../../auth/domain/secure_session_store.dart';
 import '../../auth/domain/session_repository.dart';
 
 enum BootstrapStatus { loading, unauthenticated, authenticated, retryableError }
 
-class SessionBootstrapController extends ChangeNotifier {
+class SessionBootstrapController extends ChangeNotifier
+    implements AuthenticatedApiSession {
   SessionBootstrapController({
     required this.repository,
     required this.sessionStore,
@@ -23,10 +25,130 @@ class SessionBootstrapController extends ChangeNotifier {
   int _operation = 0;
   bool _disposed = false;
   Future<void>? _bootstrapInFlight;
+  Future<SecureSession>? _authorizedRefresh;
 
   BootstrapStatus get status => _status;
   ActivatedSession? get session => _session;
   String? get message => _message;
+
+  @override
+  String get identityKey {
+    final candidate = _candidate;
+    if (_status != BootstrapStatus.authenticated || candidate == null) {
+      return '';
+    }
+    return '${candidate.userId}:${candidate.scope.name}:'
+        '${candidate.organizationMembershipId ?? 'global'}:'
+        '${candidate.sessionGeneration ?? 0}:${candidate.authenticatedAt.toIso8601String()}';
+  }
+
+  @override
+  Future<T> run<T>(Future<T> Function(String bearerToken) operation) async {
+    var candidate = _authorizedCandidate();
+    if (!candidate.expiresAt.isAfter(_now().toUtc())) {
+      candidate = await _refreshForApi(candidate);
+    }
+    if (!_isSameCandidate(candidate) ||
+        _status != BootstrapStatus.authenticated) {
+      throw const AuthenticatedApiSessionUnavailable(terminal: true);
+    }
+    final result = await operation(candidate.accessToken);
+    if (!_isSameCandidate(candidate) ||
+        _status != BootstrapStatus.authenticated) {
+      throw const AuthenticatedApiSessionUnavailable(terminal: true);
+    }
+    return result;
+  }
+
+  @override
+  Future<T> refreshAndRun<T>(
+    Future<T> Function(String bearerToken) operation,
+  ) async {
+    final replacement = await _refreshForApi(_authorizedCandidate());
+    if (!_isSameCandidate(replacement) ||
+        _status != BootstrapStatus.authenticated) {
+      throw const AuthenticatedApiSessionUnavailable(terminal: true);
+    }
+    final result = await operation(replacement.accessToken);
+    if (!_isSameCandidate(replacement) ||
+        _status != BootstrapStatus.authenticated) {
+      throw const AuthenticatedApiSessionUnavailable(terminal: true);
+    }
+    return result;
+  }
+
+  SecureSession _authorizedCandidate() {
+    final candidate = _candidate;
+    if (_status != BootstrapStatus.authenticated || candidate == null) {
+      throw const AuthenticatedApiSessionUnavailable(terminal: true);
+    }
+    return candidate;
+  }
+
+  Future<SecureSession> _refreshForApi(SecureSession candidate) async {
+    final existing = _authorizedRefresh;
+    if (existing != null) return existing;
+    late Future<SecureSession> refresh;
+    refresh = _performAuthorizedRefresh(candidate).whenComplete(() {
+      if (identical(_authorizedRefresh, refresh)) _authorizedRefresh = null;
+    });
+    _authorizedRefresh = refresh;
+    return refresh;
+  }
+
+  Future<SecureSession> _performAuthorizedRefresh(
+    SecureSession candidate,
+  ) async {
+    final operation = _operation;
+    try {
+      final replacement = await repository.refresh(candidate);
+      if (!_current(operation) ||
+          _status != BootstrapStatus.authenticated ||
+          !_isSameCandidate(candidate)) {
+        throw const AuthenticatedApiSessionUnavailable(terminal: true);
+      }
+      if (sessionStore is! AtomicSecureSessionStore) {
+        throw const AuthenticatedApiSessionUnavailable();
+      }
+      final replaced = await (sessionStore as AtomicSecureSessionStore)
+          .replaceIfCurrent(candidate, replacement);
+      if (!replaced ||
+          !_current(operation) ||
+          _status != BootstrapStatus.authenticated ||
+          !_isSameCandidate(candidate)) {
+        throw const AuthenticatedApiSessionUnavailable(terminal: true);
+      }
+      _candidate = replacement;
+      return replacement;
+    } on SessionFailure catch (failure) {
+      if (failure.kind == SessionFailureKind.terminal) {
+        await terminate();
+        throw const AuthenticatedApiSessionUnavailable(terminal: true);
+      }
+      throw const AuthenticatedApiSessionUnavailable();
+    }
+  }
+
+  bool _isSameCandidate(SecureSession candidate) {
+    final current = _candidate;
+    return current != null &&
+        current.userId == candidate.userId &&
+        current.deviceId == candidate.deviceId &&
+        current.scope == candidate.scope &&
+        current.organizationMembershipId ==
+            candidate.organizationMembershipId &&
+        current.sessionGeneration == candidate.sessionGeneration &&
+        current.authenticatedAt == candidate.authenticatedAt;
+  }
+
+  @override
+  Future<void> terminate() async {
+    final candidate = _candidate;
+    if (candidate == null) return;
+    final operation = ++_operation;
+    _set(BootstrapStatus.loading);
+    await _terminalClear(operation, candidate);
+  }
 
   Future<void> start() => _bootstrapInFlight ??= _start().whenComplete(
     () => _bootstrapInFlight = null,
