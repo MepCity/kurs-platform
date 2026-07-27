@@ -4,6 +4,7 @@ import org.mepcity.kursplatform.iam.application.IamAuthRepository;
 import org.mepcity.kursplatform.iam.domain.AuthReplayEscrow;
 import org.mepcity.kursplatform.iam.domain.AuthSession;
 import org.mepcity.kursplatform.iam.domain.ContextSelectionSummary;
+import org.mepcity.kursplatform.iam.domain.CognitoSecurityEvent;
 import org.mepcity.kursplatform.iam.domain.ContextSelectionToken;
 import org.mepcity.kursplatform.iam.domain.DevicePlatform;
 import org.mepcity.kursplatform.iam.domain.EscrowStatus;
@@ -58,6 +59,19 @@ public class JdbcIamAuthRepository implements IamAuthRepository {
                         toInstant(rs.getTimestamp("disabled_at"))),
                 issuer, subject);
         return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+    }
+
+    @Override
+    public boolean recordCognitoSecurityEvent(CognitoSecurityEvent event) {
+        return jdbcTemplate.update("INSERT INTO iam_cognito_security_events (provider,user_pool_id,event_id,event_name,subject,event_time) VALUES ('COGNITO',?,?,?,?,?) ON CONFLICT (provider,user_pool_id,event_id) DO NOTHING",
+                event.userPoolId(), event.eventId(), event.eventName(), event.subject(), Timestamp.from(event.eventTime())) == 1;
+    }
+
+    @Override
+    public void completeCognitoSecurityEvent(CognitoSecurityEvent event) {
+        if (jdbcTemplate.update("UPDATE iam_cognito_security_events SET status='COMPLETED', completed_at=transaction_timestamp() WHERE provider='COGNITO' AND user_pool_id=? AND event_id=? AND status='PENDING_MAPPING'", event.userPoolId(), event.eventId()) != 1) {
+            throw new IllegalStateException("Cognito event completion yazılamadı.");
+        }
     }
 
     @Override

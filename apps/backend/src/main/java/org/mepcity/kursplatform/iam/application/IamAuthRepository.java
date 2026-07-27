@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import org.mepcity.kursplatform.iam.domain.CognitoSecurityEvent;
 
 public interface IamAuthRepository {
 
@@ -184,4 +185,9 @@ public interface IamAuthRepository {
     Optional<ProviderCommand> findProviderCommandByIdempotencyKey(String idempotencyKey);
 
     List<ContextSelectionSummary> findContextSelectionSummaries(UUID userId);
+
+    /** Inserts only opaque CloudTrail routing fields; false means an already terminal event. */
+    boolean recordCognitoSecurityEvent(CognitoSecurityEvent event);
+
+    void completeCognitoSecurityEvent(CognitoSecurityEvent event);
 }

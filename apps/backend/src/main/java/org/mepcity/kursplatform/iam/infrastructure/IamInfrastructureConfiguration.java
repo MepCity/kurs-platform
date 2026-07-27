@@ -2,6 +2,7 @@ package org.mepcity.kursplatform.iam.infrastructure;
 
 import org.mepcity.kursplatform.iam.application.AeadEscrowService;
 import org.mepcity.kursplatform.iam.application.CognitoTokenVerifier;
+import org.mepcity.kursplatform.iam.application.CognitoSecurityEventService;
 import org.mepcity.kursplatform.iam.application.CognitoUserStatusChecker;
 import org.mepcity.kursplatform.iam.application.ContextSelectionService;
 import org.mepcity.kursplatform.iam.application.DeviceSessionService;
@@ -54,6 +55,11 @@ public class IamInfrastructureConfiguration {
     @Bean
     SecurityAlertSink securityAlertSink(SafeEventLogger logger) {
         return new ObservabilitySecurityAlertSink(logger);
+    }
+
+    @Bean
+    CognitoSecurityEventService cognitoSecurityEventService(IamAuthRepository repository, IamTransactionExecutor transactions, IamAuditWriter audit, SecurityAlertSink alerts, Clock clock) {
+        return new CognitoSecurityEventService(repository, transactions, audit, alerts, clock);
     }
 
     @Bean
