@@ -3,9 +3,9 @@
 | Alan | Değer |
 |---|---|
 | Son güncelleme | 27 Temmuz 2026 |
-| Aktif dalga | Dalga 2 — Kimlik, kurum ve mobil kabuk |
-| Aktif görev | ORG-009 — Dalga 2 dosyasız çekirdek uçtan uca entegrasyon |
-| Sıradaki görev | ORG-009 — Mobil ORG HTTP adapterları, rota bağlantısı ve uçtan uca doğrulama |
+| Aktif dalga | Dalga 3 — Sınıf, hoca yetkileri ve öğrenci |
+| Aktif görev | — |
+| Sıradaki görev | TERM-001 — Dönem/takvim veri ve API sözleşmesi |
 
 Bu dosya projenin kaldığı yeri gösteren kısa operasyon panosudur. Her çalışma oturumunun
 başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev tanımları
@@ -15,13 +15,16 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 
 | Kimlik | Görev | Bağımlılık durumu | Not |
 |---|---|---|---|
-| — | — | — | Yeni READY görev, aktif ve incelemedeki işler sonuçlandıktan sonra bağımlılık grafiğinden seçilecek |
+| TERM-001 | Dönem/takvim veri ve API sözleşmesi | P-008 ve P-009 tamamlandı | Dalga 3'ün ilk dönem/takvim sözleşmesi; backend ve mobil dönem görevlerini açar |
+| CLS-001 | Sınıf ve üyelik API sözleşmesi | P-003 ve P-008 tamamlandı | Sınıf, hoca atama ve sınıf kapsamlı yetki zincirini açar |
+| PERM-001 | Yetki sabitleri ve politika sözleşmesi | P-003 tamamlandı | Rol/izin migration ve değerlendirme servisini açar |
+| PEOPLE-001 | Kişi/öğrenci/veli API sözleşmesi | P-008 ve P-009 tamamlandı | Öğrenci, veli ve mobil kişi akışlarını açar |
 
 ## IN_PROGRESS
 
 | Kimlik | Görev | Durum | Not |
 |---|---|---|---|
-| ORG-009 | Dalga 2 dosyasız çekirdek uçtan uca entegrasyon | Backend listeleme ve mobil IAM production adapterı tamamlandı | ORG-009A PR #59 ve ORG-009B PR #61 ile merge edildi; mobil ORG HTTP adapterları, UI-004 rota bağlantısı ve uçtan uca platform doğrulaması sürüyor |
+| — | — | — | Aktif görev yok; READY listesinden sıradaki görev başlatılacak |
 
 ## REVIEW
 
@@ -97,6 +100,8 @@ Bloke görev yok.
 | ORG-009A | Backend kurum listeleme API'sini tamamla | 27 Temmuz 2026 | GLOBAL/ORGANIZATION kapsamlı kurum listeleme; Türkçe arama ve durum filtreleri, AES-GCM opak keyset cursor ve rotation, kalıcı aktör bazlı rate-limit, dar `iam_runtime → org_runtime` FORCE RLS sınırı, atomik audit ve gerçek HTTP→PostgreSQL kabul matrisi; 491 backend test ve tüm kalite kapıları PASS — PR #59 |
 | IAM-009 | Entegrasyon, izolasyon, olay kaybı ve iptal gecikmesi testleri | 27 Temmuz 2026 | CloudTrail güvenlik olaylarının fail-closed ayrıştırılması, kalıcı `PENDING_MAPPING` yeniden işleme, lease/fencing ve reconciliation yarış güvenliği, NULL sistem aktörlü audit, iki/beş dakikalık kalıcı lag alarmı ve dar FORCE RLS sınırları; 526 backend test ve tüm kalite kapıları PASS — PR #60 |
 | ORG-009B | Mobil IAM production adapterını tamamla | 27 Temmuz 2026 | AppAuth sistem tarayıcısı + PKCE, provider exchange ve bağlam aktivasyonu, Keychain/Keystore platform oturumu, `/sessions/me` doğrulaması, refresh/logout idempotency ve secure-storage yarış güvenliği; dar Android OAuth manifesti, 576 mobil test ve Android/iOS kalite kapıları PASS — PR #61 |
+| ORG-009C | Mobil ORG production entegrasyonunu tamamla | 27 Temmuz 2026 | Sekiz dosyasız ORG ucunun şema doğrulamalı production adapterı, gerçek composition/UI-004 rota bağlantısı, kanonik refresh sonrası rol/kurum workspace uzlaştırması, güvenli HTTP/ETag/idempotency ve 611 mobil test; Android/iOS kalite kapıları PASS — PR #62 |
+| ORG-009 | Dalga 2 dosyasız çekirdek uçtan uca entegrasyon | 27 Temmuz 2026 | ORG-009A/B/C ile gerçek backend kurum listeleme, mobil IAM oturumu ve dosyasız ORG ekranları tek production zincirinde birleştirildi; Dalga 2 çıkış kapısındaki giriş, kurum oluşturma/marka, güvenli oturum devamı, cihaz iptali ve kurum izolasyonu kanıtlandı — PR #59, #61, #62 |
 
 ## Sonraki görev nasıl READY yapılır?
 
