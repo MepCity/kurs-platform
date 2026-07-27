@@ -21,6 +21,8 @@ import org.mepcity.kursplatform.iam.application.ProviderTokenExchangeService;
 import org.mepcity.kursplatform.iam.application.SessionActivationService;
 import org.mepcity.kursplatform.iam.application.SessionInfoService;
 import org.mepcity.kursplatform.iam.application.SessionRefreshService;
+import org.mepcity.kursplatform.iam.application.SecurityAlertSink;
+import org.mepcity.kursplatform.core.observability.SafeEventLogger;
 import org.mepcity.kursplatform.iam.application.contract.ActiveSessionResolver;
 import org.mepcity.kursplatform.iam.application.contract.CredentialResolution;
 import org.mepcity.kursplatform.iam.application.contract.CredentialAuthenticationException;
@@ -48,6 +50,11 @@ import java.time.Clock;
  */
 @Configuration
 public class IamInfrastructureConfiguration {
+
+    @Bean
+    SecurityAlertSink securityAlertSink(SafeEventLogger logger) {
+        return new ObservabilitySecurityAlertSink(logger);
+    }
 
     @Bean
     IamAuthRepository iamAuthRepository(JdbcTemplate jdbcTemplate) {
