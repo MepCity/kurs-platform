@@ -2,10 +2,10 @@
 
 | Alan | Değer |
 |---|---|
-| Son güncelleme | 24 Temmuz 2026 |
+| Son güncelleme | 27 Temmuz 2026 |
 | Aktif dalga | Dalga 2 — Kimlik, kurum ve mobil kabuk |
 | Aktif görev | Yok |
-| Sıradaki görev | ORG-008 — Kurum adı ve renk ayarı mobil akışı (dosyasız) |
+| Sıradaki görev | IAM-006 — PR #57 inceleme düzeltmelerini tamamla |
 
 Bu dosya projenin kaldığı yeri gösteren kısa operasyon panosudur. Her çalışma oturumunun
 başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev tanımları
@@ -13,9 +13,7 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 
 ## READY
 
-| Kimlik | Görev | Boyut | Not |
-|---|---|---:|---|
-| ORG-008 | Kurum adı ve renk ayarı mobil akışı (dosyasız) | M | ORG-002, ORG-005, UI-001, UI-003 ve UI-004 tamamlandı; sıradaki ORG mobil görevi |
+Hazır görev yok. Dalga 2 entegrasyon görevleri `IAM-006` tamamlanana kadar başlatılmaz.
 
 ## IN_PROGRESS
 
@@ -35,6 +33,7 @@ Bloke görev yok.
 
 | Kimlik | Görev | Tamamlanma tarihi | Teslim |
 |---|---|---|---|
+| ORG-008 | Kurum adı ve renk ayarı mobil akışı (dosyasız) | 27 Temmuz 2026 | Marka, yardımcı palet ve etkin modül ayarları için bağımsız draft/snapshot/idempotency yaşam döngüsü, ortak `rowVersion` uzlaştırması, ACTIVE/SUSPENDED/ARCHIVED ve platform-support erişim matrisi, salt-okunur arşiv görünümü ve erişilebilir mobil durum testleri; 540 mobil test, Android/iOS kalite kapıları PASS — PR #58 |
 | IAM-008 | Mobil güvenli oturum saklamayı uygula | 24 Temmuz 2026 | Keychain/Android Keystore tabanlı güvenli oturum saklama, fail-closed bütünlük/kurulum işaretçisi, ortak fiziksel işlem kuyruğu ve 483 mobil test; Android/iOS kalite kapıları PASS — PR #56 |
 | PLAN-006 | Belge ve sözleşme senkronizasyonunu tamamla | 24 Temmuz 2026 | Cognito veri modeli, karar günlüğü/metaveri, CTX-01, program durumu, görev bölme kuralı ve A-005 deney belgesi senkronizasyonu — PR #55 |
 | PLAN-001 | Ana ürün ve mimari planını oluştur | 13 Temmuz 2026 | `URUN_VE_UYGULAMA_PLANI.md` |
