@@ -5,7 +5,7 @@
 | Son güncelleme | 27 Temmuz 2026 |
 | Aktif dalga | Dalga 2 — Kimlik, kurum ve mobil kabuk |
 | Aktif görev | ORG-009 — Dalga 2 dosyasız çekirdek uçtan uca entegrasyon |
-| Sıradaki görev | ORG-009 — Backend listeleme sonrası mobil HTTP adapterları, production composition ve uçtan uca doğrulama |
+| Sıradaki görev | ORG-009 — Mobil ORG HTTP adapterları, rota bağlantısı ve uçtan uca doğrulama |
 
 Bu dosya projenin kaldığı yeri gösteren kısa operasyon panosudur. Her çalışma oturumunun
 başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev tanımları
@@ -21,7 +21,7 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 
 | Kimlik | Görev | Durum | Not |
 |---|---|---|---|
-| ORG-009 | Dalga 2 dosyasız çekirdek uçtan uca entegrasyon | Backend kurum listeleme alt teslimi tamamlandı | ORG-009A PR #59 ile merge edildi; mobil IAM/ORG HTTP adapterları, production composition ve uçtan uca platform doğrulaması sürüyor |
+| ORG-009 | Dalga 2 dosyasız çekirdek uçtan uca entegrasyon | Backend listeleme ve mobil IAM production adapterı tamamlandı | ORG-009A PR #59 ve ORG-009B PR #61 ile merge edildi; mobil ORG HTTP adapterları, UI-004 rota bağlantısı ve uçtan uca platform doğrulaması sürüyor |
 
 ## REVIEW
 
@@ -96,6 +96,7 @@ Bloke görev yok.
 | IAM-006 | Cihaz kaydı, DEVICE_SESSION_REVOKE ve yeniden doğrulamayı uygula | 27 Temmuz 2026 | Cihaz listeleme ve kendi/kurum/platform oturum iptali; AES-GCM opak cursor, kalıcı rate-limit, sürümlü idempotent snapshot replay, dar FORCE RLS/SECURITY DEFINER sınırları, advisory-lock eşzamanlılık ve gerçek HTTP→PostgreSQL kabul kanıtları; 451 backend test ve tüm kalite kapıları PASS — PR #57 |
 | ORG-009A | Backend kurum listeleme API'sini tamamla | 27 Temmuz 2026 | GLOBAL/ORGANIZATION kapsamlı kurum listeleme; Türkçe arama ve durum filtreleri, AES-GCM opak keyset cursor ve rotation, kalıcı aktör bazlı rate-limit, dar `iam_runtime → org_runtime` FORCE RLS sınırı, atomik audit ve gerçek HTTP→PostgreSQL kabul matrisi; 491 backend test ve tüm kalite kapıları PASS — PR #59 |
 | IAM-009 | Entegrasyon, izolasyon, olay kaybı ve iptal gecikmesi testleri | 27 Temmuz 2026 | CloudTrail güvenlik olaylarının fail-closed ayrıştırılması, kalıcı `PENDING_MAPPING` yeniden işleme, lease/fencing ve reconciliation yarış güvenliği, NULL sistem aktörlü audit, iki/beş dakikalık kalıcı lag alarmı ve dar FORCE RLS sınırları; 526 backend test ve tüm kalite kapıları PASS — PR #60 |
+| ORG-009B | Mobil IAM production adapterını tamamla | 27 Temmuz 2026 | AppAuth sistem tarayıcısı + PKCE, provider exchange ve bağlam aktivasyonu, Keychain/Keystore platform oturumu, `/sessions/me` doğrulaması, refresh/logout idempotency ve secure-storage yarış güvenliği; dar Android OAuth manifesti, 576 mobil test ve Android/iOS kalite kapıları PASS — PR #61 |
 
 ## Sonraki görev nasıl READY yapılır?
 
