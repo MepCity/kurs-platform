@@ -15,19 +15,30 @@ import org.mepcity.kursplatform.org.domain.OrganizationRepository;
 /** Framework-free list use case. JDBC, transactions, RLS and crypto stay behind ports. */
 public final class OrganizationListService {
     private static final Duration CURSOR_TTL = Duration.ofMinutes(15);
-    private final OrganizationRepository organizations; private final ActiveSessionResolver sessions; private final AuditWriter audits;
-    private final OrganizationListTransaction transactions; private final OrganizationListCursorCodec cursors;
-    private final OrganizationListRateLimiter rateLimiter; private final Clock clock;
+    private final OrganizationRepository organizations;
+    private final ActiveSessionResolver sessions;
+    private final AuditWriter audits;
+    private final OrganizationListTransaction transactions;
+    private final OrganizationListCursorCodec cursors;
+    private final OrganizationListRateLimiter rateLimiter;
+    private final Clock clock;
     public OrganizationListService(OrganizationRepository organizations, ActiveSessionResolver sessions, AuditWriter audits,
             OrganizationListTransaction transactions, OrganizationListCursorCodec cursors, OrganizationListRateLimiter rateLimiter, Clock clock) {
-        this.organizations=organizations; this.sessions=sessions; this.audits=audits; this.transactions=transactions; this.cursors=cursors; this.rateLimiter=rateLimiter; this.clock=clock;
+        this.organizations = organizations;
+        this.sessions = sessions;
+        this.audits = audits;
+        this.transactions = transactions;
+        this.cursors = cursors;
+        this.rateLimiter = rateLimiter;
+        this.clock = clock;
     }
     public Result list(String token, Query query, String requestId) {
-        CredentialResolution credential; try { credential=sessions.resolveCredential(token); } catch (CredentialAuthenticationException e) { throw new OrganizationAuthenticationException(); }
-        if (credential.kind()==CredentialResolution.Kind.CONTEXT_SELECTION) throw new OrganizationContextRequiredException();
-        ActiveSession actor=credential.activeSession();
+        CredentialResolution credential;
+        try { credential = sessions.resolveCredential(token); } catch (CredentialAuthenticationException e) { throw new OrganizationAuthenticationException(); }
+        if (credential.kind() == CredentialResolution.Kind.CONTEXT_SELECTION) throw new OrganizationContextRequiredException();
+        ActiveSession actor = credential.activeSession();
         if (!actor.isGlobalPlatformAdmin() && query.supplied()) throw new OrganizationListValidationException();
-        return actor.isGlobalPlatformAdmin() ? global(actor,query,requestId) : organization(actor,query);
+        return actor.isGlobalPlatformAdmin() ? global(actor, query, requestId) : organization(actor, query);
     }
     private Result global(ActiveSession actor, Query query, String requestId) {
         OrganizationListCursor.Context context = query.context(actor.userId(), OrganizationListTransaction.Scope.GLOBAL);
