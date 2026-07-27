@@ -2,6 +2,7 @@ package org.mepcity.kursplatform.iam.infrastructure;
 
 import org.junit.jupiter.api.Test;
 import org.mepcity.kursplatform.iam.application.ProviderCommandScheduler;
+import org.mepcity.kursplatform.core.observability.SafeEventLogger;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
@@ -43,6 +44,7 @@ class ProviderCommandSchedulerRegistrationTests {
                     PackageScanProbe.class, IamPropertiesServiceSettings.class)
             .withBean(DataSource.class, () -> mock(DataSource.class))
             .withBean(PlatformTransactionManager.class, () -> mock(PlatformTransactionManager.class))
+            .withBean(SafeEventLogger.class, () -> event -> { })
             .withPropertyValues(
                     "iam.token-hash-pepper=scheduler-registration-pepper-min-16",
                     "iam.escrow-secret=scheduler-registration-escrow-min-16",

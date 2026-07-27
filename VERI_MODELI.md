@@ -2174,6 +2174,14 @@ tamlık kanıtı değildir. `PENDING_MAPPING` bilinmeyen subject için completio
 retry sonrası yazılır. Tablo FORCE RLS'tir ve yalnız `GLOBAL/COGNITO_SECURITY_EVENT_PROCESS`
 işlem kodu altında `iam_runtime` tarafından erişilir.
 
+Event satırındaki `lease_owner`, `lease_expires_at` ve monoton `fencing_token`, eşzamanlı
+consumerlardan yalnız birinin completion yazabilmesini sağlar. Süresi dolmuş lease başka worker
+tarafından daha yüksek fencing tokenıyla alınabilir; eski worker completion CAS'inde reddedilir.
+`iam_cognito_reconciliation_targets`, yalnız aktif platform ailesi bulunan Cognito identity'lerini
+kalıcı `next_check_at` checkpoint'i ve aynı lease/fencing modeliyle tarar. `last_provider_status`
+yalnız `ACTIVE`, `DISABLED`, `REVOKED` veya `UNKNOWN` olabilir. Her iki tablo FORCE RLS altında,
+ayrı operation code ve doğrulanmış pool/target-user GUC bağlamıyla sınırlandırılır.
+
 ## 21. Kapsam dışı bırakılanlar
 
 - API istek/cevap sözleşmesi ve sayfalama/filtreleme standardı `API_GENEL_KURALLARI.md`de

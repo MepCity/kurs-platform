@@ -16,6 +16,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mepcity.kursplatform.iam.domain.CognitoSecurityEvent;
+import org.mepcity.kursplatform.iam.domain.CognitoSecurityEventClaim;
 import org.mepcity.kursplatform.iam.domain.UserIdentity;
 
 class CognitoSecurityEventServiceTests {
@@ -36,20 +37,23 @@ class CognitoSecurityEventServiceTests {
 
     @Test void mappedEventRevokesAuditsThenCompletes() {
         UUID user = UUID.randomUUID();
-        when(repository.recordCognitoSecurityEvent(event)).thenReturn(true);
+        var claim = new CognitoSecurityEventClaim(event, "direct-consumer", 1, Instant.EPOCH.plusSeconds(120));
+        when(repository.claimCognitoSecurityEvent(any(), any(), any(), any())).thenReturn(Optional.of(claim));
         when(repository.findUserIdentityByIssuerAndSubject("issuer", "subject-1"))
                 .thenReturn(Optional.of(new UserIdentity(UUID.randomUUID(), user, "issuer", "subject-1", Instant.EPOCH, null)));
         service.process(event, "issuer");
         verify(repository).revokeAllActorFamilies(any(), any(), any());
         verify(audit).write(any());
-        verify(repository).completeCognitoSecurityEvent(event);
+        verify(repository).completeCognitoSecurityEvent(any(CognitoSecurityEventClaim.class), any());
     }
 
     @Test void unknownSubjectStaysPendingAndEmitsSafeAlert() {
-        when(repository.recordCognitoSecurityEvent(event)).thenReturn(true);
+        var claim = new CognitoSecurityEventClaim(event, "direct-consumer", 1, Instant.EPOCH.plusSeconds(120));
+        when(repository.claimCognitoSecurityEvent(any(), any(), any(), any())).thenReturn(Optional.of(claim));
         when(repository.findUserIdentityByIssuerAndSubject("issuer", "subject-1")).thenReturn(Optional.empty());
         service.process(event, "issuer");
         verify(repository, never()).completeCognitoSecurityEvent(event);
+        verify(repository).releaseCognitoSecurityEvent(claim);
         verify(alerts).emit(any());
     }
 }

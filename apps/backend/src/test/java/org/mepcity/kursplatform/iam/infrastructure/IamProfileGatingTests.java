@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.mepcity.kursplatform.iam.application.CognitoTokenVerifier;
 import org.mepcity.kursplatform.iam.application.CognitoUserStatusChecker;
 import org.mepcity.kursplatform.iam.application.ProviderCommandWorkerAdapter;
+import org.mepcity.kursplatform.core.observability.SafeEventLogger;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.transaction.PlatformTransactionManager;
 
@@ -26,6 +27,7 @@ class IamProfileGatingTests {
                     IamLocalStubConfiguration.class, IamPropertiesServiceSettings.class)
             .withBean(DataSource.class, () -> mock(DataSource.class))
             .withBean(PlatformTransactionManager.class, () -> mock(PlatformTransactionManager.class))
+            .withBean(SafeEventLogger.class, () -> event -> { })
             .withPropertyValues(
                     "iam.token-hash-pepper=default-profile-pepper-min-16-chars",
                     "iam.escrow-secret=default-profile-escrow-min-16-chars",

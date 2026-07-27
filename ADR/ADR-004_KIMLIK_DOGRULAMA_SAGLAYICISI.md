@@ -872,3 +872,10 @@ kanıtlayamaz. Bu nedenle production Cognito güvenlik mutasyonları yalnız dar
 yapılır; insan console/doğrudan API erişimi yasaktır. Lag 2 dakikada WARNING, 5 dakikada CRITICAL
 olur. `SecurityAlertSink` mevcut güvenli structured-log sınırına yazar; CloudWatch/SNS hedefi
 OPS-003 kapsamındadır.
+
+Consumer ve sweep sahipliği PostgreSQL'de transaction-scoped claim ile değil, crash sonrası
+devralmayı da koruyan kalıcı lease + monoton fencing tokenıyla tutulur. Completion worker, fencing
+ve lease süresini CAS olarak yeniden doğrular. SQS receipt handle yalnız infrastructure
+adapterında kalır ve kalıcı iş kimliği değildir. Repo yalnız port, scheduler ve kapalı
+yapılandırma sözleşmesini içerir; EventBridge/SQS/DLQ/CloudWatch kaynakları kurulmuş sayılmaz ve
+A-010/OPS-003 teslimine kadar workerlar varsayılan kapalıdır.
