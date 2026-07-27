@@ -45,7 +45,7 @@ public final class CognitoReconciliationService {
     public boolean pollOne(String workerId) {
         var claim = transactions.executeInGlobalScope(
                 OperationCode.COGNITO_RECONCILIATION_SWEEP,
-                IamTransactionExecutor.IamAuthScopeContext.actorOnly(UUID.randomUUID()),
+                IamTransactionExecutor.IamAuthScopeContext.actorOnly(null),
                 () -> {
                     repository.discoverCognitoReconciliationTargets(issuer, userPoolId);
                     return repository.claimCognitoReconciliationTarget(
@@ -70,7 +70,7 @@ public final class CognitoReconciliationService {
 
         transactions.executeInGlobalScope(
                 OperationCode.COGNITO_RECONCILIATION_SWEEP,
-                IamTransactionExecutor.IamAuthScopeContext.actorOnly(target.userId())
+                IamTransactionExecutor.IamAuthScopeContext.actorOnly(null)
                         .withTargetUser(target.userId()),
                 () -> {
                     if (isNewTerminalStatus(target, status)) {
@@ -92,7 +92,7 @@ public final class CognitoReconciliationService {
     private void releaseForRetry(CognitoReconciliationClaim target) {
         transactions.executeInGlobalScope(
                 OperationCode.COGNITO_RECONCILIATION_SWEEP,
-                IamTransactionExecutor.IamAuthScopeContext.actorOnly(target.userId())
+                IamTransactionExecutor.IamAuthScopeContext.actorOnly(null)
                         .withTargetUser(target.userId()),
                 () -> {
                     repository.releaseCognitoReconciliationTarget(
@@ -112,7 +112,7 @@ public final class CognitoReconciliationService {
         audit.write(new IamAuditEvent(
                 UUID.randomUUID(),
                 null,
-                target.userId(),
+                null,
                 null,
                 "IAM_PROVIDER_SESSION_REVOKED",
                 IamAuditEvent.EventScope.GLOBAL,

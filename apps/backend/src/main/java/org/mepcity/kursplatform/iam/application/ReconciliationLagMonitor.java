@@ -5,7 +5,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 import org.mepcity.kursplatform.iam.domain.OperationCode;
 
 /** Persistent, deterministic 2/5-minute operational gate shared by both schedulers. */
@@ -45,7 +44,7 @@ public final class ReconciliationLagMonitor {
         Instant now = clock.instant();
         Optional<Instant> oldest = transactions.executeInGlobalScope(
                 operationCode,
-                IamTransactionExecutor.IamAuthScopeContext.actorOnly(UUID.randomUUID()),
+                IamTransactionExecutor.IamAuthScopeContext.actorOnly(null),
                 () -> "EVENT".equals(checkpoint)
                         ? repository.findOldestPendingCognitoEventTime(userPoolId)
                         : repository.findOldestDueReconciliationTime(userPoolId, now));
@@ -61,7 +60,7 @@ public final class ReconciliationLagMonitor {
         Instant now = clock.instant();
         boolean claimed = transactions.executeInGlobalScope(
                 operationCode,
-                IamTransactionExecutor.IamAuthScopeContext.actorOnly(UUID.randomUUID()),
+                IamTransactionExecutor.IamAuthScopeContext.actorOnly(null),
                 () -> repository.claimCognitoLagAlarm(
                         userPoolId,
                         checkpoint,

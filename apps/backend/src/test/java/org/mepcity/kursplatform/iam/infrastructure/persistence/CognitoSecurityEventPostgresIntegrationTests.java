@@ -25,6 +25,8 @@ import org.mepcity.kursplatform.iam.application.IamTransactionExecutor;
 import org.mepcity.kursplatform.iam.application.SecurityAlertSink;
 import org.mepcity.kursplatform.iam.application.ReconciliationLagMonitor;
 import org.mepcity.kursplatform.iam.domain.CognitoSecurityEvent;
+import org.mepcity.kursplatform.iam.domain.IamAuditEvent;
+import org.mepcity.kursplatform.iam.domain.IamAuditWriteException;
 import org.mepcity.kursplatform.iam.domain.OperationCode;
 import org.mepcity.kursplatform.iam.domain.ProviderUserStatus;
 import org.mepcity.kursplatform.iam.infrastructure.JdbcIamAuditWriter;
@@ -84,7 +86,9 @@ class CognitoSecurityEventPostgresIntegrationTests {
         assertThat(count("refresh_token_families WHERE user_id='" + target + "' AND revoked_at IS NOT NULL")).isEqualTo(1);
         assertThat(count("refresh_token_families WHERE user_id='" + other + "' AND revoked_at IS NULL")).isEqualTo(1);
         assertThat(count("iam_cognito_security_events WHERE event_id='event-1' AND status='COMPLETED'")).isEqualTo(1);
-        assertThat(count("audit_logs WHERE action_type='IAM_PROVIDER_SESSION_REVOKED' AND target_entity_id='" + target + "'")).isEqualTo(1);
+        assertThat(count("audit_logs WHERE action_type='IAM_PROVIDER_SESSION_REVOKED'"
+                + " AND actor_user_id IS NULL AND target_entity_id='" + target + "'"))
+                .isEqualTo(1);
     }
 
     @Test void expiredLeaseCanBeReclaimedAndStaleWorkerCannotComplete() {
@@ -131,7 +135,8 @@ class CognitoSecurityEventPostgresIntegrationTests {
 
     @Test
     void unknownSubjectIsAckSafePersistentWorkAndCompletesAfterIdentityAppears() {
-        var event = event("event-late-mapping", "subject-late");
+        String subject = "federated|öğrenci/例-42";
+        var event = event("event-late-mapping", subject);
         var service = new CognitoSecurityEventService(
                 repository,
                 transactions,
@@ -146,7 +151,7 @@ class CognitoSecurityEventPostgresIntegrationTests {
         assertThat(count("iam_cognito_security_events WHERE event_id='event-late-mapping'"
                 + " AND status='PENDING_MAPPING' AND lease_owner IS NULL")).isEqualTo(1);
 
-        UUID target = seedIdentityWithFamily("subject-late", "late");
+        UUID target = seedIdentityWithFamily(subject, "late");
         owner.update("UPDATE iam_cognito_security_events SET next_attempt_at=? WHERE event_id=?",
                 Timestamp.from(NOW), event.eventId());
 
@@ -155,7 +160,8 @@ class CognitoSecurityEventPostgresIntegrationTests {
                 + " AND status='COMPLETED'")).isEqualTo(1);
         assertThat(count("refresh_token_families WHERE user_id='" + target
                 + "' AND revoked_at IS NOT NULL")).isEqualTo(1);
-        assertThat(count("audit_logs WHERE target_entity_id='" + target + "'")).isEqualTo(1);
+        assertThat(count("audit_logs WHERE actor_user_id IS NULL"
+                + " AND target_entity_id='" + target + "'")).isEqualTo(1);
     }
 
     @Test
@@ -210,6 +216,23 @@ class CognitoSecurityEventPostgresIntegrationTests {
     }
 
     @Test
+    void automatedAuditRlsRejectsActorGucInsteadOfEquatingActorAndTarget() {
+        UUID target = seedIdentityWithFamily("subject-system-audit", "system-audit");
+        var auditWriter = new JdbcIamAuditWriter(runtimeDataSource);
+
+        assertThatThrownBy(() -> transactions.executeInGlobalScope(
+                OperationCode.COGNITO_SECURITY_EVENT_PROCESS,
+                IamTransactionExecutor.IamAuthScopeContext.actorOnly(UUID.randomUUID())
+                        .withTargetUser(target),
+                () -> {
+                    auditWriter.write(systemRevocationAudit(target));
+                    return null;
+                }))
+                .isInstanceOf(IamAuditWriteException.class);
+        assertThat(count("audit_logs WHERE target_entity_id='" + target + "'")).isZero();
+    }
+
+    @Test
     void reconciliationRlsRejectsWrongOperationAndHidesAnotherPool() {
         UUID correct = seedIdentityWithFamily("subject-correct-pool", "correct-pool");
         UUID other = seedIdentityWithFamily("subject-other-pool", "other-pool");
@@ -259,7 +282,9 @@ class CognitoSecurityEventPostgresIntegrationTests {
 
         assertThat(count("refresh_token_families WHERE user_id='" + target + "' AND revoked_at IS NOT NULL")).isEqualTo(1);
         assertThat(count("iam_cognito_reconciliation_targets WHERE user_id='" + target + "' AND last_provider_status='DISABLED' AND lease_owner IS NULL")).isEqualTo(1);
-        assertThat(count("audit_logs WHERE action_type='IAM_PROVIDER_SESSION_REVOKED' AND target_entity_id='" + target + "'")).isEqualTo(1);
+        assertThat(count("audit_logs WHERE action_type='IAM_PROVIDER_SESSION_REVOKED'"
+                + " AND actor_user_id IS NULL AND target_entity_id='" + target + "'"))
+                .isEqualTo(1);
         assertThat(alerts).isEmpty();
     }
 
@@ -418,18 +443,19 @@ class CognitoSecurityEventPostgresIntegrationTests {
 
         assertThat(count("refresh_token_families WHERE user_id='" + disabled
                 + "' AND revoked_at IS NOT NULL")).isEqualTo(1);
-        assertThat(count("audit_logs WHERE target_entity_id='" + disabled + "'")).isEqualTo(1);
+        assertThat(count("audit_logs WHERE actor_user_id IS NULL"
+                + " AND target_entity_id='" + disabled + "'")).isEqualTo(1);
     }
 
     private <T> T inEventScope(java.util.function.Supplier<T> work) {
         return transactions.executeInGlobalScope(OperationCode.COGNITO_SECURITY_EVENT_PROCESS,
-                IamTransactionExecutor.IamAuthScopeContext.actorOnly(UUID.randomUUID()), work);
+                IamTransactionExecutor.IamAuthScopeContext.actorOnly(null), work);
     }
 
     private <T> T inSweepScope(java.util.function.Supplier<T> work) {
         return transactions.executeInGlobalScope(
                 OperationCode.COGNITO_RECONCILIATION_SWEEP,
-                IamTransactionExecutor.IamAuthScopeContext.actorOnly(UUID.randomUUID()),
+                IamTransactionExecutor.IamAuthScopeContext.actorOnly(null),
                 work);
     }
 
@@ -449,6 +475,24 @@ class CognitoSecurityEventPostgresIntegrationTests {
     private CognitoSecurityEvent event(String id, String subject) {
         return new CognitoSecurityEvent("eu-central-1_pool", id, "AdminDisableUser", subject, NOW.minusSeconds(30));
     }
+
+    private IamAuditEvent systemRevocationAudit(UUID target) {
+        return new IamAuditEvent(
+                UUID.randomUUID(),
+                null,
+                null,
+                null,
+                "IAM_PROVIDER_SESSION_REVOKED",
+                IamAuditEvent.EventScope.GLOBAL,
+                "USER",
+                IamAuditEvent.EventKind.SECURITY,
+                target,
+                java.util.Map.of("providerStatus", "REVOKED"),
+                java.util.Map.of(
+                        "operationCode",
+                        OperationCode.COGNITO_SECURITY_EVENT_PROCESS.name()));
+    }
+
     private String issuer() { return "https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_pool"; }
     private long count(String tail) { return owner.queryForObject("SELECT count(*) FROM " + tail, Long.class); }
 }

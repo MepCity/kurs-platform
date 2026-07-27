@@ -1,35 +1,6 @@
--- IAM-009 correction: canonical pending work is reclaimed from PostgreSQL after SQS ACK.
--- TERMINAL was never a production transition; remove it from the live status contract.
+-- IAM-009: canonical pending work is reclaimed from PostgreSQL after SQS ACK.
 ALTER TABLE iam_cognito_security_events
-    DROP CONSTRAINT IF EXISTS iam_cognito_security_events_check,
-    DROP CONSTRAINT IF EXISTS iam_cognito_security_event_lease_shape_ck,
-    ALTER COLUMN status DROP DEFAULT;
-ALTER TABLE iam_cognito_security_events
-    ALTER COLUMN status TYPE TEXT USING status::text;
-DROP TYPE iam_cognito_security_event_status_enum;
-CREATE TYPE iam_cognito_security_event_status_enum AS ENUM ('PENDING_MAPPING', 'COMPLETED');
-ALTER TABLE iam_cognito_security_events
-    ALTER COLUMN status TYPE iam_cognito_security_event_status_enum
-    USING status::iam_cognito_security_event_status_enum,
-    ALTER COLUMN status SET DEFAULT 'PENDING_MAPPING',
-    ADD COLUMN next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT transaction_timestamp(),
-    ADD CONSTRAINT iam_cognito_security_event_status_shape_ck CHECK (
-        (status = 'COMPLETED' AND completed_at IS NOT NULL AND terminal_at IS NULL)
-        OR (status = 'PENDING_MAPPING' AND completed_at IS NULL AND terminal_at IS NULL)),
-    ADD CONSTRAINT iam_cognito_security_event_lease_shape_ck CHECK (
-        (lease_owner IS NULL AND lease_expires_at IS NULL)
-        OR (status = 'PENDING_MAPPING'
-            AND lease_owner IS NOT NULL
-            AND lease_expires_at IS NOT NULL));
-
-ALTER TABLE iam_cognito_security_events
-    DROP CONSTRAINT iam_cognito_security_events_event_name_check,
-    ADD CONSTRAINT iam_cognito_security_events_event_name_check CHECK (
-        event_name IN (
-            'AdminDisableUser',
-            'AdminUserGlobalSignOut',
-            'AdminResetUserPassword',
-            'AdminSetUserPassword'));
+    ADD COLUMN next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT transaction_timestamp();
 
 GRANT UPDATE (next_attempt_at) ON iam_cognito_security_events TO iam_runtime;
 CREATE INDEX iam_cognito_security_events_pending_idx
@@ -42,6 +13,7 @@ CREATE POLICY user_identities_select_cognito_event
         current_user = 'iam_runtime'
         AND current_setting('app.iam_operation_scope', true) = 'GLOBAL'
         AND current_setting('app.iam_operation_code', true) = 'COGNITO_SECURITY_EVENT_PROCESS'
+        AND current_setting('app.iam_system_actor', true) = 'true'
         AND issuer = current_setting('app.iam_provider_issuer', true)
         AND subject = current_setting('app.iam_provider_subject', true));
 
@@ -65,6 +37,7 @@ CREATE POLICY iam_cognito_lag_alarm_runtime ON iam_cognito_lag_alarm_state
         AND current_setting('app.iam_operation_code', true) IN (
             'COGNITO_SECURITY_EVENT_PROCESS',
             'COGNITO_RECONCILIATION_SWEEP')
+        AND current_setting('app.iam_system_actor', true) = 'true'
         AND provider = 'COGNITO'
         AND user_pool_id = current_setting('app.iam_provider_pool_id', true))
     WITH CHECK (
@@ -73,5 +46,6 @@ CREATE POLICY iam_cognito_lag_alarm_runtime ON iam_cognito_lag_alarm_state
         AND current_setting('app.iam_operation_code', true) IN (
             'COGNITO_SECURITY_EVENT_PROCESS',
             'COGNITO_RECONCILIATION_SWEEP')
+        AND current_setting('app.iam_system_actor', true) = 'true'
         AND provider = 'COGNITO'
         AND user_pool_id = current_setting('app.iam_provider_pool_id', true));

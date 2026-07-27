@@ -21,41 +21,50 @@ GRANT UPDATE (next_check_at,last_checked_at,last_provider_status,lease_owner,lea
 CREATE POLICY iam_cognito_reconciliation_runtime ON iam_cognito_reconciliation_targets FOR ALL TO iam_runtime
  USING (current_user='iam_runtime' AND current_setting('app.iam_operation_scope',true)='GLOBAL'
    AND current_setting('app.iam_operation_code',true)='COGNITO_RECONCILIATION_SWEEP'
+   AND current_setting('app.iam_system_actor',true)='true'
    AND user_pool_id=current_setting('app.iam_provider_pool_id',true))
  WITH CHECK (current_user='iam_runtime' AND current_setting('app.iam_operation_scope',true)='GLOBAL'
    AND current_setting('app.iam_operation_code',true)='COGNITO_RECONCILIATION_SWEEP'
+   AND current_setting('app.iam_system_actor',true)='true'
    AND user_pool_id=current_setting('app.iam_provider_pool_id',true));
 
 CREATE POLICY user_identities_select_cognito_sweep ON user_identities FOR SELECT TO iam_runtime USING (
  current_user='iam_runtime' AND current_setting('app.iam_operation_scope',true)='GLOBAL'
- AND current_setting('app.iam_operation_code',true)='COGNITO_RECONCILIATION_SWEEP');
+ AND current_setting('app.iam_operation_code',true)='COGNITO_RECONCILIATION_SWEEP'
+ AND current_setting('app.iam_system_actor',true)='true');
 CREATE POLICY refresh_families_select_cognito_sweep ON refresh_token_families FOR SELECT TO iam_runtime USING (
  current_user='iam_runtime' AND current_setting('app.iam_operation_scope',true)='GLOBAL'
- AND current_setting('app.iam_operation_code',true)='COGNITO_RECONCILIATION_SWEEP');
+ AND current_setting('app.iam_operation_code',true)='COGNITO_RECONCILIATION_SWEEP'
+ AND current_setting('app.iam_system_actor',true)='true');
 CREATE POLICY refresh_families_update_cognito_sweep ON refresh_token_families FOR UPDATE TO iam_runtime
  USING (current_user='iam_runtime' AND current_setting('app.iam_operation_scope',true)='GLOBAL'
   AND current_setting('app.iam_operation_code',true)='COGNITO_RECONCILIATION_SWEEP'
+  AND current_setting('app.iam_system_actor',true)='true'
   AND user_id=current_setting('app.iam_target_user_id',true)::uuid AND revoked_at IS NULL)
  WITH CHECK (revoked_at IS NOT NULL);
 CREATE POLICY refresh_tokens_select_cognito_sweep ON refresh_tokens FOR SELECT TO iam_runtime USING (
  current_user='iam_runtime' AND current_setting('app.iam_operation_scope',true)='GLOBAL'
  AND current_setting('app.iam_operation_code',true)='COGNITO_RECONCILIATION_SWEEP'
+ AND current_setting('app.iam_system_actor',true)='true'
  AND EXISTS (SELECT 1 FROM refresh_token_families f WHERE f.id=family_id
   AND f.user_id=current_setting('app.iam_target_user_id',true)::uuid));
 CREATE POLICY refresh_tokens_update_cognito_sweep ON refresh_tokens FOR UPDATE TO iam_runtime
  USING (current_user='iam_runtime' AND current_setting('app.iam_operation_scope',true)='GLOBAL'
   AND current_setting('app.iam_operation_code',true)='COGNITO_RECONCILIATION_SWEEP' AND revoked_at IS NULL
+  AND current_setting('app.iam_system_actor',true)='true'
   AND EXISTS (SELECT 1 FROM refresh_token_families f WHERE f.id=family_id
    AND f.user_id=current_setting('app.iam_target_user_id',true)::uuid))
  WITH CHECK (revoked_at IS NOT NULL);
 CREATE POLICY users_update_cognito_sweep ON users FOR UPDATE TO iam_runtime
  USING (current_user='iam_runtime' AND current_setting('app.iam_operation_scope',true)='GLOBAL'
   AND current_setting('app.iam_operation_code',true)='COGNITO_RECONCILIATION_SWEEP'
+  AND current_setting('app.iam_system_actor',true)='true'
   AND id=current_setting('app.iam_target_user_id',true)::uuid)
  WITH CHECK (id=current_setting('app.iam_target_user_id',true)::uuid);
 CREATE POLICY audit_insert_cognito_sweep ON audit_logs FOR INSERT TO iam_runtime WITH CHECK (
  current_user='iam_runtime' AND action_type='IAM_PROVIDER_SESSION_REVOKED' AND event_scope='GLOBAL'
- AND actor_user_id=current_setting('app.iam_actor_user_id',true)::uuid
+ AND actor_user_id IS NULL
  AND target_entity_id=current_setting('app.iam_target_user_id',true)::uuid
+ AND current_setting('app.iam_system_actor',true)='true'
  AND current_setting('app.iam_operation_scope',true)='GLOBAL'
  AND current_setting('app.iam_operation_code',true)='COGNITO_RECONCILIATION_SWEEP');

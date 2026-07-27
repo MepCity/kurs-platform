@@ -2168,6 +2168,8 @@ classes 0..1—n sync_changes (scope_class_id; değişiklik anındaki yayın kap
 
 CloudTrail/EventBridge/SQS tesliminin ham gövdesi tutulmaz. Tablo yalnız `provider='COGNITO'`,
 `user_pool_id`, `event_id`, allow-list event adı, subject, event time ve deneme sayısı taşır.
+Subject UUID/ASCII olarak yorumlanmaz; boş olmayan, kontrol karakteri içermeyen en fazla 512
+Unicode code point değer `user_identities.subject` ile birebir eşleştirilir.
 Birincil anahtar `(provider, user_pool_id, event_id)`dir; `event_time` sıralama veya tamlık kanıtı
 değildir. `PENDING_MAPPING` bilinmeyen subject için completion yazılmadan korunur ve
 `next_attempt_at` üzerinden kalıcı DB worker tarafından sınırlı üstel backoff
@@ -2178,6 +2180,9 @@ queue tesliminin sınırlı retry/DLQ semantiği bu durum makinesinden ayrıdır
 IAM-005 ile kanonik sweep tarafından ele alınır. Tablo FORCE RLS'tir ve yalnız
 `GLOBAL/COGNITO_SECURITY_EVENT_PROCESS`
 işlem kodu altında `iam_runtime` tarafından erişilir.
+Consumer ve reconciliation sweep auditleri otomatik sistem olayıdır: `actor_user_id` daima
+`NULL`, `target_entity_id` hedef platform kullanıcısıdır. İlgili RLS politikaları actor=target
+eşitliği kurmaz; server-set sistem-aktörü işaretini ve doğru target-user GUC'yi zorunlu kılar.
 
 Event satırındaki `lease_owner`, `lease_expires_at` ve monoton `fencing_token`, eşzamanlı
 consumerlardan yalnız birinin completion yazabilmesini sağlar. Süresi dolmuş lease başka worker

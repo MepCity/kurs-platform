@@ -45,7 +45,7 @@ public final class CognitoSecurityEventService {
     public CognitoEventProcessingResult ingest(CognitoSecurityEvent event, String workerId) {
         boolean inserted = transactions.executeInGlobalScope(
                 OperationCode.COGNITO_SECURITY_EVENT_PROCESS,
-                IamTransactionExecutor.IamAuthScopeContext.actorOnly(UUID.randomUUID()),
+                IamTransactionExecutor.IamAuthScopeContext.actorOnly(null),
                 () -> repository.recordCognitoSecurityEvent(event));
         var claim = claimExact(event, workerId);
         if (claim.isEmpty()) {
@@ -60,7 +60,7 @@ public final class CognitoSecurityEventService {
         Instant now = clock.instant();
         var claim = transactions.executeInGlobalScope(
                 OperationCode.COGNITO_SECURITY_EVENT_PROCESS,
-                IamTransactionExecutor.IamAuthScopeContext.actorOnly(UUID.randomUUID()),
+                IamTransactionExecutor.IamAuthScopeContext.actorOnly(null),
                 () -> repository.claimNextCognitoSecurityEvent(
                         userPoolId, workerId, now, now.plus(LEASE_TTL)));
         claim.ifPresent(this::processClaim);
@@ -72,7 +72,7 @@ public final class CognitoSecurityEventService {
         Instant now = clock.instant();
         return transactions.executeInGlobalScope(
                 OperationCode.COGNITO_SECURITY_EVENT_PROCESS,
-                IamTransactionExecutor.IamAuthScopeContext.actorOnly(UUID.randomUUID()),
+                IamTransactionExecutor.IamAuthScopeContext.actorOnly(null),
                 () -> repository.claimCognitoSecurityEvent(
                         event, workerId, now, now.plus(LEASE_TTL)));
     }
@@ -88,7 +88,7 @@ public final class CognitoSecurityEventService {
             Instant nextAttemptAt = clock.instant().plus(mappingBackoff(claim.fencingToken()));
             transactions.executeInGlobalScope(
                     OperationCode.COGNITO_SECURITY_EVENT_PROCESS,
-                    IamTransactionExecutor.IamAuthScopeContext.actorOnly(UUID.randomUUID()),
+                    IamTransactionExecutor.IamAuthScopeContext.actorOnly(null),
                     () -> {
                         repository.releaseCognitoSecurityEvent(claim, nextAttemptAt);
                         return null;
@@ -107,7 +107,7 @@ public final class CognitoSecurityEventService {
     private void completeMapped(CognitoSecurityEventClaim claim, UserIdentity mapped) {
         transactions.executeInGlobalScope(
                 OperationCode.COGNITO_SECURITY_EVENT_PROCESS,
-                IamTransactionExecutor.IamAuthScopeContext.actorOnly(mapped.userId())
+                IamTransactionExecutor.IamAuthScopeContext.actorOnly(null)
                         .withTargetUser(mapped.userId()),
                 () -> {
                     UserIdentity revalidated = repository.revalidateCognitoEventSubject(
@@ -126,7 +126,7 @@ public final class CognitoSecurityEventService {
                     audit.write(new IamAuditEvent(
                             UUID.randomUUID(),
                             null,
-                            mapped.userId(),
+                            null,
                             null,
                             "IAM_PROVIDER_SESSION_REVOKED",
                             IamAuditEvent.EventScope.GLOBAL,

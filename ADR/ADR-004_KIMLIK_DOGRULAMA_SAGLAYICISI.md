@@ -865,7 +865,9 @@ dedupe anahtarı `provider + userPoolId + CloudTrail eventID`dir. Yalnız başar
 `AdminSetUserPassword` çağrıları allow-listtedir. AWS'nin
 [Cognito CloudTrail belgesi](https://docs.aws.amazon.com/cognito/latest/developerguide/logging-using-cloudtrail.html)
 kullanıcıya özgü kayıtlarda `UserName` yerine `UserSub` bulunduğunu belirtir; eşleme yalnız
-`additionalEventData.sub` ile platform `user_identities.subject` arasında yapılır.
+`additionalEventData.sub` ile platform `user_identities.subject` arasında birebir yapılır.
+Subject için UUID veya ASCII varsayımı yoktur; boş olmayan, kontrol karakteri taşımayan ve en
+fazla 512 Unicode code point uzunluğundaki değer değiştirilmeden korunur.
 `eventSource`, `eventType=AwsApiCall`, management/yazma niteliği, hatasız sonuç, AWS account,
 bölge ve beklenen pool eşleşmeden olay güvenilir sayılmaz. Ham event gövdesi, username, token
 veya parola saklanmaz.
@@ -876,7 +878,10 @@ isteğin yalnız `ClientId` ve hassas refresh tokenı zorunlu tuttuğunu; güven
 eşlemesi sunmadığını gösterir. Token açılarak kullanıcı türetmek yasaktır. Platformun kendi
 IAM-005 logout/reuse iptal akışı ve aşağıdaki kanonik reconciliation sweep bu boşluğu kapatır.
 
-Event completion, yerel aile iptali ve audit ile aynı transaction'da yazılır. Bilinmeyen subject
+Event completion, yerel aile iptali ve audit ile aynı transaction'da yazılır. Consumer ve sweep
+insan aktörü olmayan sistem işlemleridir: audit `actor_user_id=NULL`, hedef kullanıcı ise
+`target_entity_id` olarak yazılır; RLS server-set sistem-aktörü işareti ve doğru target GUC ister.
+Bilinmeyen subject
 `PENDING_MAPPING`te kalır; SQS ACK sonrasında dahi kalıcı DB worker tarafından backoff ile yeniden
 claim edilir ve eşleme sonradan oluştuğunda tamamlanır. Kanonik event durumunda kullanılmayan bir
 `TERMINAL` yoktur. Ham/şema dışı teslimler sınırlı queue retry sonrası DLQ ve `POISON_EVENT`

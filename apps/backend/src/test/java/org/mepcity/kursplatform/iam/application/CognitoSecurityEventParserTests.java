@@ -43,6 +43,23 @@ class CognitoSecurityEventParserTests {
     }
 
     @Test
+    void preservesBoundedNonUuidUnicodeSubjectExactly() {
+        String subject = "federated|öğrenci/例-42";
+
+        var event = parser.parse(valid("AdminDisableUser").replace(SUBJECT, subject));
+
+        assertThat(event.subject()).isEqualTo(subject);
+    }
+
+    @Test
+    void rejectsControlCharactersAndOversizedSubjects() {
+        assertRejected(valid("AdminDisableUser").replace(
+                SUBJECT, "subject\\u0000suffix"));
+        assertRejected(valid("AdminDisableUser").replace(
+                SUBJECT, "x".repeat(513)));
+    }
+
+    @Test
     void rejectsRevokeTokenBecauseItCannotBeMappedWithoutReadingTheToken() throws IOException {
         assertRejected(fixture("revoke-token.json"));
     }

@@ -74,7 +74,7 @@ public final class CognitoSecurityEventParser {
             if (!expectedUserPoolId.equals(userPoolId)) {
                 throw new IllegalArgumentException("CloudTrail user pool eşleşmedi.");
             }
-            String subject = requiredIdentifier(detail.path("additionalEventData"), "sub");
+            String subject = requiredSubject(detail.path("additionalEventData"), "sub");
             return new CognitoSecurityEvent(
                     userPoolId,
                     requiredIdentifier(detail, "eventID"),
@@ -96,6 +96,21 @@ public final class CognitoSecurityEventParser {
         String value = requiredText(root, field);
         if (!SAFE_IDENTIFIER.matcher(value).matches()) {
             throw new IllegalArgumentException("CloudTrail identifier biçimi geçersiz.");
+        }
+        return value;
+    }
+
+    private static String requiredSubject(JsonNode root, String field) {
+        String value = requiredText(root, field);
+        if (value.codePointCount(0, value.length()) > 512) {
+            throw new IllegalArgumentException("CloudTrail subject sınırı aşıldı.");
+        }
+        for (int offset = 0; offset < value.length();) {
+            int codePoint = value.codePointAt(offset);
+            if (Character.isISOControl(codePoint)) {
+                throw new IllegalArgumentException("CloudTrail subject kontrol karakteri içeriyor.");
+            }
+            offset += Character.charCount(codePoint);
         }
         return value;
     }

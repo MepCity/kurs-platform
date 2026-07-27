@@ -8,6 +8,6 @@ ALTER TABLE iam_cognito_security_events
         OR (status='PENDING_MAPPING' AND lease_owner IS NOT NULL AND lease_expires_at IS NOT NULL));
 
 REVOKE UPDATE ON iam_cognito_security_events FROM iam_runtime;
-GRANT UPDATE (status, attempt_count, completed_at, terminal_at, lease_owner,
+GRANT UPDATE (status, attempt_count, completed_at, lease_owner,
               lease_expires_at, fencing_token, last_attempt_at)
     ON iam_cognito_security_events TO iam_runtime;
