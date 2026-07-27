@@ -9,6 +9,9 @@ import org.mepcity.kursplatform.org.application.OrganizationLifecycleService;
 import org.mepcity.kursplatform.org.application.OrganizationBrandService;
 import org.mepcity.kursplatform.org.application.OrganizationBrandRateLimiter;
 import org.mepcity.kursplatform.org.application.OrganizationBrandResultSerializer;
+import org.mepcity.kursplatform.org.application.OrganizationListCursorCodec;
+import org.mepcity.kursplatform.org.application.OrganizationListRateLimiter;
+import org.mepcity.kursplatform.org.application.OrganizationListTransaction;
 import org.mepcity.kursplatform.org.application.OrganizationResultSerializer;
 import org.mepcity.kursplatform.org.domain.OrganizationRepository;
 import org.mepcity.kursplatform.org.infrastructure.persistence.JdbcAuditWriter;
@@ -22,6 +25,12 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.beans.factory.annotation.Value;
+import java.time.Clock;
+import java.security.SecureRandom;
+import org.mepcity.kursplatform.org.infrastructure.persistence.AesGcmOrganizationListCursorCodec;
+import org.mepcity.kursplatform.org.infrastructure.persistence.JdbcOrganizationListRateLimiter;
+import org.mepcity.kursplatform.org.infrastructure.persistence.SpringOrganizationListTransaction;
 
 /** Runtime wiring for the ORG transactional command service. */
 @Configuration
@@ -70,6 +79,25 @@ public class OrganizationInfrastructureConfiguration {
         properties.validate();
         return new JdbcOrganizationBrandRateLimiter(dataSource, transactionManager,
                 properties.getBrandLimit(), properties.getBrandWindow());
+    }
+
+    @Bean
+    OrganizationListTransaction organizationListTransaction(DataSource dataSource,
+            PlatformTransactionManager transactionManager) {
+        return new SpringOrganizationListTransaction(dataSource, transactionManager);
+    }
+
+    @Bean
+    OrganizationListRateLimiter organizationListRateLimiter(DataSource dataSource,
+            OrganizationRateLimitProperties properties) {
+        properties.validate();
+        return new JdbcOrganizationListRateLimiter(dataSource, properties.getListLimit(), properties.getListWindow());
+    }
+
+    @Bean
+    OrganizationListCursorCodec organizationListCursorCodec(
+            @Value("${org.list.cursor-secret}") String secret, Clock clock) {
+        return new AesGcmOrganizationListCursorCodec(secret, clock, new SecureRandom());
     }
 
     @Bean

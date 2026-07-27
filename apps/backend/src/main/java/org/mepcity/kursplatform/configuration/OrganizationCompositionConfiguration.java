@@ -8,8 +8,6 @@ import org.mepcity.kursplatform.org.application.OrganizationLifecycleService;
 import org.mepcity.kursplatform.org.application.OrganizationListService;
 import org.mepcity.kursplatform.org.application.AuditWriter;
 import org.mepcity.kursplatform.org.domain.OrganizationRepository;
-import javax.sql.DataSource;
-import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -29,7 +27,9 @@ public class OrganizationCompositionConfiguration {
 
     @Bean
     OrganizationListService organizationListService(OrganizationRepository organizations, ActiveSessionResolver sessions,
-            AuditWriter audits, DataSource dataSource, PlatformTransactionManager transactionManager, Clock clock) {
-        return new OrganizationListService(organizations, sessions, audits, dataSource, transactionManager, clock);
+            AuditWriter audits, org.mepcity.kursplatform.org.application.OrganizationListTransaction transactions,
+            org.mepcity.kursplatform.org.application.OrganizationListCursorCodec cursors,
+            org.mepcity.kursplatform.org.application.OrganizationListRateLimiter rateLimiter, Clock clock) {
+        return new OrganizationListService(organizations, sessions, audits, transactions, cursors, rateLimiter, clock);
     }
 }
