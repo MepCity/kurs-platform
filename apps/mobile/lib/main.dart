@@ -7,6 +7,8 @@ import 'package:kurs_platform_mobile/features/auth/data/flutter_secure_session_s
 import 'package:kurs_platform_mobile/features/auth/data/iam_http_client.dart';
 import 'package:kurs_platform_mobile/features/auth/data/production_iam_repository.dart';
 import 'package:kurs_platform_mobile/features/bootstrap/presentation/kurs_platform_app.dart';
+import 'package:kurs_platform_mobile/features/bootstrap/domain/organization_repository_bundle.dart';
+import 'package:kurs_platform_mobile/features/organizations/data/production_organizations_repository.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,6 +28,17 @@ void main() {
         authenticationRepository: repository,
         sessionRepository: repository,
         secureSessionStore: sessionStore,
+        organizationRepositoryBuilder: (session, globalListScope) {
+          final organizations = ProductionOrganizationsRepository(
+            config: config,
+            session: session,
+            globalListScope: globalListScope,
+          );
+          return OrganizationRepositoryBundle(
+            organizations: organizations,
+            brand: organizations,
+          );
+        },
       ),
     ),
   );

@@ -1,12 +1,14 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/network/authenticated_api_session.dart';
 import '../../auth/domain/authentication_repository.dart';
 import '../../auth/domain/secure_session_store.dart';
 import '../../auth/domain/session_repository.dart';
 
 enum BootstrapStatus { loading, unauthenticated, authenticated, retryableError }
 
-class SessionBootstrapController extends ChangeNotifier {
+class SessionBootstrapController extends ChangeNotifier
+    implements AuthenticatedApiSession {
   SessionBootstrapController({
     required this.repository,
     required this.sessionStore,
@@ -23,10 +25,194 @@ class SessionBootstrapController extends ChangeNotifier {
   int _operation = 0;
   bool _disposed = false;
   Future<void>? _bootstrapInFlight;
+  Future<SecureSession>? _authorizedRefresh;
+  SecureSession? _pendingRefreshCandidate;
+  SecureSession? _pendingRefreshReplacement;
 
   BootstrapStatus get status => _status;
   ActivatedSession? get session => _session;
   String? get message => _message;
+
+  @override
+  String get identityKey {
+    final candidate = _candidate;
+    final session = _session;
+    if (_status != BootstrapStatus.authenticated ||
+        candidate == null ||
+        session == null) {
+      return '';
+    }
+    final membership = session.organizationMembership;
+    final roles = [...?membership?.roleCodes]..sort();
+    return '${candidate.userId}:${candidate.scope.name}:'
+        '${candidate.organizationMembershipId ?? 'global'}:'
+        '${candidate.organizationId ?? 'global'}:${candidate.deviceId}:'
+        '${candidate.sessionGeneration ?? 0}:${candidate.authenticatedAt.toIso8601String()}:'
+        '${session.displayName}:${membership?.organizationName ?? 'global'}:'
+        '${roles.join(',')}';
+  }
+
+  @override
+  Future<T> run<T>(Future<T> Function(String bearerToken) operation) async {
+    final authorizedIdentity = identityKey;
+    var candidate = _authorizedCandidate();
+    if (!candidate.expiresAt.isAfter(_now().toUtc())) {
+      candidate = await _refreshForApi(candidate);
+    }
+    if (!_isSameCandidate(candidate) ||
+        _status != BootstrapStatus.authenticated ||
+        identityKey != authorizedIdentity) {
+      throw const AuthenticatedApiSessionUnavailable();
+    }
+    final result = await operation(candidate.accessToken);
+    if (!_isSameCandidate(candidate) ||
+        _status != BootstrapStatus.authenticated ||
+        identityKey != authorizedIdentity) {
+      throw const AuthenticatedApiSessionUnavailable(terminal: true);
+    }
+    return result;
+  }
+
+  @override
+  Future<T> refreshAndRun<T>(
+    Future<T> Function(String bearerToken) operation,
+  ) async {
+    final authorizedIdentity = identityKey;
+    final replacement = await _refreshForApi(_authorizedCandidate());
+    if (!_isSameCandidate(replacement) ||
+        _status != BootstrapStatus.authenticated ||
+        identityKey != authorizedIdentity) {
+      throw const AuthenticatedApiSessionUnavailable();
+    }
+    final result = await operation(replacement.accessToken);
+    if (!_isSameCandidate(replacement) ||
+        _status != BootstrapStatus.authenticated ||
+        identityKey != authorizedIdentity) {
+      throw const AuthenticatedApiSessionUnavailable(terminal: true);
+    }
+    return result;
+  }
+
+  SecureSession _authorizedCandidate() {
+    final candidate = _candidate;
+    if (_status != BootstrapStatus.authenticated || candidate == null) {
+      throw const AuthenticatedApiSessionUnavailable(terminal: true);
+    }
+    return candidate;
+  }
+
+  Future<SecureSession> _refreshForApi(SecureSession candidate) async {
+    final existing = _authorizedRefresh;
+    if (existing != null) return existing;
+    late Future<SecureSession> refresh;
+    refresh = _performAuthorizedRefresh(candidate).whenComplete(() {
+      if (identical(_authorizedRefresh, refresh)) _authorizedRefresh = null;
+    });
+    _authorizedRefresh = refresh;
+    return refresh;
+  }
+
+  Future<SecureSession> _performAuthorizedRefresh(
+    SecureSession candidate,
+  ) async {
+    final operation = _operation;
+    try {
+      final canonical = await _refreshAndValidate(candidate);
+      final replacement = canonical.secureSession;
+      if (!_current(operation) ||
+          _status != BootstrapStatus.authenticated ||
+          !_isSameCandidate(candidate)) {
+        throw const AuthenticatedApiSessionUnavailable(terminal: true);
+      }
+      if (sessionStore is! AtomicSecureSessionStore) {
+        throw const AuthenticatedApiSessionUnavailable();
+      }
+      final replaced = await (sessionStore as AtomicSecureSessionStore)
+          .replaceIfCurrent(candidate, replacement);
+      if (!replaced ||
+          !_current(operation) ||
+          _status != BootstrapStatus.authenticated ||
+          !_isSameCandidate(candidate)) {
+        throw const AuthenticatedApiSessionUnavailable(terminal: true);
+      }
+      _candidate = replacement;
+      _session = canonical.activatedSession;
+      _clearPendingRefresh(candidate);
+      _set(BootstrapStatus.authenticated);
+      return replacement;
+    } on SessionFailure catch (failure) {
+      if (failure.kind != SessionFailureKind.transient) {
+        await terminate();
+        throw const AuthenticatedApiSessionUnavailable(terminal: true);
+      }
+      if (_current(operation)) {
+        _set(
+          BootstrapStatus.retryableError,
+          message:
+              'Oturum yenilendi ancak doğrulanamadı. Bağlantınızı kontrol edip tekrar deneyin.',
+        );
+      }
+      throw const AuthenticatedApiSessionUnavailable();
+    } on Object {
+      if (_current(operation)) {
+        _set(
+          BootstrapStatus.retryableError,
+          message: 'Güvenli oturum yenilenemedi. Tekrar deneyin.',
+        );
+      }
+      throw const AuthenticatedApiSessionUnavailable();
+    }
+  }
+
+  Future<_CanonicalRefresh> _refreshAndValidate(SecureSession candidate) async {
+    var replacement = _pendingReplacementFor(candidate);
+    if (replacement == null) {
+      replacement = await repository.refresh(candidate);
+      _pendingRefreshCandidate = candidate;
+      _pendingRefreshReplacement = replacement;
+    }
+    final activated = await repository.validate(replacement);
+    return _CanonicalRefresh(replacement, activated);
+  }
+
+  SecureSession? _pendingReplacementFor(SecureSession candidate) {
+    final pendingCandidate = _pendingRefreshCandidate;
+    if (pendingCandidate == null || !_sameTokens(pendingCandidate, candidate)) {
+      return null;
+    }
+    return _pendingRefreshReplacement;
+  }
+
+  void _clearPendingRefresh(SecureSession candidate) {
+    final pendingCandidate = _pendingRefreshCandidate;
+    if (pendingCandidate == null || !_sameTokens(pendingCandidate, candidate)) {
+      return;
+    }
+    _pendingRefreshCandidate = null;
+    _pendingRefreshReplacement = null;
+  }
+
+  bool _isSameCandidate(SecureSession candidate) {
+    final current = _candidate;
+    return current != null &&
+        _sameTokens(current, candidate) &&
+        current.userId == candidate.userId &&
+        current.deviceId == candidate.deviceId &&
+        current.scope == candidate.scope &&
+        current.organizationMembershipId ==
+            candidate.organizationMembershipId &&
+        current.sessionGeneration == candidate.sessionGeneration &&
+        current.authenticatedAt == candidate.authenticatedAt;
+  }
+
+  @override
+  Future<void> terminate() async {
+    final candidate = _candidate;
+    if (candidate == null) return;
+    final operation = ++_operation;
+    _set(BootstrapStatus.loading);
+    await _terminalClear(operation, candidate);
+  }
 
   Future<void> start() => _bootstrapInFlight ??= _start().whenComplete(
     () => _bootstrapInFlight = null,
@@ -67,7 +253,9 @@ class SessionBootstrapController extends ChangeNotifier {
       return;
     }
     _candidate = candidate;
-    if (candidate.expiresAt.isAfter(_now().toUtc())) {
+    if (_pendingReplacementFor(candidate) != null) {
+      await _refresh(operation, candidate);
+    } else if (candidate.expiresAt.isAfter(_now().toUtc())) {
       await _validate(operation, candidate);
     } else {
       await _refresh(operation, candidate);
@@ -115,7 +303,8 @@ class SessionBootstrapController extends ChangeNotifier {
 
   Future<void> _refresh(int operation, SecureSession candidate) async {
     try {
-      final replacement = await repository.refresh(candidate);
+      final canonical = await _refreshAndValidate(candidate);
+      final replacement = canonical.secureSession;
       if (!_current(operation)) return;
       if (sessionStore is! AtomicSecureSessionStore) {
         _set(
@@ -139,7 +328,9 @@ class SessionBootstrapController extends ChangeNotifier {
         return;
       }
       _candidate = replacement;
-      await _validate(operation, replacement);
+      _session = canonical.activatedSession;
+      _clearPendingRefresh(candidate);
+      _set(BootstrapStatus.authenticated);
     } on SessionFailure catch (failure) {
       if (!_current(operation)) return;
       if (failure.kind == SessionFailureKind.transient) {
@@ -149,6 +340,7 @@ class SessionBootstrapController extends ChangeNotifier {
               'Oturum yenilenemedi. Bağlantınızı kontrol edip tekrar deneyin.',
         );
       } else {
+        _clearPendingRefresh(candidate);
         await _terminalClear(operation, candidate);
       }
     }
@@ -183,6 +375,7 @@ class SessionBootstrapController extends ChangeNotifier {
       if (!_current(operation)) return;
       _candidate = null;
       _session = null;
+      _clearPendingRefresh(candidate);
       _set(BootstrapStatus.unauthenticated);
     } on SessionFailure {
       if (!_current(operation)) return;
@@ -210,6 +403,7 @@ class SessionBootstrapController extends ChangeNotifier {
       }
       _candidate = null;
       _session = null;
+      _clearPendingRefresh(candidate);
       _set(BootstrapStatus.unauthenticated);
     } on Object {
       if (_current(operation)) {
@@ -243,3 +437,14 @@ class SessionBootstrapController extends ChangeNotifier {
     super.dispose();
   }
 }
+
+class _CanonicalRefresh {
+  const _CanonicalRefresh(this.secureSession, this.activatedSession);
+
+  final SecureSession secureSession;
+  final ActivatedSession activatedSession;
+}
+
+bool _sameTokens(SecureSession first, SecureSession second) =>
+    first.accessToken == second.accessToken &&
+    first.refreshToken == second.refreshToken;

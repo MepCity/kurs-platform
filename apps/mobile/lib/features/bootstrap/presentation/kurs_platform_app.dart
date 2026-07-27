@@ -4,6 +4,7 @@ import '../../auth/domain/authentication_repository.dart';
 import '../../auth/domain/secure_session_store.dart';
 import '../../auth/domain/session_repository.dart';
 import '../../auth/presentation/sign_in_screen.dart';
+import '../domain/organization_repository_bundle.dart';
 import 'session_bootstrap_gate.dart';
 
 /// Provider-aware application root.
@@ -29,6 +30,7 @@ class KursPlatformApp extends StatefulWidget {
     this.provider,
     this.home,
     this.sessionRepository,
+    this.organizationRepositoryBuilder,
   });
 
   /// IAM-007 domain port, supplied by the composition root. The presentation
@@ -36,6 +38,7 @@ class KursPlatformApp extends StatefulWidget {
   final AuthenticationRepository authenticationRepository;
   final SecureSessionStore secureSessionStore;
   final SessionRepository? sessionRepository;
+  final OrganizationRepositoryBuilder? organizationRepositoryBuilder;
 
   /// External provider. When null, the app creates and owns its own provider.
   final AppThemeProvider? provider;
@@ -106,6 +109,11 @@ class _KursPlatformAppState extends State<KursPlatformApp> {
                             widget.authenticationRepository,
                         sessionRepository: widget.sessionRepository!,
                         sessionStore: widget.secureSessionStore,
+                        organizationRepositoryBuilder:
+                            widget.organizationRepositoryBuilder ??
+                            (throw StateError(
+                              'Production organization adapter is required.',
+                            )),
                       )),
           );
         },

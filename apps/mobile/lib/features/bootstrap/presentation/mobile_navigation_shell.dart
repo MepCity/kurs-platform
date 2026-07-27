@@ -32,6 +32,7 @@ enum MobileShellPermission {
 
 enum MobileShellRouteId {
   platformOrganizations,
+  platformOrganizationCreate,
   platformAudit,
   platformReport,
   home,
@@ -248,6 +249,7 @@ class MobileNavigationShell extends StatefulWidget {
     this.onAction,
     this.onActionRequest,
     this.requests = const <MobileShellRouteRequest>[],
+    this.screenBuilder,
   });
   final MobileShellContext context;
   final ValueChanged<MobileShellAction>? onAction;
@@ -264,6 +266,8 @@ class MobileNavigationShell extends StatefulWidget {
   /// zaten tüketilmiş sequence'lar high-watermark tarafından yok sayılır)
   /// veya yalnızca yenilerini ekleyebilir.
   final List<MobileShellRouteRequest> requests;
+  final Widget Function(BuildContext context, MobileShellRouteId route)?
+  screenBuilder;
   @override
   State<MobileNavigationShell> createState() => _MobileNavigationShellState();
 }
@@ -700,7 +704,7 @@ class _MobileNavigationShellState extends State<MobileNavigationShell> {
     _key(destination).currentState?.push(
       MaterialPageRoute<void>(
         settings: RouteSettings(name: route.name, arguments: marker),
-        builder: (_) => unauthorized
+        builder: (context) => unauthorized
             ? const Scaffold(body: AppUnauthorizedState())
             : route == MobileShellRouteId.classSelector &&
                   widget.context.role == MobileShellRole.teacher
@@ -708,7 +712,7 @@ class _MobileNavigationShellState extends State<MobileNavigationShell> {
                 state: widget.context.classState,
                 onSelected: _selectClass,
               )
-            : _Placeholder(route: route),
+            : _screen(context, route),
       ),
     );
   }
@@ -806,7 +810,7 @@ class _MobileNavigationShellState extends State<MobileNavigationShell> {
                     name: d.route.name,
                     arguments: MobileShellRouteMarker(d.route, isRoot: true),
                   ),
-                  builder: (_) => _root(d.route),
+                  builder: (context) => _root(context, d.route),
                 ),
               ),
           ],
@@ -834,7 +838,7 @@ class _MobileNavigationShellState extends State<MobileNavigationShell> {
     );
   }
 
-  Widget _root(MobileShellRouteId route) {
+  Widget _root(BuildContext buildContext, MobileShellRouteId route) {
     final c = widget.context;
     if (route == MobileShellRouteId.classSelector &&
         c.role == MobileShellRole.teacher) {
@@ -851,8 +855,11 @@ class _MobileNavigationShellState extends State<MobileNavigationShell> {
     if (route == MobileShellRouteId.management) {
       return _ManagementMenu(context: c, onRoute: _open);
     }
-    return _Placeholder(route: route);
+    return _screen(buildContext, route);
   }
+
+  Widget _screen(BuildContext context, MobileShellRouteId route) =>
+      widget.screenBuilder?.call(context, route) ?? _Placeholder(route: route);
 
   void _emitAction(MobileShellAction action, {String? classId}) {
     widget.onActionRequest?.call(

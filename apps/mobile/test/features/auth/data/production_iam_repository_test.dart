@@ -242,6 +242,49 @@ IamResponse _refreshResponse({
   }),
 );
 
+IamResponse _sessionMeResponse({
+  String userId = _user,
+  String deviceId = _device,
+  String scope = 'ORGANIZATION',
+  String membershipId = _membership,
+  String organizationId = _organization,
+  List<String> roleCodes = const <String>['TEACHER'],
+  String expiresAt = '2026-07-27T10:00:00Z',
+}) => IamResponse(
+  statusCode: 200,
+  headers: const <String, String>{},
+  body: jsonEncode(<String, Object?>{
+    'user': <String, Object?>{
+      'id': userId,
+      'displayName': 'Yasir',
+      'status': 'ACTIVE',
+    },
+    'device': <String, Object?>{
+      'id': '6ef04c06-351a-4ac9-b4a2-29652b213ad2',
+      'deviceIdentifier': deviceId,
+      'platform': 'ANDROID',
+      'trustedAt': '2026-07-27T09:00:00Z',
+    },
+    if (scope == 'ORGANIZATION')
+      'organizationMembership': <String, Object?>{
+        'id': membershipId,
+        'organizationId': organizationId,
+        'organizationName': 'Kanonik Kurs',
+        'organizationStatus': 'ACTIVE',
+        'membershipStatus': 'ACTIVE',
+        'roleCodes': roleCodes,
+        'sessionGeneration': 3,
+      }
+    else
+      'platformAdministrator': <String, Object?>{'status': 'ACTIVE'},
+    'session': <String, Object?>{
+      'scope': scope,
+      'expiresAt': expiresAt,
+      'authenticatedAt': '2026-07-27T07:00:00Z',
+    },
+  }),
+);
+
 IamResponse _idempotencyKeyReusedResponse() => IamResponse(
   statusCode: 409,
   headers: const <String, String>{},
@@ -598,6 +641,117 @@ void main() {
       }
     },
   );
+
+  test(
+    'refreshed token is canonicalized by sessions/me role snapshot',
+    () async {
+      final transport = _ScriptTransport()
+        ..results.addAll(<Object>[
+          _refreshResponse(),
+          _sessionMeResponse(roleCodes: const <String>['TEACHER']),
+        ]);
+      final repository = ProductionIamRepository(
+        provider: _Provider(),
+        client: IamHttpClient(config: _productionConfig, transport: transport),
+        deviceIdentity: _Device(),
+      );
+
+      final refreshed = await repository.refresh(_expiredCandidate());
+      final canonical = await repository.validate(refreshed);
+
+      expect(transport.requests.map((request) => request.uri.path), <String>[
+        '/api/v1/iam/sessions/refresh',
+        '/api/v1/iam/sessions/me',
+      ]);
+      expect(
+        transport.requests.last.headers['Authorization'],
+        'Bearer new-access',
+      );
+      expect(canonical.organizationMembership?.roleCodes, <String>['TEACHER']);
+      expect(
+        canonical.organizationMembership?.organizationName,
+        'Kanonik Kurs',
+      );
+    },
+  );
+
+  test(
+    'sessions/me identity, scope and membership drift fail closed',
+    () async {
+      for (final response in <IamResponse>[
+        _sessionMeResponse(userId: '9c728d4e-4e84-4b22-81f9-ec92eb03fa6b'),
+        _sessionMeResponse(scope: 'GLOBAL_PLATFORM_ADMIN'),
+        _sessionMeResponse(
+          membershipId: '6276942f-ef2f-44ca-9ef6-2af1dd58a0fc',
+        ),
+      ]) {
+        final repository = ProductionIamRepository(
+          provider: _Provider(),
+          client: IamHttpClient(
+            config: _productionConfig,
+            transport: _ScriptTransport()..results.add(response),
+          ),
+          deviceIdentity: _Device(),
+        );
+
+        await expectLater(
+          repository.validate(
+            SecureSession(
+              userId: _user,
+              deviceId: _device,
+              scope: SecureSessionScope.organization,
+              accessToken: 'new-access',
+              refreshToken: 'new-refresh',
+              expiresAt: DateTime.utc(2026, 7, 27, 10),
+              refreshExpiresAt: DateTime.utc(2026, 8, 27, 10),
+              authenticatedAt: DateTime.utc(2026, 7, 27, 7),
+              organizationMembershipId: _membership,
+              organizationId: _organization,
+              sessionGeneration: 3,
+            ),
+          ),
+          throwsA(
+            isA<SessionFailure>().having(
+              (failure) => failure.kind,
+              'kind',
+              SessionFailureKind.malformed,
+            ),
+          ),
+        );
+      }
+    },
+  );
+
+  test('sessions/me SESSION_REVOKED is terminal', () async {
+    final repository = ProductionIamRepository(
+      provider: _Provider(),
+      client: IamHttpClient(
+        config: _productionConfig,
+        transport: _ScriptTransport()
+          ..results.add(
+            IamResponse(
+              statusCode: 401,
+              headers: const <String, String>{},
+              body: jsonEncode(<String, Object?>{
+                'error': <String, Object?>{'code': 'SESSION_REVOKED'},
+              }),
+            ),
+          ),
+      ),
+      deviceIdentity: _Device(),
+    );
+
+    await expectLater(
+      repository.validate(_expiredCandidate()),
+      throwsA(
+        isA<SessionFailure>().having(
+          (failure) => failure.kind,
+          'kind',
+          SessionFailureKind.terminal,
+        ),
+      ),
+    );
+  });
 
   test('SESSION_REVOKED is a terminal successful logout result', () async {
     final transport = _ScriptTransport()
