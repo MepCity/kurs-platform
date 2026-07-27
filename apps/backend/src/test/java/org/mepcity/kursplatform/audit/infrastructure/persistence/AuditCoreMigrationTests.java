@@ -527,7 +527,7 @@ class AuditCoreMigrationTests {
                 "SELECT count(*) FROM pg_policies WHERE tablename='audit_logs' AND cmd = 'INSERT' AND roles = '{iam_runtime}'");
                 var rows = statement.executeQuery()) {
             rows.next();
-            assertThat(rows.getInt(1)).isEqualTo(4);
+            assertThat(rows.getInt(1)).isEqualTo(5);
         }
         try (var statement = connection.prepareStatement(
                 "SELECT count(*) FROM pg_policies WHERE tablename='audit_logs' AND cmd IN ('SELECT','UPDATE','DELETE')");

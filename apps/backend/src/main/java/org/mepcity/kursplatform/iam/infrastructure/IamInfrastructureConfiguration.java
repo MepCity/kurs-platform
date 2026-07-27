@@ -33,6 +33,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.JdbcTemplate;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -53,8 +54,8 @@ import java.time.Clock;
 public class IamInfrastructureConfiguration {
 
     @Bean
-    SecurityAlertSink securityAlertSink(SafeEventLogger logger) {
-        return new ObservabilitySecurityAlertSink(logger);
+    SecurityAlertSink securityAlertSink(ObjectProvider<SafeEventLogger> logger) {
+        return alert -> logger.ifAvailable(value -> new ObservabilitySecurityAlertSink(value).emit(alert));
     }
 
     @Bean
