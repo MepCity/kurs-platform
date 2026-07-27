@@ -2,6 +2,8 @@ import 'dart:math';
 
 import '../domain/organization.dart';
 import '../domain/organization_create_request.dart';
+import '../domain/organization_brand.dart';
+import '../domain/organization_brand_repository.dart';
 import '../domain/organization_list_query.dart';
 import '../domain/organization_list_result.dart';
 import '../domain/organization_search_normalization.dart';
@@ -40,7 +42,8 @@ import 'organizations_mock_session.dart';
 ///   in the registry).
 /// - Resuming by keyset (not offset) means a record inserted or removed
 ///   ahead of the cursor's position cannot cause a skipped or repeated row.
-class OrganizationsMockRepository implements OrganizationsRepository {
+class OrganizationsMockRepository
+    implements OrganizationsRepository, OrganizationBrandRepository {
   OrganizationsMockRepository({
     List<Organization>? seed,
     this.latency = const Duration(milliseconds: 400),
@@ -85,6 +88,18 @@ class OrganizationsMockRepository implements OrganizationsRepository {
   /// matter.
   final Map<String, _CreateIdempotencyEntry> _createIdempotencyRegistry =
       <String, _CreateIdempotencyEntry>{};
+  final Map<String, OrganizationBrand> _brands = <String, OrganizationBrand>{};
+  final Map<String, OrganizationBrandColors> _brandColors =
+      <String, OrganizationBrandColors>{};
+  final Map<String, OrganizationModules> _modules =
+      <String, OrganizationModules>{};
+  final Map<String, int> _settingsVersions = <String, int>{};
+  final Map<String, _BrandIdempotencyEntry> _brandIdempotency =
+      <String, _BrandIdempotencyEntry>{};
+  final Map<String, _BrandIdempotencyEntry> _colorsIdempotency =
+      <String, _BrandIdempotencyEntry>{};
+  final Map<String, _BrandIdempotencyEntry> _modulesIdempotency =
+      <String, _BrandIdempotencyEntry>{};
 
   static const int _maxCursorRegistrySize = 500;
   static const int _maxLimit = 100;
@@ -273,6 +288,353 @@ class OrganizationsMockRepository implements OrganizationsRepository {
       organization: created,
     );
     return created;
+  }
+
+  void _assertBrandAccess(
+    String organizationId, {
+    required bool write,
+    required bool module,
+  }) {
+    if (!session.isAuthenticated) {
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.unauthenticated,
+        'Oturum geçersiz veya süresi dolmuş.',
+      );
+    }
+    final organization = _assertOrganizationExists(organizationId);
+    if (session.isPlatformSupport) {
+      if (session.revoked || session.organizationId != organizationId) {
+        throw const OrganizationsFailure(
+          OrganizationsFailureCode.forbidden,
+          'Destek oturumu bu kurum için geçerli değil.',
+        );
+      }
+      if (organization.status == OrganizationStatus.archived && write) {
+        throw const OrganizationsFailure(
+          OrganizationsFailureCode.stateConflict,
+          'Arşivlenmiş kurumun ayarları değiştirilemez.',
+        );
+      }
+      return;
+    }
+    if (session.hasGlobalPlatformAdminScope) {
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.forbidden,
+        'Platform genel bağlamı kurum ayarlarına erişemez.',
+      );
+    }
+    if (!session.isOrganizationMember ||
+        session.revoked ||
+        session.organizationId != organizationId ||
+        (write &&
+            !session.isOrganizationAdmin &&
+            (module ? !session.canManageModules : !session.canManageBrand))) {
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.forbidden,
+        'Bu kurum ayarını değiştirme yetkiniz yok.',
+      );
+    }
+    if (organization.status != OrganizationStatus.active) {
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.forbidden,
+        'Kurum bu durumda marka ayarlarına erişemez.',
+      );
+    }
+  }
+
+  Organization _assertOrganizationExists(String organizationId) {
+    Organization? organization;
+    for (final item in _organizations) {
+      if (item.id == organizationId) {
+        organization = item;
+        break;
+      }
+    }
+    if (organization == null) {
+      throw OrganizationsFailure(
+        session.isPlatformSupport
+            ? OrganizationsFailureCode.resourceNotFound
+            : OrganizationsFailureCode.forbidden,
+        'Kurum bulunamadı veya erişim izniniz yok.',
+      );
+    }
+    return organization;
+  }
+
+  int _settingsVersion(String organizationId) => _settingsVersions.putIfAbsent(
+    organizationId,
+    () => _assertOrganizationExists(organizationId).rowVersion,
+  );
+
+  @override
+  Future<OrganizationBrand> getBrand(String organizationId) async {
+    await Future<void>.delayed(latency);
+    _assertBrandAccess(organizationId, write: false, module: false);
+    _assertOrganizationExists(organizationId);
+    return _brands.putIfAbsent(
+      organizationId,
+      () => OrganizationBrand(
+        primaryColor: '#2E7D32',
+        secondaryColor: '#E65100',
+        rowVersion: _settingsVersion(organizationId),
+      ),
+    );
+  }
+
+  @override
+  Future<OrganizationBrand> updateBrand(
+    String organizationId,
+    OrganizationBrand brand,
+    String clientMutationId,
+  ) async {
+    await Future<void>.delayed(latency);
+    _assertBrandAccess(organizationId, write: true, module: false);
+    _assertOrganizationExists(organizationId);
+    final fingerprint =
+        '${brand.primaryColor}|${brand.secondaryColor}|${brand.rowVersion}';
+    final idKey =
+        '${session.actorUserId}:$organizationId:brand:$clientMutationId';
+    final replay = _brandIdempotency[idKey];
+    if (replay != null) {
+      if (replay.fingerprint == fingerprint) {
+        return replay.brand as OrganizationBrand;
+      }
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.idempotencyKeyReused,
+        'Bu istek anahtarı farklı içerikle kullanıldı.',
+      );
+    }
+    final current = await getBrand(organizationId);
+    if (_settingsVersion(organizationId) != brand.rowVersion) {
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.versionConflict,
+        'Ayarlar başka bir kullanıcı tarafından güncellendi.',
+      );
+    }
+    final primaryError = validateBrandHex('Ana renk', brand.primaryColor);
+    final secondaryError = validateBrandHex(
+      'Yardımcı renk',
+      brand.secondaryColor,
+    );
+    if (primaryError != null || secondaryError != null) {
+      throw OrganizationsFailure(
+        OrganizationsFailureCode.validationFailed,
+        primaryError ?? secondaryError!,
+      );
+    }
+    final existingColors = _brandColors[organizationId];
+    final updated = OrganizationBrand(
+      primaryColor: normalizeBrandHex(brand.primaryColor),
+      secondaryColor: normalizeBrandHex(brand.secondaryColor),
+      rowVersion: current.rowVersion + 1,
+    );
+    _settingsVersions[organizationId] = updated.rowVersion;
+    _brands[organizationId] = updated;
+    _brandIdempotency[idKey] = _BrandIdempotencyEntry(fingerprint, updated);
+    if (existingColors != null) {
+      _brandColors[organizationId] = OrganizationBrandColors(
+        rowVersion: updated.rowVersion,
+        items: existingColors.items,
+      );
+    }
+    final existingModules = _modules[organizationId];
+    if (existingModules != null) {
+      _modules[organizationId] = OrganizationModules(
+        rowVersion: updated.rowVersion,
+        items: existingModules.items,
+      );
+    }
+    return updated;
+  }
+
+  @override
+  Future<OrganizationBrandColors> getBrandColors(String organizationId) async {
+    await Future<void>.delayed(latency);
+    _assertBrandAccess(organizationId, write: false, module: false);
+    _assertOrganizationExists(organizationId);
+    await getBrand(organizationId);
+    return _brandColors.putIfAbsent(
+      organizationId,
+      () => OrganizationBrandColors(
+        rowVersion: _settingsVersion(organizationId),
+        items: const [],
+      ),
+    );
+  }
+
+  @override
+  Future<OrganizationBrandColors> replaceBrandColors(
+    String organizationId,
+    OrganizationBrandColors colors,
+    String clientMutationId,
+  ) async {
+    await Future<void>.delayed(latency);
+    _assertBrandAccess(organizationId, write: true, module: false);
+    _assertOrganizationExists(organizationId);
+    final fingerprint =
+        '${colors.rowVersion}:${colors.items.map((e) => '${normalizeBrandHex(e.colorHex)}:${e.sortOrder}').join(',')}';
+    final idKey =
+        '${session.actorUserId}:$organizationId:colors:$clientMutationId';
+    final replay = _colorsIdempotency[idKey];
+    if (replay != null) {
+      if (replay.fingerprint == fingerprint) {
+        return replay.brand as OrganizationBrandColors;
+      }
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.idempotencyKeyReused,
+        'Bu istek anahtarı farklı içerikle kullanıldı.',
+      );
+    }
+    final current = await getBrandColors(organizationId);
+    if (_settingsVersion(organizationId) != colors.rowVersion) {
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.versionConflict,
+        'Yardımcı palet başka bir kullanıcı tarafından güncellendi.',
+      );
+    }
+    final normalized =
+        colors.items
+            .map(
+              (item) => OrganizationBrandColor(
+                colorHex: normalizeBrandHex(item.colorHex),
+                sortOrder: item.sortOrder,
+              ),
+            )
+            .toList()
+          ..sort(
+            (a, b) => a.sortOrder != b.sortOrder
+                ? a.sortOrder.compareTo(b.sortOrder)
+                : a.colorHex.compareTo(b.colorHex),
+          );
+    if (normalized.length > 20 ||
+        normalized.any(
+          (item) =>
+              !RegExp(r'^#[0-9A-F]{6}$').hasMatch(item.colorHex) ||
+              item.sortOrder < 0 ||
+              item.sortOrder > 999,
+        ) ||
+        normalized.map((item) => item.colorHex).toSet().length !=
+            normalized.length) {
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.validationFailed,
+        'Yardımcı renk paleti geçersiz.',
+      );
+    }
+    final updated = OrganizationBrandColors(
+      rowVersion: current.rowVersion + 1,
+      items: List.unmodifiable(normalized),
+    );
+    _settingsVersions[organizationId] = updated.rowVersion;
+    _brandColors[organizationId] = updated;
+    _colorsIdempotency[idKey] = _BrandIdempotencyEntry(fingerprint, updated);
+    final brand = _brands[organizationId];
+    if (brand != null) {
+      _brands[organizationId] = OrganizationBrand(
+        primaryColor: brand.primaryColor,
+        secondaryColor: brand.secondaryColor,
+        rowVersion: updated.rowVersion,
+      );
+    }
+    final modules = _modules[organizationId];
+    if (modules != null) {
+      _modules[organizationId] = OrganizationModules(
+        rowVersion: updated.rowVersion,
+        items: modules.items,
+      );
+    }
+    return updated;
+  }
+
+  @override
+  Future<OrganizationModules> getModules(String organizationId) async {
+    await Future<void>.delayed(latency);
+    _assertBrandAccess(organizationId, write: false, module: true);
+    _assertOrganizationExists(organizationId);
+    return _modules.putIfAbsent(
+      organizationId,
+      () => OrganizationModules(
+        rowVersion: _settingsVersion(organizationId),
+        items: OrganizationModuleCode.values.indexed
+            .map(
+              (e) => OrganizationModule(
+                code: e.$2,
+                isEnabled: true,
+                sortOrder: e.$1,
+              ),
+            )
+            .toList(),
+      ),
+    );
+  }
+
+  @override
+  Future<OrganizationModules> updateModules(
+    String organizationId,
+    OrganizationModules modules,
+    String clientMutationId,
+  ) async {
+    await Future<void>.delayed(latency);
+    _assertBrandAccess(organizationId, write: true, module: true);
+    _assertOrganizationExists(organizationId);
+    final fingerprint =
+        '${modules.rowVersion}:${modules.items.map((e) => '${e.code.wireName}:${e.isEnabled}:${e.sortOrder}').join(',')}';
+    final idKey =
+        '${session.actorUserId}:$organizationId:modules:$clientMutationId';
+    final replay = _modulesIdempotency[idKey];
+    if (replay != null) {
+      if (replay.fingerprint == fingerprint) {
+        return replay.brand as OrganizationModules;
+      }
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.idempotencyKeyReused,
+        'Bu istek anahtarı farklı içerikle kullanıldı.',
+      );
+    }
+    final current = await getModules(organizationId);
+    if (_settingsVersion(organizationId) != modules.rowVersion) {
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.versionConflict,
+        'Modüller başka bir kullanıcı tarafından güncellendi.',
+      );
+    }
+    if (modules.items.length != OrganizationModuleCode.values.length ||
+        modules.items.map((e) => e.code).toSet().length !=
+            OrganizationModuleCode.values.length ||
+        modules.items.any((e) => e.sortOrder < 0 || e.sortOrder > 999)) {
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.validationFailed,
+        'Modül ayarları geçersiz.',
+      );
+    }
+    final canonicalItems = List<OrganizationModule>.of(modules.items)
+      ..sort(
+        (left, right) => left.sortOrder != right.sortOrder
+            ? left.sortOrder.compareTo(right.sortOrder)
+            : left.code.wireName.compareTo(right.code.wireName),
+      );
+    final updated = OrganizationModules(
+      rowVersion: current.rowVersion + 1,
+      items: List.unmodifiable(canonicalItems),
+    );
+    _settingsVersions[organizationId] = updated.rowVersion;
+    _modules[organizationId] = updated;
+    _modulesIdempotency[idKey] = _BrandIdempotencyEntry(fingerprint, updated);
+    final existingBrand = _brands[organizationId];
+    if (existingBrand != null) {
+      _brands[organizationId] = OrganizationBrand(
+        primaryColor: existingBrand.primaryColor,
+        secondaryColor: existingBrand.secondaryColor,
+        rowVersion: updated.rowVersion,
+      );
+    }
+    final existingColors = _brandColors[organizationId];
+    if (existingColors != null) {
+      _brandColors[organizationId] = OrganizationBrandColors(
+        rowVersion: updated.rowVersion,
+        items: existingColors.items,
+      );
+    }
+    return updated;
   }
 
   static String _generateOrganizationId() {
@@ -469,6 +831,12 @@ class OrganizationsMockRepository implements OrganizationsRepository {
       );
     });
   }
+}
+
+class _BrandIdempotencyEntry {
+  const _BrandIdempotencyEntry(this.fingerprint, this.brand);
+  final String fingerprint;
+  final Object brand;
 }
 
 /// Server-side idempotency record for one `createOrganization` attempt. See

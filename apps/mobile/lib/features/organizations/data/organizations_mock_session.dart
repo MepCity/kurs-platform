@@ -19,6 +19,32 @@ enum OrganizationsMockScope { globalPlatformAdmin }
 /// and (b) bind a minted cursor to "the actor and scope it was minted for"
 /// so a cursor cannot be replayed by a different session (§5.3).
 class OrganizationsMockSession {
+  const OrganizationsMockSession.platformSupport({
+    required String actorUserId,
+    required String organizationId,
+    bool revoked = false,
+  }) : this._(
+         actorUserId: actorUserId,
+         authState: _MockAuthState.platformSupport,
+         organizationId: organizationId,
+         revoked: revoked,
+       );
+  const OrganizationsMockSession.organizationMember({
+    required String actorUserId,
+    required String organizationId,
+    bool isOrganizationAdmin = false,
+    bool canManageBrand = false,
+    bool canManageModules = false,
+    bool revoked = false,
+  }) : this._(
+         actorUserId: actorUserId,
+         authState: _MockAuthState.organizationMember,
+         organizationId: organizationId,
+         isOrganizationAdmin: isOrganizationAdmin,
+         canManageBrand: canManageBrand,
+         canManageModules: canManageModules,
+         revoked: revoked,
+       );
   const OrganizationsMockSession.authenticatedPlatformAdmin({
     required String actorUserId,
   }) : this._(
@@ -54,6 +80,11 @@ class OrganizationsMockSession {
     required this.actorUserId,
     required this._authState,
     this.hasOrganizationContextToken = false,
+    this.organizationId,
+    this.isOrganizationAdmin = false,
+    this.canManageBrand = false,
+    this.canManageModules = false,
+    this.revoked = false,
   });
 
   /// `null` only when [isAuthenticated] is `false`.
@@ -64,11 +95,17 @@ class OrganizationsMockSession {
   /// plain `GLOBAL_PLATFORM_ADMIN` token. See
   /// [OrganizationsMockSession.platformAdminWithOrganizationContext].
   final bool hasOrganizationContextToken;
+  final String? organizationId;
+  final bool isOrganizationAdmin;
+  final bool canManageBrand, canManageModules, revoked;
 
   bool get isAuthenticated => _authState != _MockAuthState.unauthenticated;
 
   bool get hasGlobalPlatformAdminScope =>
       _authState == _MockAuthState.platformAdmin;
+  bool get isPlatformSupport => _authState == _MockAuthState.platformSupport;
+  bool get isOrganizationMember =>
+      _authState == _MockAuthState.organizationMember;
 
   /// The scope this session would operate under once authorized. PLAT-01
   /// only ever uses [OrganizationsMockScope.globalPlatformAdmin].
@@ -76,4 +113,10 @@ class OrganizationsMockSession {
       OrganizationsMockScope.globalPlatformAdmin;
 }
 
-enum _MockAuthState { platformAdmin, forbidden, unauthenticated }
+enum _MockAuthState {
+  platformAdmin,
+  platformSupport,
+  organizationMember,
+  forbidden,
+  unauthenticated,
+}
