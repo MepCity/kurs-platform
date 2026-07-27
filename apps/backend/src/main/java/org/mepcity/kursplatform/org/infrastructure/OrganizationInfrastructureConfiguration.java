@@ -9,6 +9,9 @@ import org.mepcity.kursplatform.org.application.OrganizationLifecycleService;
 import org.mepcity.kursplatform.org.application.OrganizationBrandService;
 import org.mepcity.kursplatform.org.application.OrganizationBrandRateLimiter;
 import org.mepcity.kursplatform.org.application.OrganizationBrandResultSerializer;
+import org.mepcity.kursplatform.org.application.OrganizationListCursorCodec;
+import org.mepcity.kursplatform.org.application.OrganizationListRateLimiter;
+import org.mepcity.kursplatform.org.application.OrganizationListTransaction;
 import org.mepcity.kursplatform.org.application.OrganizationResultSerializer;
 import org.mepcity.kursplatform.org.domain.OrganizationRepository;
 import org.mepcity.kursplatform.org.infrastructure.persistence.JdbcAuditWriter;
@@ -22,10 +25,15 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
+import java.time.Clock;
+import java.security.SecureRandom;
+import org.mepcity.kursplatform.org.infrastructure.persistence.AesGcmOrganizationListCursorCodec;
+import org.mepcity.kursplatform.org.infrastructure.persistence.JdbcOrganizationListRateLimiter;
+import org.mepcity.kursplatform.org.infrastructure.persistence.SpringOrganizationListTransaction;
 
 /** Runtime wiring for the ORG transactional command service. */
 @Configuration
-@EnableConfigurationProperties(OrganizationRateLimitProperties.class)
+@EnableConfigurationProperties({OrganizationRateLimitProperties.class, OrganizationListCursorProperties.class})
 public class OrganizationInfrastructureConfiguration {
 
     /** Production JSON dependency for HTTP representation and persisted idempotency payloads. */
@@ -70,6 +78,26 @@ public class OrganizationInfrastructureConfiguration {
         properties.validate();
         return new JdbcOrganizationBrandRateLimiter(dataSource, transactionManager,
                 properties.getBrandLimit(), properties.getBrandWindow());
+    }
+
+    @Bean
+    OrganizationListTransaction organizationListTransaction(DataSource dataSource,
+            PlatformTransactionManager transactionManager) {
+        return new SpringOrganizationListTransaction(dataSource, transactionManager);
+    }
+
+    @Bean
+    OrganizationListRateLimiter organizationListRateLimiter(DataSource dataSource,
+            OrganizationRateLimitProperties properties) {
+        properties.validate();
+        return new JdbcOrganizationListRateLimiter(dataSource, properties.getListLimit(), properties.getListWindow());
+    }
+
+    @Bean
+    OrganizationListCursorCodec organizationListCursorCodec(OrganizationListCursorProperties properties, Clock clock) {
+        properties.validate();
+        return new AesGcmOrganizationListCursorCodec(properties.getKeyId(), properties.getSecret(),
+                properties.getPreviousKeyId(), properties.getPreviousSecret(), clock, new SecureRandom());
     }
 
     @Bean
