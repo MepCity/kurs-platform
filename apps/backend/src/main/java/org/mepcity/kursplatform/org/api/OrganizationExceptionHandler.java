@@ -8,6 +8,8 @@ import org.mepcity.kursplatform.org.application.IdempotencyPendingException;
 import org.mepcity.kursplatform.org.application.OrganizationContextRequiredException;
 import org.mepcity.kursplatform.org.application.OrganizationAuthenticationException;
 import org.mepcity.kursplatform.org.application.RateLimitExceededException;
+import org.mepcity.kursplatform.org.application.InvalidCursorException;
+import org.mepcity.kursplatform.org.application.OrganizationListValidationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -67,6 +69,12 @@ class OrganizationExceptionHandler {
     ResponseEntity<Map<String, Object>> pending() {
         return response(HttpStatus.CONFLICT, "IDEMPOTENCY_PENDING", "Aynı istek hâlen işleniyor.");
     }
+
+    @ExceptionHandler(InvalidCursorException.class)
+    ResponseEntity<Map<String, Object>> invalidCursor() { return response(HttpStatus.BAD_REQUEST, "INVALID_CURSOR", "Sayfalama imleci geçersiz."); }
+
+    @ExceptionHandler(OrganizationListValidationException.class)
+    ResponseEntity<Map<String, Object>> listValidation() { return response(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION_FAILED", "Gönderilen bilgiler doğrulanamadı."); }
 
     private static HttpStatus status(String code) {
         return switch (code) {

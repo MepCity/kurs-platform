@@ -20,6 +20,7 @@ import org.mepcity.kursplatform.configuration.observability.RequestObservability
 import org.mepcity.kursplatform.org.application.IdempotencyOutcome;
 import org.mepcity.kursplatform.org.application.LifecycleResult;
 import org.mepcity.kursplatform.org.application.OrganizationCreationService;
+import org.mepcity.kursplatform.org.application.OrganizationListService;
 import org.mepcity.kursplatform.org.domain.Organization;
 import org.mepcity.kursplatform.org.domain.OrganizationStatus;
 import org.mepcity.kursplatform.org.application.ForbiddenException;
@@ -36,7 +37,8 @@ class OrganizationControllerContractTests {
     @BeforeEach
     void setUp() {
         creationService = mock(OrganizationCreationService.class);
-        mockMvc = MockMvcBuilders.standaloneSetup(new OrganizationController(creationService, new ObjectMapper().findAndRegisterModules()))
+        mockMvc = MockMvcBuilders.standaloneSetup(new OrganizationController(creationService,
+                        mock(OrganizationListService.class), new ObjectMapper().findAndRegisterModules()))
                 .setControllerAdvice(new OrganizationExceptionHandler())
                 .addFilter(new RequestObservabilityFilter(event -> { }))
                 .build();

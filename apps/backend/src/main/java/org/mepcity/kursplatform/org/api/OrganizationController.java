@@ -10,27 +10,48 @@ import java.time.ZoneId;
 import java.util.UUID;
 import org.mepcity.kursplatform.org.application.LifecycleResult;
 import org.mepcity.kursplatform.org.application.OrganizationCreationService;
+import org.mepcity.kursplatform.org.application.OrganizationListService;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Platform-admin-only organization creation endpoint. */
+/** Organization creation and listing HTTP adapter. */
 @RestController
 @RequestMapping("/api/v1/organizations")
 public class OrganizationController {
     private final OrganizationCreationService creationService;
     private final ObjectMapper objectMapper;
+    private final OrganizationListService listService;
 
-    public OrganizationController(OrganizationCreationService creationService, ObjectMapper objectMapper) {
+    public OrganizationController(OrganizationCreationService creationService, OrganizationListService listService, ObjectMapper objectMapper) {
         this.creationService = creationService;
+        this.listService = listService;
         this.objectMapper = objectMapper;
     }
 
-    @PostMapping(produces = org.springframework.http.MediaType.APPLICATION_JSON_VALUE)
+    @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
+    public OrganizationListResponse list(@RequestHeader("Authorization") String authorization,
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "search", required = false) String search,
+            @RequestParam(value = "sort", required = false) String sort,
+            @RequestParam(value = "order", required = false) String order,
+            @RequestParam(value = "limit", required = false) String limit,
+            @RequestParam(value = "cursor", required = false) String cursor) {
+        OrganizationListService.Query query =
+                OrganizationListQueryParser.parse(status, search, sort, order, limit, cursor);
+        OrganizationListService.Result result = listService.list(bearerToken(authorization), query, requestId());
+        return new OrganizationListResponse(result.items().stream().map(OrganizationResponse::from).toList(),
+                new OrganizationListPageResponse(result.nextCursor(), result.hasNextPage()));
+    }
+
+    @PostMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<?> create(
             @RequestHeader("Authorization") String authorization,
             @RequestHeader("Idempotency-Key") String idempotencyKey,
@@ -52,7 +73,7 @@ public class OrganizationController {
         try {
             String response = validReplay(replayed.result());
             return ResponseEntity.status(replayed.result().terminalHttpStatus())
-                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                    .contentType(MediaType.APPLICATION_JSON)
                     .header("Location", location(replayed.result().resultEntityId()))
                     .body(response);
         } catch (JsonProcessingException | IllegalArgumentException | NullPointerException exception) {
@@ -126,8 +147,8 @@ public class OrganizationController {
 
     private static void requireJsonContentType(String contentType) {
         try {
-            if (contentType == null || !org.springframework.http.MediaType.parseMediaType(contentType)
-                    .isCompatibleWith(org.springframework.http.MediaType.APPLICATION_JSON)) {
+            if (contentType == null || !MediaType.parseMediaType(contentType)
+                    .isCompatibleWith(MediaType.APPLICATION_JSON)) {
                 throw new OrganizationApiException("INVALID_REQUEST", "Content-Type application/json olmalıdır.");
             }
         } catch (org.springframework.http.InvalidMediaTypeException exception) {

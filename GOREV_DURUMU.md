@@ -4,8 +4,8 @@
 |---|---|
 | Son güncelleme | 27 Temmuz 2026 |
 | Aktif dalga | Dalga 2 — Kimlik, kurum ve mobil kabuk |
-| Aktif görev | Yok |
-| Sıradaki görev | IAM-009 — Entegrasyon, izolasyon, olay kaybı ve iptal gecikmesi testleri |
+| Aktif görev | ORG-009 — Dalga 2 dosyasız çekirdek uçtan uca entegrasyon |
+| Sıradaki görev | ORG-009 — Backend listeleme sonrası mobil HTTP adapterları, production composition ve uçtan uca doğrulama |
 
 Bu dosya projenin kaldığı yeri gösteren kısa operasyon panosudur. Her çalışma oturumunun
 başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev tanımları
@@ -15,16 +15,19 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 
 | Kimlik | Görev | Bağımlılık durumu | Not |
 |---|---|---|---|
-| IAM-009 | Entegrasyon, izolasyon, olay kaybı ve iptal gecikmesi testleri | IAM-004–IAM-008 ve ORG-004 tamamlandı | Dalga 2 kimlik kabul kapısı; önce başlatılması önerilir |
-| ORG-009 | Dalga 2 dosyasız çekirdek uçtan uca entegrasyon | IAM-003–IAM-008, ORG-003–ORG-008 ve UI-003–UI-004 tamamlandı | IAM-009 ile test/dosya sahipliği çakışması önlenerek paralel yürütülebilir |
+| — | — | — | Yeni READY görev, aktif ve incelemedeki işler sonuçlandıktan sonra bağımlılık grafiğinden seçilecek |
 
 ## IN_PROGRESS
 
-Aktif görev yok.
+| Kimlik | Görev | Durum | Not |
+|---|---|---|---|
+| ORG-009 | Dalga 2 dosyasız çekirdek uçtan uca entegrasyon | Backend kurum listeleme alt teslimi tamamlandı | ORG-009A PR #59 ile merge edildi; mobil IAM/ORG HTTP adapterları, production composition ve uçtan uca platform doğrulaması sürüyor |
 
 ## REVIEW
 
-İncelemede görev yok.
+| Kimlik | Görev | Pull Request | Not |
+|---|---|---|---|
+| IAM-009 | Entegrasyon, izolasyon, olay kaybı ve iptal gecikmesi testleri | PR #60 | CloudTrail olay semantiği, kalıcı `PENDING_MAPPING` yeniden işleme ve production lag alarmı için inceleme düzeltmeleri bekleniyor |
 
 ## BLOCKED
 
@@ -34,6 +37,7 @@ Bloke görev yok.
 
 | Kimlik | Görev | Tamamlanma tarihi | Teslim |
 |---|---|---|---|
+| ORG-009A | Backend kurum listeleme API'sini tamamla | 27 Temmuz 2026 | GLOBAL/ORGANIZATION kapsamlı kurum listeleme; Türkçe arama ve durum filtreleri, AES-GCM opak keyset cursor ve rotation, kalıcı aktör bazlı rate-limit, dar `iam_runtime → org_runtime` FORCE RLS sınırı, atomik audit ve gerçek HTTP→PostgreSQL kabul matrisi; 491 backend test ve tüm kalite kapıları PASS — PR #59 |
 | IAM-006 | Cihaz kaydı, DEVICE_SESSION_REVOKE ve yeniden doğrulamayı uygula | 27 Temmuz 2026 | Cihaz listeleme ve kendi/kurum/platform oturum iptali; AES-GCM opak cursor, kalıcı rate-limit, sürümlü idempotent snapshot replay, dar FORCE RLS/SECURITY DEFINER sınırları, advisory-lock eşzamanlılık ve gerçek HTTP→PostgreSQL kabul kanıtları; 451 backend test ve tüm kalite kapıları PASS — PR #57 |
 | ORG-008 | Kurum adı ve renk ayarı mobil akışı (dosyasız) | 27 Temmuz 2026 | Marka, yardımcı palet ve etkin modül ayarları için bağımsız draft/snapshot/idempotency yaşam döngüsü, ortak `rowVersion` uzlaştırması, ACTIVE/SUSPENDED/ARCHIVED ve platform-support erişim matrisi, salt-okunur arşiv görünümü ve erişilebilir mobil durum testleri; 540 mobil test, Android/iOS kalite kapıları PASS — PR #58 |
 | IAM-008 | Mobil güvenli oturum saklamayı uygula | 24 Temmuz 2026 | Keychain/Android Keystore tabanlı güvenli oturum saklama, fail-closed bütünlük/kurulum işaretçisi, ortak fiziksel işlem kuyruğu ve 483 mobil test; Android/iOS kalite kapıları PASS — PR #56 |

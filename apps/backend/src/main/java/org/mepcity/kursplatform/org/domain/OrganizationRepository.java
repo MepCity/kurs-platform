@@ -1,6 +1,7 @@
 package org.mepcity.kursplatform.org.domain;
 
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 /** Persistence port; transaction and RLS context belong to the application service. */
@@ -23,4 +24,7 @@ public interface OrganizationRepository {
 
     Optional<Organization> updateBrand(UUID organizationId, String primaryColor, String secondaryColor,
             int expectedRowVersion, UUID updatedByUserId);
+
+    /** Ordered keyset read. RLS is deliberately applied by PostgreSQL before this query returns rows. */
+    List<Organization> list(OrganizationListQuery query);
 }
