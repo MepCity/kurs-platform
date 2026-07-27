@@ -2,6 +2,7 @@ package org.mepcity.kursplatform.iam.application;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 import org.mepcity.kursplatform.iam.domain.CognitoReconciliationClaim;
@@ -43,16 +44,17 @@ public final class CognitoReconciliationService {
     }
 
     public boolean pollOne(String workerId) {
+        var claimTime = clock.instant();
         var claim = transactions.executeInGlobalScope(
                 OperationCode.COGNITO_RECONCILIATION_SWEEP,
                 IamTransactionExecutor.IamAuthScopeContext.actorOnly(null),
                 () -> {
-                    repository.discoverCognitoReconciliationTargets(issuer, userPoolId);
+                    repository.discoverCognitoReconciliationTargets(issuer, userPoolId, claimTime);
                     return repository.claimCognitoReconciliationTarget(
                             userPoolId,
                             workerId,
-                            clock.instant(),
-                            clock.instant().plus(LEASE_TTL));
+                            claimTime,
+                            claimTime.plus(LEASE_TTL));
                 });
         if (claim.isEmpty()) {
             return false;
@@ -73,14 +75,15 @@ public final class CognitoReconciliationService {
                 IamTransactionExecutor.IamAuthScopeContext.actorOnly(null)
                         .withTargetUser(target.userId()),
                 () -> {
+                    var completedAt = clock.instant();
                     if (isNewTerminalStatus(target, status)) {
-                        revokeAndAudit(target, status);
+                        revokeAndAudit(target, status, completedAt);
                     }
                     repository.completeCognitoReconciliationTarget(
                             target,
                             status.name(),
-                            clock.instant(),
-                            clock.instant().plus(CHECK_INTERVAL));
+                            completedAt,
+                            completedAt.plus(CHECK_INTERVAL));
                     return null;
                 });
         if (status == ProviderUserStatus.UNKNOWN) {
@@ -90,25 +93,26 @@ public final class CognitoReconciliationService {
     }
 
     private void releaseForRetry(CognitoReconciliationClaim target) {
+        var retryAt = clock.instant().plus(CHECK_INTERVAL);
         transactions.executeInGlobalScope(
                 OperationCode.COGNITO_RECONCILIATION_SWEEP,
                 IamTransactionExecutor.IamAuthScopeContext.actorOnly(null)
                         .withTargetUser(target.userId()),
                 () -> {
                     repository.releaseCognitoReconciliationTarget(
-                            target, clock.instant().plus(CHECK_INTERVAL));
+                            target, retryAt);
                     return null;
                 });
     }
 
     private void revokeAndAudit(
-            CognitoReconciliationClaim target, ProviderUserStatus status) {
+            CognitoReconciliationClaim target, ProviderUserStatus status, Instant now) {
         repository.revokeAllActorFamilies(
                 target.userId(),
                 OperationCode.COGNITO_RECONCILIATION_SWEEP,
-                clock.instant());
+                now);
         repository.elevateUserReauthenticationRequiredAfter(
-                target.userId(), clock.instant());
+                target.userId(), now);
         audit.write(new IamAuditEvent(
                 UUID.randomUUID(),
                 null,

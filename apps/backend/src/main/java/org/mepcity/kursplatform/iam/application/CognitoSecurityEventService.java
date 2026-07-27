@@ -43,11 +43,12 @@ public final class CognitoSecurityEventService {
     }
 
     public CognitoEventProcessingResult ingest(CognitoSecurityEvent event, String workerId) {
+        Instant now = clock.instant();
         boolean inserted = transactions.executeInGlobalScope(
                 OperationCode.COGNITO_SECURITY_EVENT_PROCESS,
                 IamTransactionExecutor.IamAuthScopeContext.actorOnly(null),
-                () -> repository.recordCognitoSecurityEvent(event));
-        var claim = claimExact(event, workerId);
+                () -> repository.recordCognitoSecurityEvent(event, now));
+        var claim = claimExact(event, workerId, now);
         if (claim.isEmpty()) {
             return inserted
                     ? CognitoEventProcessingResult.PERSISTED_PENDING
@@ -68,8 +69,7 @@ public final class CognitoSecurityEventService {
     }
 
     private java.util.Optional<CognitoSecurityEventClaim> claimExact(
-            CognitoSecurityEvent event, String workerId) {
-        Instant now = clock.instant();
+            CognitoSecurityEvent event, String workerId, Instant now) {
         return transactions.executeInGlobalScope(
                 OperationCode.COGNITO_SECURITY_EVENT_PROCESS,
                 IamTransactionExecutor.IamAuthScopeContext.actorOnly(null),
@@ -110,6 +110,7 @@ public final class CognitoSecurityEventService {
                 IamTransactionExecutor.IamAuthScopeContext.actorOnly(null)
                         .withTargetUser(mapped.userId()),
                 () -> {
+                    Instant now = clock.instant();
                     UserIdentity revalidated = repository.revalidateCognitoEventSubject(
                                     issuer,
                                     claim.event().subject(),
@@ -120,9 +121,9 @@ public final class CognitoSecurityEventService {
                     repository.revokeAllActorFamilies(
                             revalidated.userId(),
                             OperationCode.COGNITO_SECURITY_EVENT_PROCESS,
-                            clock.instant());
+                            now);
                     repository.elevateUserReauthenticationRequiredAfter(
-                            revalidated.userId(), clock.instant());
+                            revalidated.userId(), now);
                     audit.write(new IamAuditEvent(
                             UUID.randomUUID(),
                             null,
@@ -136,7 +137,7 @@ public final class CognitoSecurityEventService {
                             Map.of("providerStatus", "REVOKED"),
                             Map.of("operationCode",
                                     OperationCode.COGNITO_SECURITY_EVENT_PROCESS.name())));
-                    repository.completeCognitoSecurityEvent(claim, clock.instant());
+                    repository.completeCognitoSecurityEvent(claim, now);
                     return null;
                 });
     }

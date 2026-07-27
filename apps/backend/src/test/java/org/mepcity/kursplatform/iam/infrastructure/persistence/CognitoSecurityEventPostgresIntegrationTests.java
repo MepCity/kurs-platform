@@ -91,6 +91,57 @@ class CognitoSecurityEventPostgresIntegrationTests {
                 .isEqualTo(1);
     }
 
+    @Test
+    void injectedClockOwnsInitialDueTimesWhenDatabaseClockIsLater() {
+        Instant applicationNow = Instant.parse("2000-01-01T00:00:00Z");
+        var event = event("event-clock-source", "subject-clock-source");
+
+        assertThat(owner.queryForObject(
+                "SELECT transaction_timestamp() > ?",
+                Boolean.class,
+                Timestamp.from(applicationNow)))
+                .isTrue();
+        assertThat(owner.queryForObject("""
+                SELECT column_default
+                FROM information_schema.columns
+                WHERE table_schema='public'
+                  AND table_name='iam_cognito_security_events'
+                  AND column_name='next_attempt_at'
+                """, String.class))
+                .isNull();
+        assertThat(inEventScope(() -> repository.recordCognitoSecurityEvent(event, applicationNow)))
+                .isTrue();
+        assertThat(owner.queryForObject(
+                "SELECT next_attempt_at FROM iam_cognito_security_events WHERE event_id=?",
+                Timestamp.class,
+                event.eventId()).toInstant())
+                .isEqualTo(applicationNow);
+        assertThat(inEventScope(() -> repository.claimCognitoSecurityEvent(
+                event,
+                "clock-source-event-worker",
+                applicationNow,
+                applicationNow.plusSeconds(120))))
+                .isPresent();
+
+        UUID userId = seedIdentityWithFamily("subject-clock-source", "clock-source");
+        inSweepScope(() -> {
+            repository.discoverCognitoReconciliationTargets(
+                    issuer(), "eu-central-1_pool", applicationNow);
+            return null;
+        });
+        assertThat(owner.queryForObject(
+                "SELECT next_check_at FROM iam_cognito_reconciliation_targets WHERE user_id=?",
+                Timestamp.class,
+                userId).toInstant())
+                .isEqualTo(applicationNow);
+        assertThat(inSweepScope(() -> repository.claimCognitoReconciliationTarget(
+                "eu-central-1_pool",
+                "clock-source-reconciliation-worker",
+                applicationNow,
+                applicationNow.plusSeconds(120))))
+                .isPresent();
+    }
+
     @Test void expiredLeaseCanBeReclaimedAndStaleWorkerCannotComplete() {
         var event = event("event-lease", "subject-a");
         var first = inEventScope(() -> repository.claimCognitoSecurityEvent(
@@ -172,7 +223,7 @@ class CognitoSecurityEventPostgresIntegrationTests {
                 "AdminDisableUser",
                 "subject-lag",
                 NOW.minusSeconds(120));
-        inEventScope(() -> repository.recordCognitoSecurityEvent(lagged));
+        inEventScope(() -> repository.recordCognitoSecurityEvent(lagged, NOW));
         var alerts = new java.util.ArrayList<SecurityAlertSink.SecurityAlert>();
         var warningMonitor = new ReconciliationLagMonitor(
                 repository,
@@ -248,7 +299,7 @@ class CognitoSecurityEventPostgresIntegrationTests {
                 "https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_other",
                 "subject-other-pool", "eu-central-1_other", Timestamp.from(NOW));
         inSweepScope(() -> {
-            repository.discoverCognitoReconciliationTargets(issuer(), "eu-central-1_pool");
+            repository.discoverCognitoReconciliationTargets(issuer(), "eu-central-1_pool", NOW);
             return null;
         });
 
@@ -292,7 +343,7 @@ class CognitoSecurityEventPostgresIntegrationTests {
     void reconciliationWorkersCannotClaimSameTargetConcurrently() throws Exception {
         seedIdentityWithFamily("subject-recon-race", "recon-race");
         inSweepScope(() -> {
-            repository.discoverCognitoReconciliationTargets(issuer(), "eu-central-1_pool");
+            repository.discoverCognitoReconciliationTargets(issuer(), "eu-central-1_pool", NOW);
             return null;
         });
         var gate = new CountDownLatch(1);
@@ -319,7 +370,7 @@ class CognitoSecurityEventPostgresIntegrationTests {
     void expiredReconciliationLeaseUsesHigherFenceAndRejectsStaleCompletion() {
         seedIdentityWithFamily("subject-recon-lease", "recon-lease");
         var first = inSweepScope(() -> {
-            repository.discoverCognitoReconciliationTargets(issuer(), "eu-central-1_pool");
+            repository.discoverCognitoReconciliationTargets(issuer(), "eu-central-1_pool", NOW);
             return repository.claimCognitoReconciliationTarget(
                     "eu-central-1_pool", "recon-a", NOW, NOW.plusSeconds(120));
         }).orElseThrow();
