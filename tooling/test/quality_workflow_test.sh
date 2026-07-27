@@ -68,10 +68,12 @@ assert_job_text dependency-gate "needs: dependency-review"
 
 required_texts=(
   "./gradlew test build --no-daemon"
-  "dart format --output=none --set-exit-if-changed lib test"
+  "dart format --output=none --set-exit-if-changed lib test tool"
   "flutter analyze"
   "flutter test"
   "flutter build apk --debug"
+  "app:processReleaseManifest"
+  "dart run tool/android_oauth_manifest_verifier.dart"
   "runs-on: macos-15"
   "flutter build ios --debug --simulator --no-codesign"
   "format: cyclonedx-json"

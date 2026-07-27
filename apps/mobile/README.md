@@ -34,10 +34,12 @@ değeri konfigürasyon hatası üretir.
 
 ```bash
 flutter pub get
-dart format --output=none --set-exit-if-changed lib test
+dart format --output=none --set-exit-if-changed lib test tool
 flutter analyze
 flutter test
 flutter build apk --debug
+./android/gradlew -p android app:processReleaseManifest --no-daemon
+dart run tool/android_oauth_manifest_verifier.dart
 flutter build ios --debug --simulator --no-codesign
 ```
 

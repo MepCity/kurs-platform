@@ -38,6 +38,9 @@ class _Store implements SecureSessionStore, AtomicSecureSessionStore {
   bool corrupted = false;
   bool unavailable = false;
   bool clearFails = false;
+  Object? isCurrentError;
+  Object? replaceIfCurrentError;
+  Object? clearIfCurrentError;
   int replacements = 0;
   int clears = 0;
   int _lease = 0;
@@ -59,8 +62,10 @@ class _Store implements SecureSessionStore, AtomicSecureSessionStore {
   }
 
   @override
-  Future<bool> isCurrent(SecureSession expected) async =>
-      _same(value, expected);
+  Future<bool> isCurrent(SecureSession expected) async {
+    if (isCurrentError case final error?) throw error;
+    return _same(value, expected);
+  }
 
   @override
   Future<void> clear() async {
@@ -74,6 +79,7 @@ class _Store implements SecureSessionStore, AtomicSecureSessionStore {
 
   @override
   Future<bool> clearIfCurrent(SecureSession expected) async {
+    if (clearIfCurrentError case final error?) throw error;
     if (!_same(value, expected)) return false;
     clears++;
     value = null;
@@ -85,6 +91,7 @@ class _Store implements SecureSessionStore, AtomicSecureSessionStore {
     SecureSession expected,
     SecureSession replacement,
   ) async {
+    if (replaceIfCurrentError case final error?) throw error;
     if (!_same(value, expected)) return false;
     replacements++;
     value = replacement;
@@ -106,6 +113,38 @@ class _Store implements SecureSessionStore, AtomicSecureSessionStore {
     value = session;
     return true;
   }
+}
+
+class _NonAtomicStore implements SecureSessionStore {
+  _NonAtomicStore(this.value);
+
+  SecureSession? value;
+  int reads = 0;
+
+  @override
+  Future<SecureSession?> read() async {
+    reads++;
+    return value;
+  }
+
+  @override
+  Future<void> clear() async => value = null;
+
+  @override
+  Future<SecureSessionWriteLease> beginActivation() async =>
+      const SecureSessionWriteLease(1);
+
+  @override
+  Future<bool> commit(
+    SecureSessionWriteLease lease,
+    SecureSession session,
+  ) async {
+    value = session;
+    return true;
+  }
+
+  @override
+  void abandonActivation(SecureSessionWriteLease lease) {}
 }
 
 bool _same(SecureSession? first, SecureSession second) =>
@@ -144,12 +183,14 @@ class _Repository implements SessionRepository {
   }
 }
 
-SessionBootstrapController _controller(_Store store, _Repository repository) =>
-    SessionBootstrapController(
-      repository: repository,
-      sessionStore: store,
-      now: () => DateTime.utc(2026, 7, 27, 9),
-    );
+SessionBootstrapController _controller(
+  SecureSessionStore store,
+  _Repository repository,
+) => SessionBootstrapController(
+  repository: repository,
+  sessionStore: store,
+  now: () => DateTime.utc(2026, 7, 27, 9),
+);
 
 void main() {
   test('no session and corrupted session fail closed to login', () async {
@@ -195,6 +236,26 @@ void main() {
     expect(repository.refreshes, 0);
   });
 
+  test(
+    'sessions/me sonrası isCurrent storage hatası retryableError üretir',
+    () async {
+      final candidate = _session('is-current-error', expired: false);
+      final store = _Store()
+        ..value = candidate
+        ..isCurrentError = const SecureSessionStoreFailure(
+          SecureSessionStoreFailureReason.unavailable,
+        );
+      final repository = _Repository();
+      final controller = _controller(store, repository);
+
+      await expectLater(controller.start(), completes);
+
+      expect(repository.validations, 1);
+      expect(controller.status, BootstrapStatus.retryableError);
+      expect(store.value, same(candidate));
+    },
+  );
+
   test('expired access refreshes, CAS replaces, then validates', () async {
     final old = _session('old', expired: true);
     final replacement = _session('new', expired: false);
@@ -208,6 +269,37 @@ void main() {
     expect(repository.refreshes, 1);
     expect(store.replacements, 1);
     expect(store.value?.refreshToken, 'refresh-new');
+    expect(repository.validations, 1);
+  });
+
+  test(
+    'refresh replaceIfCurrent storage hatası adayı korur ve retryableError üretir',
+    () async {
+      final candidate = _session('replace-error', expired: true);
+      final replacement = _session('replacement', expired: false);
+      final store = _Store()
+        ..value = candidate
+        ..replaceIfCurrentError = StateError('secure storage write failed');
+      final repository = _Repository()..replacement = replacement;
+      final controller = _controller(store, repository);
+
+      await expectLater(controller.start(), completes);
+
+      expect(controller.status, BootstrapStatus.retryableError);
+      expect(store.value, same(candidate));
+      expect(store.replacements, 0);
+    },
+  );
+
+  test('non-atomic store bootstrap sonsuz yeniden başlatma yapmaz', () async {
+    final store = _NonAtomicStore(_session('non-atomic', expired: false));
+    final repository = _Repository();
+    final controller = _controller(store, repository);
+
+    await expectLater(controller.start(), completes);
+
+    expect(controller.status, BootstrapStatus.retryableError);
+    expect(store.reads, 1);
     expect(repository.validations, 1);
   });
 
@@ -262,6 +354,26 @@ void main() {
     expect(transient.status, BootstrapStatus.retryableError);
     expect(transientStore.value, same(transientSession));
   });
+
+  test(
+    'sunucu logout sonrası clearIfCurrent storage hatası başarı göstermez',
+    () async {
+      final candidate = _session('logout-clear-error', expired: false);
+      final store = _Store()..value = candidate;
+      final repository = _Repository();
+      final controller = _controller(store, repository);
+      await controller.start();
+      store.clearIfCurrentError = const SecureSessionStoreFailure(
+        SecureSessionStoreFailureReason.unavailable,
+      );
+
+      await expectLater(controller.logout(), completes);
+
+      expect(repository.logouts, 1);
+      expect(controller.status, BootstrapStatus.retryableError);
+      expect(store.value, same(candidate));
+    },
+  );
 
   test('stale logout cannot clear a newer login', () async {
     final old = _session('old', expired: false);

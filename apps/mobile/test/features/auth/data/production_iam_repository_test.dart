@@ -242,6 +242,14 @@ IamResponse _refreshResponse({
   }),
 );
 
+IamResponse _idempotencyKeyReusedResponse() => IamResponse(
+  statusCode: 409,
+  headers: const <String, String>{},
+  body: jsonEncode(<String, Object?>{
+    'error': <String, Object?>{'code': 'IDEMPOTENCY_KEY_REUSED'},
+  }),
+);
+
 SecureSession _expiredCandidate() => SecureSession(
   userId: _user,
   deviceId: _device,
@@ -427,6 +435,80 @@ void main() {
             .skip(3)
             .map((request) => request.headers['Idempotency-Key']),
         everyElement(transport.requests[3].headers['Idempotency-Key']),
+      );
+    },
+  );
+
+  test(
+    'refresh IDEMPOTENCY_KEY_REUSED drops the rejected key and requires reauthentication',
+    () async {
+      final transport = _ScriptTransport()
+        ..results.addAll(<Object>[
+          _idempotencyKeyReusedResponse(),
+          _refreshResponse(),
+        ]);
+      final repository = ProductionIamRepository(
+        provider: _Provider(),
+        client: IamHttpClient(config: _productionConfig, transport: transport),
+        deviceIdentity: _Device(),
+      );
+      final candidate = _expiredCandidate();
+
+      await expectLater(
+        repository.refresh(candidate),
+        throwsA(
+          isA<SessionFailure>().having(
+            (failure) => failure.kind,
+            'kind',
+            SessionFailureKind.terminal,
+          ),
+        ),
+      );
+      await repository.refresh(candidate);
+
+      expect(transport.requests, hasLength(2));
+      expect(
+        transport.requests[1].headers['Idempotency-Key'],
+        isNot(transport.requests[0].headers['Idempotency-Key']),
+      );
+    },
+  );
+
+  test(
+    'logout IDEMPOTENCY_KEY_REUSED drops the rejected key before retry',
+    () async {
+      final transport = _ScriptTransport()
+        ..results.addAll(<Object>[
+          _idempotencyKeyReusedResponse(),
+          const IamResponse(
+            statusCode: 204,
+            headers: <String, String>{},
+            body: '',
+          ),
+        ]);
+      final repository = ProductionIamRepository(
+        provider: _Provider(),
+        client: IamHttpClient(config: _productionConfig, transport: transport),
+        deviceIdentity: _Device(),
+      );
+      final candidate = _expiredCandidate();
+
+      await expectLater(
+        repository.logout(candidate),
+        throwsA(
+          isA<SessionFailure>().having(
+            (failure) => failure.kind,
+            'kind',
+            SessionFailureKind.terminal,
+          ),
+        ),
+      );
+      await repository.logout(candidate);
+
+      expect(transport.requests, hasLength(2));
+      expect(
+        transport.requests[1].headers['Idempotency-Key'],
+        isNot(transport.requests[0].headers['Idempotency-Key']),
       );
     },
   );

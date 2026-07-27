@@ -249,13 +249,14 @@ class ProductionIamRepository
       _refreshKeys.remove(candidate.refreshToken);
       return result;
     } on IamApiException catch (error) {
-      if (error.isTerminalSession) {
+      final definitive =
+          error.isTerminalSession ||
+          error.code == IamErrorCode.idempotencyKeyReused;
+      if (definitive) {
         _refreshKeys.remove(candidate.refreshToken);
       }
       throw SessionFailure(
-        error.isTerminalSession
-            ? SessionFailureKind.terminal
-            : SessionFailureKind.transient,
+        definitive ? SessionFailureKind.terminal : SessionFailureKind.transient,
         'Oturum yenilenemedi.',
       );
     } on IamTransportException {
@@ -290,13 +291,14 @@ class ProductionIamRepository
         _logoutKeys.remove(candidate.refreshToken);
         return;
       }
-      if (error.isTerminalSession) {
+      final definitive =
+          error.isTerminalSession ||
+          error.code == IamErrorCode.idempotencyKeyReused;
+      if (definitive) {
         _logoutKeys.remove(candidate.refreshToken);
       }
       throw SessionFailure(
-        error.isTerminalSession
-            ? SessionFailureKind.terminal
-            : SessionFailureKind.transient,
+        definitive ? SessionFailureKind.terminal : SessionFailureKind.transient,
         'Çıkış tamamlanamadı.',
       );
     } on Object {

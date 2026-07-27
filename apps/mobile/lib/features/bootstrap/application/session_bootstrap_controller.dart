@@ -78,10 +78,20 @@ class SessionBootstrapController extends ChangeNotifier {
     try {
       final session = await repository.validate(candidate);
       if (!_current(operation)) return;
-      if (sessionStore is! AtomicSecureSessionStore ||
-          !await (sessionStore as AtomicSecureSessionStore).isCurrent(
-            candidate,
-          )) {
+      if (sessionStore is! AtomicSecureSessionStore) {
+        _storageRetryable(operation, 'Güvenli oturum doğrulanamadı.');
+        return;
+      }
+      late final bool isCurrent;
+      try {
+        isCurrent = await (sessionStore as AtomicSecureSessionStore).isCurrent(
+          candidate,
+        );
+      } on Object {
+        _storageRetryable(operation, 'Güvenli oturum doğrulanamadı.');
+        return;
+      }
+      if (!isCurrent) {
         if (_current(operation)) await _start();
         return;
       }
@@ -115,7 +125,14 @@ class SessionBootstrapController extends ChangeNotifier {
         return;
       }
       final atomic = sessionStore as AtomicSecureSessionStore;
-      final replaced = await atomic.replaceIfCurrent(candidate, replacement);
+      late final bool replaced;
+      try {
+        replaced = await atomic.replaceIfCurrent(candidate, replacement);
+      } on Object {
+        _candidate = candidate;
+        _storageRetryable(operation, 'Güvenli oturum yenilenemedi.');
+        return;
+      }
       if (!_current(operation)) return;
       if (!replaced) {
         await _start();
@@ -146,11 +163,20 @@ class SessionBootstrapController extends ChangeNotifier {
       await repository.logout(candidate);
       if (!_current(operation)) return;
       if (sessionStore is! AtomicSecureSessionStore) {
-        await _start();
+        _candidate = candidate;
+        _storageRetryable(operation, 'Güvenli oturum temizlenemedi.');
         return;
       }
       final atomic = sessionStore as AtomicSecureSessionStore;
-      if (!await atomic.clearIfCurrent(candidate)) {
+      late final bool cleared;
+      try {
+        cleared = await atomic.clearIfCurrent(candidate);
+      } on Object {
+        _candidate = candidate;
+        _storageRetryable(operation, 'Güvenli oturum temizlenemedi.');
+        return;
+      }
+      if (!cleared) {
         await _start();
         return;
       }
@@ -176,8 +202,12 @@ class SessionBootstrapController extends ChangeNotifier {
         );
       }
       final atomic = sessionStore as AtomicSecureSessionStore;
-      await atomic.clearIfCurrent(candidate);
+      final cleared = await atomic.clearIfCurrent(candidate);
       if (!_current(operation)) return;
+      if (!cleared) {
+        await _start();
+        return;
+      }
       _candidate = null;
       _session = null;
       _set(BootstrapStatus.unauthenticated);
@@ -189,6 +219,11 @@ class SessionBootstrapController extends ChangeNotifier {
         );
       }
     }
+  }
+
+  void _storageRetryable(int operation, String message) {
+    if (!_current(operation)) return;
+    _set(BootstrapStatus.retryableError, message: '$message Tekrar deneyin.');
   }
 
   void _set(BootstrapStatus value, {String? message}) {
