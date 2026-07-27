@@ -482,7 +482,8 @@ başlar. Kilit sırası, kilidi alan işlem için **bağlayıcıdır ve sabittir
 kilidi (yalnız üç işlem, yukarıda), (1) `trusted_devices` satırı (varsa; Faz A/C ayrımı yukarıda
 tanımlıdır), (2) `organization_memberships` (varsa), (3) `refresh_token_families`, (4)
 `refresh_tokens`. Ters sırayla kilitleme deadlock riski taşıdığından uygulama kodunda yasaktır.
-Adım (1) uygulanabiliyorsa mantıksal cihaz kilidi (Faz C) alındıktan **sonra** aktif
+Adım (1) uygulanabiliyorsa Faz B'deki mantıksal cihaz kilidinden **sonra**, Faz C yeniden
+okumasıyla aktif
 aile/token/`session_generation`/`revoked_at`/**`MAX(revoked_at)`** durumu **yeniden okunur**;
 karar ilk (kilitsiz veya Faz A) okumaya değil bu ikinci okumaya göre verilir.
 `PROVIDER_TOKEN_EXCHANGE`in `WITH CHECK`i, doğrulanmış `auth_time`i yalnız bu kilit-sonrası
@@ -581,10 +582,10 @@ IAM-009, IAM-001'in yukarıdaki test listesine ek olarak en az şunları kanıtl
   `DEVICE_SELF_REVOKE` girip aynı cihazı iptal edip commit ederse, ilk işlemin Faz C yeniden
   okuması bu güncel `revoked_at`ı görür ve karar/mutasyon buna göre (no-op veya fail-closed)
   verilir; Faz A'nın kilitsiz okuduğu eski durum hiçbir karara girmez.
-- **Faz C yeniden okumanın güncelliği:** Faz C'nin mantıksal kilit sonrası yeniden okuması, Faz A'dan sonra
-  başka bir transaction tarafından commit edilmiş bir `revoked_at` değişikliğini **her zaman**
-  görür (kilit + `FOR UPDATE` snapshot garantisi); karar hiçbir koşulda Faz A'nın önbelleğe
-  alınmış değerine dayanmaz.
+- **Faz C yeniden okumanın güncelliği:** transaction-scoped advisory lock Faz B'de alınır.
+  Kilit serbest kaldıktan sonra READ COMMITTED altında başlayan Faz C'nin normal `SELECT`i,
+  Faz A'dan sonra commit edilmiş son `revoked_at` durumunu görür; karar hiçbir koşulda Faz A'nın
+  önbelleğe alınmış değerine dayanmaz.
 - **Çapraz `userId`/`deviceId` keşfi 404 döner:** `DEVICE_SELF_REVOKE`te başka kullanıcıya ait
   `deviceId`, `PLATFORM_DEVICE_REVOKE`te path `userId`sine ait olmayan `deviceId` Faz A'da 0 satır
   döner ve istek `404 RESOURCE_NOT_FOUND` ile biter; mantıksal kilit hiç alınmaz, Faz C/D'ye

@@ -3,16 +3,16 @@ package org.mepcity.kursplatform.iam.infrastructure;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.Clock;
 import java.time.ZoneOffset;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mepcity.kursplatform.iam.application.DeviceCursorCodec;
 import org.mepcity.kursplatform.iam.domain.IamException;
 
-class DeviceCursorCodecTests {
+class AesGcmDeviceCursorCodecTests {
     private static final Instant NOW = Instant.parse("2026-07-24T12:00:00Z");
     private final HmacSha256TokenHasher hasher = new HmacSha256TokenHasher("cursor-test-secret-at-least-16-chars");
 
@@ -33,8 +33,7 @@ class DeviceCursorCodecTests {
     @Test
     void rejectsTamperedAndExpiredCursors() {
         UUID actor = UUID.randomUUID();
-        String cursor = codec(NOW, Duration.ofSeconds(1))
-                .encode(actor, 10, NOW, UUID.randomUUID());
+        String cursor = codec(NOW, Duration.ofSeconds(1)).encode(actor, 10, NOW, UUID.randomUUID());
 
         assertInvalid(() -> codec(NOW, Duration.ofMinutes(1)).decode(actor, 10,
                 cursor.substring(0, cursor.length() - 1) + "A"));
@@ -47,7 +46,7 @@ class DeviceCursorCodecTests {
         DeviceCursorCodec codec = codec(NOW, Duration.ofMinutes(5));
         byte[] raw = java.util.Base64.getUrlDecoder().decode(codec.encode(actor, 10, NOW, UUID.randomUUID()));
 
-        raw[0] ^= 1; // the first byte is now nonce, never an unauthenticated expiry prefix
+        raw[0] ^= 1;
         assertInvalid(() -> codec.decode(actor, 10, java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(raw)));
         assertInvalid(() -> codec.decode(actor, 10, java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(new byte[12])));
         assertInvalid(() -> codec.decode(actor, 10, java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(new byte[13])));

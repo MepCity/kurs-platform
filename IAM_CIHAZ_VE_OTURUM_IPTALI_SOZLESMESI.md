@@ -661,7 +661,8 @@ D'de çalışır (bkz. §4.2).
   atlanır/farklıdır — bkz. §12.0a), (2) `organization_memberships` (varsa), (3)
   `refresh_token_families`, (4) `refresh_tokens`. Ters sırayla kilitleme deadlock riski
   taşıdığından yasaktır.
-- Adım (1) uygulanabiliyorsa mantıksal cihaz kilidi (Faz C) alındıktan **sonra** aktif
+- Adım (1) uygulanabiliyorsa Faz B'deki mantıksal cihaz kilidinden **sonra**, Faz C yeniden
+  okumasıyla aktif
   aile/token/`session_generation`/`revoked_at`/**`MAX(revoked_at)`** durumu **yeniden okunur**;
   karar ilk (kilitsiz veya Faz A) okumaya değil bu ikinci okumaya göre verilir.
   `PROVIDER_TOKEN_EXCHANGE`in `auth_time > MAX(revoked_at)` karşılaştırması her zaman bu
