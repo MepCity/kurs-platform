@@ -1,14 +1,16 @@
-package org.mepcity.kursplatform.iam.application;
+package org.mepcity.kursplatform.iam.infrastructure;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.Clock;
+import java.time.ZoneOffset;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.mepcity.kursplatform.iam.application.DeviceCursorCodec;
 import org.mepcity.kursplatform.iam.domain.IamException;
-import org.mepcity.kursplatform.iam.infrastructure.HmacSha256TokenHasher;
 
 class DeviceCursorCodecTests {
     private static final Instant NOW = Instant.parse("2026-07-24T12:00:00Z");
@@ -18,7 +20,7 @@ class DeviceCursorCodecTests {
     void encryptsPositionAndBindsItToActorAndLimit() {
         UUID actor = UUID.randomUUID();
         UUID device = UUID.randomUUID();
-        DeviceCursorCodec codec = new DeviceCursorCodec(hasher, NOW, Duration.ofMinutes(5));
+        DeviceCursorCodec codec = codec(NOW, Duration.ofMinutes(5));
 
         String cursor = codec.encode(actor, 20, NOW.minusSeconds(1), device);
 
@@ -31,18 +33,18 @@ class DeviceCursorCodecTests {
     @Test
     void rejectsTamperedAndExpiredCursors() {
         UUID actor = UUID.randomUUID();
-        String cursor = new DeviceCursorCodec(hasher, NOW, Duration.ofSeconds(1))
+        String cursor = codec(NOW, Duration.ofSeconds(1))
                 .encode(actor, 10, NOW, UUID.randomUUID());
 
-        assertInvalid(() -> new DeviceCursorCodec(hasher, NOW, Duration.ofMinutes(1)).decode(actor, 10,
+        assertInvalid(() -> codec(NOW, Duration.ofMinutes(1)).decode(actor, 10,
                 cursor.substring(0, cursor.length() - 1) + "A"));
-        assertInvalid(() -> new DeviceCursorCodec(hasher, NOW.plusSeconds(2), Duration.ofMinutes(1)).decode(actor, 10, cursor));
+        assertInvalid(() -> codec(NOW.plusSeconds(2), Duration.ofMinutes(1)).decode(actor, 10, cursor));
     }
 
     @Test
     void rejectsAnyPrefixTamperingAndMalformedLengthsBecauseExpiryIsAuthenticated() {
         UUID actor = UUID.randomUUID();
-        DeviceCursorCodec codec = new DeviceCursorCodec(hasher, NOW, Duration.ofMinutes(5));
+        DeviceCursorCodec codec = codec(NOW, Duration.ofMinutes(5));
         byte[] raw = java.util.Base64.getUrlDecoder().decode(codec.encode(actor, 10, NOW, UUID.randomUUID()));
 
         raw[0] ^= 1; // the first byte is now nonce, never an unauthenticated expiry prefix
@@ -53,5 +55,9 @@ class DeviceCursorCodecTests {
 
     private static void assertInvalid(org.assertj.core.api.ThrowableAssert.ThrowingCallable call) {
         assertThatThrownBy(call).isInstanceOf(IamException.class).extracting("errorCode").isEqualTo("INVALID_CURSOR");
+    }
+
+    private DeviceCursorCodec codec(Instant now, Duration ttl) {
+        return new AesGcmDeviceCursorCodec(hasher, Clock.fixed(now, ZoneOffset.UTC), ttl, new java.security.SecureRandom());
     }
 }

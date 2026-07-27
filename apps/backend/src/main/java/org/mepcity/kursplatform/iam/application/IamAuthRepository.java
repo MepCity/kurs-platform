@@ -43,8 +43,6 @@ public interface IamAuthRepository {
 
     List<TrustedDevice> findActiveTrustedDevicesPage(UUID userId, Instant beforeTrustedAt, UUID afterId, int limit);
 
-    Optional<TrustedDevice> findTrustedDeviceByIdForUpdate(UUID userId, UUID deviceId);
-
     boolean revokeTrustedDeviceIfActive(UUID userId, UUID deviceId);
 
     /** Atomically stamps revocation with PostgreSQL transaction time and returns the terminal row. */

@@ -63,7 +63,9 @@ public final class IamDeviceController {
     }
 
     private String token(String authorization) {
-        if (authorization == null || !authorization.startsWith("Bearer ")) throw new IamException("UNAUTHENTICATED", "Authorization başlığı geçersiz.");
+        if (authorization == null || !authorization.matches("Bearer \\S+")) {
+            throw new IamException("UNAUTHENTICATED", "Authorization başlığı geçersiz.");
+        }
         return authorization.substring(7);
     }
     private void rejectBody(HttpServletRequest request) {

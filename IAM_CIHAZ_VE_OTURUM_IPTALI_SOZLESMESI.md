@@ -380,7 +380,7 @@ Davranış:
   `user_id`sine ait olup olmadığını ve `device_identifier`ini öğrenir; bu sorgu `revoked_at`a
   bakmaz ve hiçbir karar vermez. Eşleşme yoksa `404 RESOURCE_NOT_FOUND` döner (bkz. §12.0a).
 - **Faz B/C (kilit ve yeniden okuma):** Faz A'da öğrenilen `(user_id, device_identifier)` ile
-  mantıksal cihaz kilidi alınır; aynı `deviceId` satırı `SELECT ... FOR UPDATE` ile yeniden
+  mantıksal cihaz kilidi alınır; aynı `deviceId` satırı normal `SELECT` ile yeniden
   okunur. Okunan satırın `user_id`/`device_identifier`i Faz A ile uyuşmuyorsa fail-closed `404
   RESOURCE_NOT_FOUND` döner (bkz. §12.0a).
 - **Faz D (karar ve mutasyon):** Farklı bir `Idempotency-Key` ile gelen istek, Faz C'nin yeniden
@@ -532,7 +532,7 @@ Davranış:
   olup olmadığını ve `device_identifier`ini öğrenir; bu sorgu `revoked_at`a bakmaz ve hiçbir
   karar vermez. Eşleşme yoksa `404 RESOURCE_NOT_FOUND` döner (bkz. §12.0a).
 - **Faz B/C (kilit ve yeniden okuma):** Faz A'da öğrenilen `(userId, device_identifier)` ile
-  mantıksal cihaz kilidi alınır; aynı `deviceId` satırı `SELECT ... FOR UPDATE` ile yeniden
+  mantıksal cihaz kilidi alınır; aynı `deviceId` satırı normal `SELECT` ile yeniden
   okunur. Okunan satırın `user_id`/`device_identifier`i Faz A ile uyuşmuyorsa fail-closed `404
   RESOURCE_NOT_FOUND` döner.
 - **Faz D (karar ve mutasyon):** Farklı bir `Idempotency-Key` ile gelen istek, Faz C'nin yeniden
@@ -595,7 +595,7 @@ Davranış:
 
 ### 12.0. Mantıksal cihaz kilidi (satır bulunmasa bile serileştirir)
 
-- `trusted_devices` satır kilidi (`SELECT ... FOR UPDATE`), yalnız satır **var olduğunda**
+- `trusted_devices` mantıksal cihaz kilidi, yalnız satır **var olduğunda**
   çalışır. `PROVIDER_TOKEN_EXCHANGE` aynı `(user_id, device_identifier)` çifti için **ilk kez**
   çalıştığında kilitlenecek satır yoktur; bu durumda partial `UNIQUE (user_id, device_identifier)
   WHERE revoked_at IS NULL` kısıtı tek başına yeterli değildir — yalnız "aynı anda iki aktif
@@ -632,8 +632,8 @@ kilidi üretemeyeceğinden bu iki işlem dört fazlı çalışır:
   Eşleşme yoksa (0 satır) istek burada `404 RESOURCE_NOT_FOUND` ile biter.
 - **Faz B — mantıksal kilit:** Faz A'da keşfedilen `(user_id, device_identifier)` ile §12.0'daki
   `pg_advisory_xact_lock` alınır.
-- **Faz C — kilit-sonrası yeniden okuma ve doğrulama:** aynı `deviceId` satırı `SELECT ... FOR
-  UPDATE` ile yeniden okunur; okunan satırın `user_id`si **hâlâ** beklenen kullanıcıyla ve
+- **Faz C — kilit-sonrası yeniden okuma ve doğrulama:** aynı `deviceId` satırı normal `SELECT` ile
+  yeniden okunur; okunan satırın `user_id`si **hâlâ** beklenen kullanıcıyla ve
   `device_identifier`i Faz A'da keşfedilen değerle eşleşmiyorsa istek fail-closed `404
   RESOURCE_NOT_FOUND` ile durur (`device_identifier` immutable olduğundan — `VERI_MODELI.md`
   §4.10 — bu normal akışta hiç tetiklenmez; savunma amaçlı bir doğrulamadır).
@@ -661,7 +661,7 @@ D'de çalışır (bkz. §4.2).
   atlanır/farklıdır — bkz. §12.0a), (2) `organization_memberships` (varsa), (3)
   `refresh_token_families`, (4) `refresh_tokens`. Ters sırayla kilitleme deadlock riski
   taşıdığından yasaktır.
-- Adım (1) uygulanabiliyorsa kilit (`SELECT ... FOR UPDATE`, Faz C) alındıktan **sonra** aktif
+- Adım (1) uygulanabiliyorsa mantıksal cihaz kilidi (Faz C) alındıktan **sonra** aktif
   aile/token/`session_generation`/`revoked_at`/**`MAX(revoked_at)`** durumu **yeniden okunur**;
   karar ilk (kilitsiz veya Faz A) okumaya değil bu ikinci okumaya göre verilir.
   `PROVIDER_TOKEN_EXCHANGE`in `auth_time > MAX(revoked_at)` karşılaştırması her zaman bu
@@ -845,7 +845,7 @@ sözleşme en az aşağıdaki senaryoların sonraki görevlerde kanıtlanmasın�
     REVOKE`/`DEVICE_SELF_REVOKE`) girip aynı cihazı iptal edip commit ederse, ilk işlemin Faz C
     yeniden okuması bu güncel `revoked_at`ı görür ve karar/mutasyon buna göre (no-op) verilir;
     Faz A'nın kilitsiz okuduğu eski/yok durum hiçbir karara girmez.
-15. **Faz C yeniden okumanın güncelliği:** Faz C'nin `SELECT ... FOR UPDATE`i, Faz A'dan sonra
+15. **Faz C yeniden okumanın güncelliği:** Faz C'nin mantıksal kilit sonrası yeniden okuması, Faz A'dan sonra
     başka bir transaction tarafından commit edilmiş bir `revoked_at` değişikliğini **her zaman**
     görür; karar hiçbir koşulda Faz A'nın önbelleğe alınmış değerine dayanmaz.
 16. **Çapraz `userId`/`deviceId` keşfi 404 döner:** `DEVICE_SELF_REVOKE`te başka kullanıcıya ait
@@ -909,7 +909,7 @@ sayılmaz:
     `UPDATE` yetkisi veya RLS'i atlayan bir `SECURITY DEFINER` fonksiyonu kullanmaz (statik/
     inceleme kontrolü — bkz. "Reddedilen alternatif" ve column-level `GRANT` bölümü, `ADR-004`).
 12. `DEVICE_SELF_REVOKE`/`PLATFORM_DEVICE_REVOKE`in Faz A keşif sorgusu ile Faz B mantıksal kilidi
-    arasına giren eşzamanlı bir iptal, hedefi Faz C'nin `SELECT ... FOR UPDATE`i **her zaman**
+    arasına giren eşzamanlı bir iptal, hedefi Faz C'nin mantıksal kilit sonrası yeniden okuması **her zaman**
     güncel `revoked_at` ile görecek şekilde commit olur; karar Faz A'nın kilitsiz okuduğu değere
     değil Faz C'ye dayanır.
 13. Faz A'da 0 satır dönen (çapraz `user_id`/`deviceId`) bir keşif, mantıksal kilidi hiç almadan

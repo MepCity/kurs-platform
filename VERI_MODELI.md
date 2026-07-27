@@ -598,7 +598,7 @@ transaction'larında da alınır; böylece `PROVIDER_TOKEN_EXCHANGE` ile eşzama
 önce commit olursa olsun tutarlı ve seri bir sonuç üretir. Bu iki işlem yalnız `deviceId` (`id`)
 alır, `device_identifier`i **bilmez**; bu yüzden kilitten önce dar, kararsız ve salt okunur bir
 keşif sorgusuyla (yalnız `id`/`user_id`/`device_identifier` okur, hiçbir güvenlik kararı vermez)
-`device_identifier`i öğrenir, kilidi alır, sonra aynı satırı `SELECT ... FOR UPDATE` ile yeniden
+`device_identifier`i öğrenir, mantıksal cihaz kilidini alır, sonra aynı satırı normal `SELECT` ile yeniden
 okuyup `user_id`/`device_identifier` eşleşmesini doğrular (uyuşmazsa fail-closed `404`) ve ancak
 bundan sonra karar/mutasyon yapar. Tam faz sırası `ADR-004` "IAM-002 — ... RLS eklentisi"
 bölümündedir. Bu mekanizma ayrı `iam_runtime` rolü

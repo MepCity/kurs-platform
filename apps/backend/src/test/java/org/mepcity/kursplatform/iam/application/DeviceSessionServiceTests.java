@@ -58,7 +58,7 @@ class DeviceSessionServiceTests {
         service = new DeviceSessionService(repository, transactions, credentials, mock(SessionInfoService.class),
                 new org.mepcity.kursplatform.iam.domain.TokenHasher() { public String hash(String v) { return "h:" + v; } public String hashWithPepper(String a, String b) { return hash(a); } },
                 audits, settings(), Clock.fixed(Instant.parse("2026-07-24T12:00:00Z"), ZoneOffset.UTC),
-                mock(IamDeviceRateLimiter.class), mock(DeviceSessionSnapshotSerializer.class));
+                mock(IamDeviceRateLimiter.class), mock(DeviceSessionSnapshotSerializer.class), mock(DeviceCursorCodec.class));
     }
 
     @Test
@@ -117,6 +117,29 @@ class DeviceSessionServiceTests {
     }
 
     @Test
+    void terminalDeviceIsReReadAfterLogicalLockWithoutAnRlsUpdateLock() {
+        UUID targetDevice = UUID.randomUUID();
+        UUID identifier = UUID.randomUUID();
+        TrustedDevice active = new TrustedDevice(targetDevice, actor, identifier, "Phone", DevicePlatform.ANDROID,
+                Instant.EPOCH, Instant.EPOCH, null);
+        TrustedDevice terminal = new TrustedDevice(targetDevice, actor, identifier, "Phone", DevicePlatform.ANDROID,
+                Instant.EPOCH, Instant.EPOCH, Instant.parse("2026-07-24T11:00:00Z"));
+        when(credentials.resolveCredential("token")).thenReturn(CredentialResolution.platformAccess(ActiveSession.globalPlatformAdmin(actor)));
+        when(repository.findActivePlatformAdministratorByUserId(actor)).thenReturn(Optional.of(
+                new PlatformAdministrator(UUID.randomUUID(), actor, actor, Instant.now(), null)));
+        when(repository.findIdempotencyKey(any(), anyString(), any(), any())).thenReturn(Optional.empty());
+        when(repository.findTrustedDeviceById(actor, targetDevice)).thenReturn(Optional.of(active), Optional.of(terminal));
+        when(repository.insertIdempotencyKeyOrFindExisting(any())).thenReturn(Optional.empty());
+
+        var result = service.revokePlatformDevice("token", actor, targetDevice, "key-12345678");
+
+        assertThat(result.device().revokedAt()).isEqualTo(terminal.revokedAt());
+        assertThat(result.revokedRefreshTokenFamilyCount()).isZero();
+        verify(repository, times(2)).findTrustedDeviceById(actor, targetDevice);
+        verify(repository, never()).revokeTrustedDeviceIfActiveReturning(any(), any());
+    }
+
+    @Test
     void organizationReplayReturnsStoredSnapshotWithoutReadingCurrentTargetOrConsumingRateLimit() {
         UUID org = UUID.randomUUID(), targetMembership = UUID.randomUUID();
         var stored = new DeviceSessionService.MembershipRevokeResult(
@@ -128,7 +151,7 @@ class DeviceSessionServiceTests {
                     public String hash(String v) { return "h:" + v; }
                     public String hashWithPepper(String a, String b) { return hash(a); }
                 }, audits, settings(), Clock.fixed(Instant.parse("2026-07-24T12:00:00Z"), ZoneOffset.UTC),
-                limiter, snapshot);
+                limiter, snapshot, mock(DeviceCursorCodec.class));
         when(credentials.resolveCredential("token")).thenReturn(
                 CredentialResolution.platformAccess(ActiveSession.globalPlatformAdmin(actor)));
         when(repository.findActivePlatformAdministratorByUserId(actor)).thenReturn(Optional.of(

@@ -34,11 +34,12 @@ public final class DeviceSessionService {
     private final Clock clock;
     private final IamDeviceRateLimiter rateLimiter;
     private final DeviceSessionSnapshotSerializer snapshots;
+    private final DeviceCursorCodec cursorCodec;
 
     public DeviceSessionService(IamAuthRepository repository, IamTransactionExecutor transactions,
                                 ActiveSessionResolver credentials, SessionInfoService sessionInfo, TokenHasher tokenHasher,
                                 IamAuditWriter audits, IamServiceSettings settings, Clock clock, IamDeviceRateLimiter rateLimiter,
-                                DeviceSessionSnapshotSerializer snapshots) {
+                                DeviceSessionSnapshotSerializer snapshots, DeviceCursorCodec cursorCodec) {
         this.repository = repository;
         this.transactions = transactions;
         this.credentials = credentials;
@@ -49,14 +50,14 @@ public final class DeviceSessionService {
         this.clock = clock;
         this.rateLimiter = rateLimiter;
         this.snapshots = snapshots;
+        this.cursorCodec = cursorCodec;
     }
 
     public DevicePage list(String bearer, String cursor, int limit) {
         if (limit < 1 || limit > 100) throw new IamException("INVALID_REQUEST", "limit 1 ile 100 arasında olmalıdır.");
         ActiveSession actor = requirePlatformAccess(bearer);
         UUID currentDeviceId = sessionInfo.resolveSession(bearer).device().id();
-        DeviceCursorCodec codec = new DeviceCursorCodec(tokenHasher, clock.instant(), settings.deviceCursorTtl());
-        DeviceCursorCodec.Cursor position = cursor == null || cursor.isBlank() ? null : codec.decode(actor.userId(), limit, cursor);
+        DeviceCursorCodec.Cursor position = cursor == null || cursor.isBlank() ? null : cursorCodec.decode(actor.userId(), limit, cursor);
         return transactions.executeInIamAuthScope(OperationCode.DEVICE_LIST,
                 IamTransactionExecutor.IamAuthScopeContext.actorOnly(actor.userId()),
                 () -> {
@@ -65,7 +66,7 @@ public final class DeviceSessionService {
                             position == null ? null : position.trustedAt(), position == null ? null : position.id(), limit + 1);
                     boolean hasNext = rows.size() > limit;
                     List<TrustedDevice> page = hasNext ? rows.subList(0, limit) : rows;
-                    String next = hasNext ? codec.encode(actor.userId(), limit, page.getLast().trustedAt(), page.getLast().id()) : null;
+                    String next = hasNext ? cursorCodec.encode(actor.userId(), limit, page.getLast().trustedAt(), page.getLast().id()) : null;
                     return new DevicePage(page.stream().map(device -> new DeviceListItem(device, device.id().equals(currentDeviceId))).toList(), next, hasNext);
                 });
     }
@@ -140,7 +141,12 @@ public final class DeviceSessionService {
                 organizationId == null ? actor : organizationId, operation);
         TrustedDevice discovered = repository.findTrustedDeviceById(targetUser, deviceId).orElseThrow(this::notFound);
         repository.acquireDeviceAdvisoryLock(targetUser, discovered.deviceIdentifier());
-        TrustedDevice locked = repository.findTrustedDeviceByIdForUpdate(targetUser, deviceId).orElseThrow(this::notFound);
+        // The transaction-scoped advisory lock is the serialization primitive for this logical
+        // device. Re-read after acquiring it, but do not use SELECT FOR UPDATE: PostgreSQL also
+        // applies the revoked_at IS NULL UPDATE policy when locking, which hides a terminal row
+        // from a different-key command. The ordinary read policy deliberately retains that row
+        // so the second command can audit its idempotent no-op snapshot.
+        TrustedDevice locked = repository.findTrustedDeviceById(targetUser, deviceId).orElseThrow(this::notFound);
         if (!locked.deviceIdentifier().equals(discovered.deviceIdentifier())) throw notFound();
         List<RefreshTokenFamily> families = locked.isActive()
                 ? repository.findActiveRefreshTokenFamiliesByTrustedDeviceId(deviceId) : List.of();

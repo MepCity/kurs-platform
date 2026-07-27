@@ -200,6 +200,13 @@ class IamDeviceHttpPostgresIntegrationTests {
                         .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
+        for (String malformedAuthorization : List.of("Bearer ", "Bearer  own-token", "Basic own-token", "Bearer\town-token")) {
+            mockMvc.perform(post("/api/v1/iam/devices/{id}/revoke", f.otherDevice)
+                            .header("Authorization", malformedAuthorization)
+                            .header("Idempotency-Key", "malformed-auth-" + malformedAuthorization.hashCode()))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.error.code").value("UNAUTHENTICATED"));
+        }
     }
 
     @Test
@@ -305,6 +312,11 @@ class IamDeviceHttpPostgresIntegrationTests {
             assertThat(count("audit_logs WHERE action_type='DEVICE_SELF_REVOKED'")).isEqualTo(3);
             assertThat(count("trusted_devices WHERE id='" + freshDevice + "' AND revoked_at IS NOT NULL"))
                     .isEqualTo(1);
+            try (Connection owner = owner();
+                 var rows = owner.createStatement().executeQuery("SELECT count(DISTINCT revoked_at) FROM trusted_devices WHERE id='" + freshDevice + "'")) {
+                rows.next();
+                assertThat(rows.getInt(1)).isEqualTo(1);
+            }
         } finally {
             pool.shutdownNow();
         }
