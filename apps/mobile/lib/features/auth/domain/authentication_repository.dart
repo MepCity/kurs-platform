@@ -89,12 +89,19 @@ class AuthenticatedSessionActivation {
 
 enum AuthenticationFailureCode {
   cancelled,
+  invalidRequest,
   unauthenticated,
+  forbidden,
+  organizationContextRequired,
+  sessionRevoked,
   accountNotReady,
   reauthenticationRequired,
+  resourceNotFound,
   stateConflict,
+  idempotencyKeyReused,
   providerUnavailable,
   rateLimited,
+  internalError,
   unavailable,
 }
 

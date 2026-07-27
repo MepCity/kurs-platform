@@ -78,7 +78,8 @@ class FlutterApplicationMarkerStorage implements ApplicationMarkerStorage {
 /// app-sandbox marker is written last. Reads require both records to agree on
 /// the current installation ID, so a partial secure write, failed cleanup, or
 /// Keychain record surviving uninstall/reinstall cannot authenticate a user.
-class FlutterSecureSessionStore implements SecureSessionStore {
+class FlutterSecureSessionStore
+    implements SecureSessionStore, AtomicSecureSessionStore {
   FlutterSecureSessionStore({
     SecureKeyValueStorage? storage,
     ApplicationMarkerStorage? markerStorage,
@@ -98,6 +99,45 @@ class FlutterSecureSessionStore implements SecureSessionStore {
 
   final SecureKeyValueStorage _storage;
   final ApplicationMarkerStorage _markerStorage;
+
+  /// Stable, non-secret installation seed for the trusted-device adapter.
+  ///
+  /// It is coordinated with session reads/writes so concurrent startup paths
+  /// cannot publish different device identities for the same installation.
+  Future<String> installationIdentifier() =>
+      _serialize<String>(_installationId);
+
+  @override
+  Future<bool> isCurrent(SecureSession expected) =>
+      _serialize<bool>(() async => _sameSession(await _readUnsafe(), expected));
+
+  @override
+  Future<bool> clearIfCurrent(SecureSession expected) =>
+      _serialize<bool>(() async {
+        final current = await _readUnsafe();
+        if (!_sameSession(current, expected)) return false;
+        _coordinator.latestAttempt = ++_coordinator.nextAttempt;
+        final commit = await _readCommitOrNull();
+        await _makeMarkerUnreadable();
+        if (commit != null) await _deletePayloadStrict(commit.slot);
+        await _storage.delete(_legacyPayloadKey);
+        return true;
+      });
+
+  @override
+  Future<bool> replaceIfCurrent(
+    SecureSession expected,
+    SecureSession replacement,
+  ) => _serialize<bool>(() async {
+    final current = await _readUnsafe();
+    if (!_sameSession(current, expected)) return false;
+    final lease = SecureSessionWriteLease(++_coordinator.nextAttempt);
+    _coordinator.latestAttempt = lease.value;
+    final previous = await _readCommitOrNull();
+    await _makeMarkerUnreadable();
+    if (previous != null) await _deletePayloadStrict(previous.slot);
+    return _commitUnsafe(lease, replacement);
+  });
 
   @override
   Future<SecureSessionWriteLease> beginActivation() async {
@@ -148,54 +188,61 @@ class FlutterSecureSessionStore implements SecureSessionStore {
 
   @override
   Future<bool> commit(SecureSessionWriteLease lease, SecureSession session) =>
-      _serialize<bool>(() async {
-        if (!_isLatest(lease)) return false;
-        final installationId = await _installationId();
-        if (!_isLatest(lease)) return false;
-        final slot = '${lease.value}-${_randomIdentifier()}';
-        final payloadKey = '$_payloadPrefix$slot';
-        final payload = jsonEncode(<String, Object?>{
+      _serialize<bool>(() => _commitUnsafe(lease, session));
+
+  Future<bool> _commitUnsafe(
+    SecureSessionWriteLease lease,
+    SecureSession session,
+  ) async {
+    if (!_isLatest(lease)) return false;
+    final installationId = await _installationId();
+    if (!_isLatest(lease)) return false;
+    final slot = '${lease.value}-${_randomIdentifier()}';
+    final payloadKey = '$_payloadPrefix$slot';
+    final payload = jsonEncode(<String, Object?>{
+      'version': _schemaVersion,
+      'installationId': installationId,
+      'slot': slot,
+      'session': _encode(session),
+    });
+    try {
+      await _storage.write(payloadKey, payload);
+      if (!_isLatest(lease)) {
+        await _deletePayload(slot);
+        return false;
+      }
+      // This marker is the only read authority. It is deliberately written
+      // after the secure value, so a secure write that throws after writing
+      // still has no readable session when cleanup also fails.
+      await _markerStorage.write(
+        _commitKey,
+        jsonEncode(<String, Object?>{
           'version': _schemaVersion,
           'installationId': installationId,
           'slot': slot,
-          'session': _encode(session),
-        });
-        try {
-          await _storage.write(payloadKey, payload);
-          if (!_isLatest(lease)) {
-            await _deletePayload(slot);
-            return false;
-          }
-          // This marker is the only read authority. It is deliberately written
-          // after the secure value, so a secure write that throws after writing
-          // still has no readable session when cleanup also fails.
-          await _markerStorage.write(
-            _commitKey,
-            jsonEncode(<String, Object?>{
-              'version': _schemaVersion,
-              'installationId': installationId,
-              'slot': slot,
-            }),
-          );
-          if (!_isLatest(lease)) {
-            await _deletePayload(slot);
-            return false;
-          }
-          return true;
-        } catch (_) {
-          if (_isLatest(lease)) {
-            await _invalidateSlot(slot);
-          } else {
-            await _deletePayload(slot);
-          }
-          throw const SecureSessionStoreFailure(
-            SecureSessionStoreFailureReason.unavailable,
-          );
-        }
-      });
+        }),
+      );
+      if (!_isLatest(lease)) {
+        await _deletePayload(slot);
+        return false;
+      }
+      return true;
+    } catch (_) {
+      if (_isLatest(lease)) {
+        await _invalidateSlot(slot);
+      } else {
+        await _deletePayload(slot);
+      }
+      throw const SecureSessionStoreFailure(
+        SecureSessionStoreFailureReason.unavailable,
+      );
+    }
+  }
 
   @override
-  Future<SecureSession?> read() => _serialize<SecureSession?>(() async {
+  Future<SecureSession?> read() => _serialize<SecureSession?>(_readUnsafe);
+
+  Future<SecureSession?> _readUnsafe() async {
     final installationId = await _installationId();
     final commit = await _readCommitOrNull();
     if (commit == null) return null;
@@ -221,7 +268,7 @@ class FlutterSecureSessionStore implements SecureSessionStore {
         SecureSessionStoreFailureReason.corrupted,
       );
     }
-  });
+  }
 
   Future<_CommitMarker?> _readCommitOrNull() async {
     try {
@@ -398,6 +445,20 @@ class FlutterSecureSessionStore implements SecureSessionStore {
 
   bool _isNonBlankString(Object? value) =>
       value is String && value.trim().isNotEmpty;
+
+  bool _sameSession(SecureSession? first, SecureSession second) =>
+      first != null &&
+      first.userId == second.userId &&
+      first.deviceId == second.deviceId &&
+      first.scope == second.scope &&
+      first.accessToken == second.accessToken &&
+      first.refreshToken == second.refreshToken &&
+      first.expiresAt == second.expiresAt &&
+      first.refreshExpiresAt == second.refreshExpiresAt &&
+      first.authenticatedAt == second.authenticatedAt &&
+      first.organizationMembershipId == second.organizationMembershipId &&
+      first.organizationId == second.organizationId &&
+      first.sessionGeneration == second.sessionGeneration;
 
   bool _isInstallationIdentifier(String value) =>
       RegExp(r'^[a-f0-9]{32}$').hasMatch(value);

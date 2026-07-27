@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/foundation.dart';
+import 'package:kurs_platform_mobile/features/auth/data/device_identity.dart';
 import 'package:kurs_platform_mobile/features/auth/data/flutter_secure_session_store.dart';
 import 'package:kurs_platform_mobile/features/auth/domain/secure_session_store.dart';
 
@@ -82,12 +84,14 @@ SecureSession _organizationSession({
   DateTime? authenticatedAt,
   DateTime? expiresAt,
   DateTime? refreshExpiresAt,
+  String accessToken = 'opaque-access-token',
+  String refreshToken = 'opaque-refresh-token',
 }) => SecureSession(
   userId: 'user-1',
   deviceId: 'device-1',
   scope: SecureSessionScope.organization,
-  accessToken: 'opaque-access-token',
-  refreshToken: 'opaque-refresh-token',
+  accessToken: accessToken,
+  refreshToken: refreshToken,
   authenticatedAt: authenticatedAt ?? DateTime.utc(2026, 7, 24, 9),
   expiresAt: expiresAt ?? DateTime.utc(2026, 7, 24, 10),
   refreshExpiresAt: refreshExpiresAt ?? DateTime.utc(2026, 8, 24, 10),
@@ -106,6 +110,37 @@ Future<void> _commit(
 
 void main() {
   group('FlutterSecureSessionStore', () {
+    test('device identity is a stable installation-scoped mobile UUID', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      final secure = _MemorySecureStorage();
+      final markers = _MemoryMarkerStorage();
+      final firstStore = FlutterSecureSessionStore(
+        storage: _SecureStorageWrapper(secure),
+        markerStorage: _MarkerStorageWrapper(markers),
+      );
+      final secondStore = FlutterSecureSessionStore(
+        storage: _SecureStorageWrapper(secure),
+        markerStorage: _MarkerStorageWrapper(markers),
+      );
+
+      final identities = await Future.wait([
+        InstallationDeviceIdentity(firstStore).get(),
+        InstallationDeviceIdentity(secondStore).get(),
+      ]);
+
+      expect(identities[0].identifier, identities[1].identifier);
+      expect(identities[0].platform, 'ANDROID');
+      expect(
+        identities[0].identifier,
+        matches(
+          RegExp(
+            r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+          ),
+        ),
+      );
+    });
+
     test('reads only a completed current-installation session', () async {
       final secure = _MemorySecureStorage();
       final markers = _MemoryMarkerStorage();
@@ -360,6 +395,36 @@ void main() {
           markers.values.containsKey('iam.platform-session.v2.commit'),
           isFalse,
         );
+      },
+    );
+
+    test(
+      'compare-and-swap replace and clear preserve a newer session',
+      () async {
+        final store = FlutterSecureSessionStore(
+          storage: _MemorySecureStorage(),
+          markerStorage: _MemoryMarkerStorage(),
+        );
+        final old = _organizationSession();
+        final refreshed = _organizationSession(
+          accessToken: 'refreshed-access',
+          refreshToken: 'refreshed-refresh',
+        );
+        final newerLogin = _organizationSession(
+          membershipId: 'membership-2',
+          organizationId: 'organization-2',
+          accessToken: 'new-login-access',
+          refreshToken: 'new-login-refresh',
+        );
+        await _commit(store, old);
+
+        expect(await store.replaceIfCurrent(old, refreshed), isTrue);
+        expect(await store.isCurrent(refreshed), isTrue);
+        expect(await store.replaceIfCurrent(old, newerLogin), isFalse);
+        expect(await store.clearIfCurrent(old), isFalse);
+        expect((await store.read())?.refreshToken, 'refreshed-refresh');
+        expect(await store.clearIfCurrent(refreshed), isTrue);
+        expect(await store.read(), isNull);
       },
     );
 

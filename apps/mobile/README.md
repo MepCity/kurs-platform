@@ -23,7 +23,8 @@ sözleşmesine göre eklenir. A-011 gerçek kimlik, veri, eşitleme veya ürün 
 
 Mobil uygulama public yapılandırmayı `--dart-define` değerlerinden okur:
 `KURS_PLATFORM_ENVIRONMENT`, `KURS_PLATFORM_PUBLIC_API_BASE_URL`,
-`KURS_PLATFORM_COGNITO_ISSUER_URI` ve secretsiz `KURS_PLATFORM_COGNITO_CLIENT_ID`.
+`KURS_PLATFORM_COGNITO_ISSUER_URI`, secretsiz `KURS_PLATFORM_COGNITO_CLIENT_ID` ve sabit
+allow-listli `KURS_PLATFORM_COGNITO_REDIRECT_URI=kursplatform://oauth2redirect`.
 Development/staging/production adları açık yazılır; `prod` veya `test` gibi kısa adlar kabul
 edilmez. Mobil pakete veritabanı bağlantısı, token pepper, Cognito admin role veya başka backend
 secret referansı konmaz. Runtime kodu sessiz development fallback içermez; eksik `--dart-define`
@@ -58,3 +59,8 @@ işaretçi olmadan okunamaz. iOS eşzamanlaması kapalıdır (`synchronizable=fa
 erişilebilirlik kullanılır.
 Durum yönetimi, ağ istemcisi, şifreli yerel veritabanı ve kalıcı kuyruk hâlâ ilgili sonraki
 görevlerin karar alanıdır.
+
+ORG-009B, A-004R1'de doğrulanan `flutter_appauth 12.0.2` sürümünü production sistem-tarayıcısı
+Authorization Code + PKCE `S256` akışı için kullanır. WebView veya elle OAuth uygulamak yerine
+platform AppAuth kitaplıklarının state, nonce ve verifier doğrulaması yeniden kullanılır. IAM
+HTTP yüzeyi ek bir framework olmadan dar bir `dart:io` adaptörüdür.

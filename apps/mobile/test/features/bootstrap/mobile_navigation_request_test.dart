@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:kurs_platform_mobile/features/auth/data/unavailable_authentication_repository.dart';
 import 'package:kurs_platform_mobile/features/auth/data/flutter_secure_session_store.dart';
 import 'package:kurs_platform_mobile/features/bootstrap/presentation/kurs_platform_app.dart';
 import 'package:kurs_platform_mobile/features/bootstrap/presentation/mobile_navigation_shell.dart';
+import '../../support/test_authentication_repository.dart';
 
 /// Test amaçlı görünür rota yüzeyi. Yalnızca [MobileNavigationShell]
 /// widget'ını [request] ve [context] ile sarmalar; davranışı widget yüzeyi
@@ -28,7 +28,7 @@ class _ShellHarness {
     );
     await tester.pumpWidget(
       KursPlatformApp(
-        authenticationRepository: const UnavailableAuthenticationRepository(),
+        authenticationRepository: const TestAuthenticationRepository(),
         secureSessionStore: FlutterSecureSessionStore(),
         home: MobileNavigationShell(
           context: context,
@@ -935,7 +935,7 @@ void main() {
       );
       await tester.pumpWidget(
         KursPlatformApp(
-          authenticationRepository: const UnavailableAuthenticationRepository(),
+          authenticationRepository: const TestAuthenticationRepository(),
           secureSessionStore: FlutterSecureSessionStore(),
           home: MobileNavigationShell(
             context: c,
