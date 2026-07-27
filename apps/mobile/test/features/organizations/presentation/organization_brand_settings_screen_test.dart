@@ -2,6 +2,7 @@ import 'dart:ui' show Tristate;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kurs_platform_mobile/core/presentation/widgets/widgets.dart';
 import 'package:kurs_platform_mobile/core/theme/app_theme_provider.dart';
 import 'package:kurs_platform_mobile/features/organizations/domain/organization_brand.dart';
 import 'package:kurs_platform_mobile/features/organizations/domain/organization_brand_repository.dart';
@@ -151,11 +152,61 @@ class _TestRepository implements OrganizationBrandRepository {
   }
 }
 
+class _OrganizationAwareRepository implements OrganizationBrandRepository {
+  _OrganizationAwareRepository(this.first, this.second);
+
+  final _TestRepository first;
+  final _TestRepository second;
+
+  _TestRepository _forOrganization(String organizationId) =>
+      organizationId == 'org-1' ? first : second;
+
+  @override
+  Future<OrganizationBrand> getBrand(String organizationId) =>
+      _forOrganization(organizationId).getBrand(organizationId);
+
+  @override
+  Future<OrganizationBrandColors> getBrandColors(String organizationId) =>
+      _forOrganization(organizationId).getBrandColors(organizationId);
+
+  @override
+  Future<OrganizationModules> getModules(String organizationId) =>
+      _forOrganization(organizationId).getModules(organizationId);
+
+  @override
+  Future<OrganizationBrand> updateBrand(
+    String organizationId,
+    OrganizationBrand brand,
+    String clientMutationId,
+  ) => _forOrganization(
+    organizationId,
+  ).updateBrand(organizationId, brand, clientMutationId);
+
+  @override
+  Future<OrganizationBrandColors> replaceBrandColors(
+    String organizationId,
+    OrganizationBrandColors colors,
+    String clientMutationId,
+  ) => _forOrganization(
+    organizationId,
+  ).replaceBrandColors(organizationId, colors, clientMutationId);
+
+  @override
+  Future<OrganizationModules> updateModules(
+    String organizationId,
+    OrganizationModules modules,
+    String clientMutationId,
+  ) => _forOrganization(
+    organizationId,
+  ).updateModules(organizationId, modules, clientMutationId);
+}
+
 Widget app({
   required OrganizationBrandRepository repository,
   required AppThemeProvider themeProvider,
   bool canManageBrand = true,
   bool canManageModules = true,
+  OrganizationBrandSettingsCapabilities? capabilities,
   String organizationId = 'org-1',
   TextScaler textScaler = TextScaler.noScaling,
 }) => AppThemeScope(
@@ -170,6 +221,7 @@ Widget app({
           repository: repository,
           canManageBrand: canManageBrand,
           canManageModules: canManageModules,
+          capabilities: capabilities,
         ),
       ),
     ),
@@ -227,6 +279,143 @@ Future<void> scrollTo(WidgetTester tester, Finder finder) async {
 
 void main() {
   group('OrganizationBrandSettingsScreen permissions and states', () {
+    testWidgets('archived platform-support renders a read-only surface', (
+      tester,
+    ) async {
+      final repository = _TestRepository();
+      await tester.pumpWidget(
+        app(
+          repository: repository,
+          themeProvider: AppThemeProvider(),
+          capabilities: const OrganizationBrandSettingsCapabilities(
+            canViewBrand: true,
+            canUpdateBrand: false,
+            canViewModules: true,
+            canUpdateModules: false,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Marka renkleri'), findsOneWidget);
+      expect(
+        tester
+            .widget<AppTextField>(find.byKey(const Key('brand_primary')))
+            .enabled,
+        isFalse,
+      );
+      await tester.tap(find.byKey(const Key('palette_add')));
+      await tester.pump();
+      expect(find.byKey(const Key('palette_hex_0')), findsNothing);
+      await scrollTo(tester, find.text('Etkin modüller'));
+      expect(find.text('Etkin modüller'), findsOneWidget);
+      expect(
+        tester
+            .widget<SwitchListTile>(find.byKey(const Key('module_ATT')))
+            .onChanged,
+        isNull,
+      );
+      expect(repository.updateBrandCalls, 0);
+      expect(repository.updateColorsCalls, 0);
+      expect(repository.updateModulesCalls, 0);
+    });
+
+    testWidgets(
+      'STATE_CONFLICT remains section-local and preserves the brand draft',
+      (tester) async {
+        final repository = _TestRepository(
+          writeFailure: const OrganizationsFailure(
+            OrganizationsFailureCode.stateConflict,
+            'Arşivlenmiş kurumun ayarları değiştirilemez.',
+          ),
+        );
+        await pumpReady(
+          tester,
+          repository: repository,
+          provider: AppThemeProvider(),
+        );
+        await tester.enterText(
+          find.byKey(const Key('brand_primary')),
+          '#1565C0',
+        );
+        await tester.tap(find.byKey(const Key('brand_save')));
+        await tester.pumpAndSettle();
+        expect(find.textContaining('arşivlendiği için'), findsOneWidget);
+        expect(
+          tester
+              .widget<AppTextField>(find.byKey(const Key('brand_primary')))
+              .controller!
+              .text,
+          '#1565C0',
+        );
+        await scrollTo(tester, find.byKey(const Key('modules_save')));
+        expect(find.byKey(const Key('modules_save')), findsOneWidget);
+      },
+    );
+
+    testWidgets('suspended organization actor becomes unauthorized', (
+      tester,
+    ) async {
+      await pumpReady(
+        tester,
+        repository: _TestRepository(
+          readFailure: const OrganizationsFailure(
+            OrganizationsFailureCode.forbidden,
+            'Kurum bu durumda marka ayarlarına erişemez.',
+          ),
+        ),
+        provider: AppThemeProvider(),
+      );
+      expect(
+        find.text('Kurum bu durumda marka ayarlarına erişemez.'),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('brand_save')), findsNothing);
+    });
+
+    testWidgets('support organization change discards the old async response', (
+      tester,
+    ) async {
+      final repository = _OrganizationAwareRepository(
+        _TestRepository(
+          delay: const Duration(seconds: 1),
+          primaryColor: '#C62828',
+        ),
+        _TestRepository(primaryColor: '#1565C0'),
+      );
+      await tester.pumpWidget(
+        app(
+          repository: repository,
+          themeProvider: AppThemeProvider(),
+          organizationId: 'org-1',
+        ),
+      );
+      await tester.pump();
+      await tester.pumpWidget(
+        app(
+          repository: repository,
+          themeProvider: AppThemeProvider(),
+          organizationId: 'org-2',
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<AppTextField>(find.byKey(const Key('brand_primary')))
+            .controller!
+            .text,
+        '#1565C0',
+      );
+      await tester.pump(const Duration(seconds: 2));
+      expect(
+        tester
+            .widget<AppTextField>(find.byKey(const Key('brand_primary')))
+            .controller!
+            .text,
+        '#1565C0',
+      );
+    });
+
     testWidgets('brand-only loads and renders only brand resources', (
       tester,
     ) async {
@@ -255,7 +444,8 @@ void main() {
         canManageBrand: false,
       );
       expect(find.text('Marka renkleri'), findsNothing);
-      expect(find.text('Etkin modüller'), findsOneWidget);
+      await scrollTo(tester, find.byKey(const Key('modules_save')));
+      expect(find.byKey(const Key('modules_save')), findsOneWidget);
       expect(repository.getBrandCalls, 0);
       expect(repository.getColorsCalls, 0);
       expect(repository.getModulesCalls, 1);
@@ -272,7 +462,8 @@ void main() {
       );
       expect(find.text('Marka renkleri'), findsOneWidget);
       await scrollTo(tester, find.byKey(const Key('modules_save')));
-      expect(find.text('Etkin modüller'), findsOneWidget);
+      await scrollTo(tester, find.byKey(const Key('modules_save')));
+      expect(find.byKey(const Key('modules_save')), findsOneWidget);
       expect(repository.getModulesCalls, 1);
     });
 

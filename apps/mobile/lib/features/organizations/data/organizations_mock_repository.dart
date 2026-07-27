@@ -301,15 +301,43 @@ class OrganizationsMockRepository
         'Oturum geçersiz veya süresi dolmuş.',
       );
     }
-    if (session.hasGlobalPlatformAdminScope) return;
+    final organization = _assertOrganizationExists(organizationId);
+    if (session.isPlatformSupport) {
+      if (session.revoked || session.organizationId != organizationId) {
+        throw const OrganizationsFailure(
+          OrganizationsFailureCode.forbidden,
+          'Destek oturumu bu kurum için geçerli değil.',
+        );
+      }
+      if (organization.status == OrganizationStatus.archived && write) {
+        throw const OrganizationsFailure(
+          OrganizationsFailureCode.stateConflict,
+          'Arşivlenmiş kurumun ayarları değiştirilemez.',
+        );
+      }
+      return;
+    }
+    if (session.hasGlobalPlatformAdminScope) {
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.forbidden,
+        'Platform genel bağlamı kurum ayarlarına erişemez.',
+      );
+    }
     if (!session.isOrganizationMember ||
         session.revoked ||
         session.organizationId != organizationId ||
         (write &&
+            !session.isOrganizationAdmin &&
             (module ? !session.canManageModules : !session.canManageBrand))) {
       throw const OrganizationsFailure(
         OrganizationsFailureCode.forbidden,
         'Bu kurum ayarını değiştirme yetkiniz yok.',
+      );
+    }
+    if (organization.status != OrganizationStatus.active) {
+      throw const OrganizationsFailure(
+        OrganizationsFailureCode.forbidden,
+        'Kurum bu durumda marka ayarlarına erişemez.',
       );
     }
   }
@@ -324,7 +352,7 @@ class OrganizationsMockRepository
     }
     if (organization == null) {
       throw OrganizationsFailure(
-        session.hasGlobalPlatformAdminScope
+        session.isPlatformSupport
             ? OrganizationsFailureCode.resourceNotFound
             : OrganizationsFailureCode.forbidden,
         'Kurum bulunamadı veya erişim izniniz yok.',

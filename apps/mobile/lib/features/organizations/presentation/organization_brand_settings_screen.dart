@@ -7,6 +7,27 @@ import '../application/organization_brand_controller.dart';
 import '../domain/organization_brand.dart';
 import '../domain/organization_brand_repository.dart';
 
+/// Marka yüzeyinde görüntüleme ve güncelleme yetkilerini ayrı ifade eder.
+///
+/// Platform-support, arşivlenmiş bir kurumda ayarları görebilir ancak
+/// değiştiremez. Bu tip, o salt-okunur yüzeyi eski `canManage*` ikililerinden
+/// ayırt eder; eski çağrı noktaları geriye dönük olarak yönetim yetkisini hem
+/// görüntüleme hem güncelleme saymaya devam eder.
+@immutable
+class OrganizationBrandSettingsCapabilities {
+  const OrganizationBrandSettingsCapabilities({
+    required this.canViewBrand,
+    required this.canUpdateBrand,
+    required this.canViewModules,
+    required this.canUpdateModules,
+  });
+
+  final bool canViewBrand;
+  final bool canUpdateBrand;
+  final bool canViewModules;
+  final bool canUpdateModules;
+}
+
 class OrganizationBrandSettingsScreen extends StatefulWidget {
   const OrganizationBrandSettingsScreen({
     super.key,
@@ -14,10 +35,21 @@ class OrganizationBrandSettingsScreen extends StatefulWidget {
     required this.repository,
     required this.canManageBrand,
     required this.canManageModules,
+    this.capabilities,
   });
   final String organizationId;
   final OrganizationBrandRepository repository;
   final bool canManageBrand, canManageModules;
+  final OrganizationBrandSettingsCapabilities? capabilities;
+
+  OrganizationBrandSettingsCapabilities get resolvedCapabilities =>
+      capabilities ??
+      OrganizationBrandSettingsCapabilities(
+        canViewBrand: canManageBrand,
+        canUpdateBrand: canManageBrand,
+        canViewModules: canManageModules,
+        canUpdateModules: canManageModules,
+      );
   @override
   State<OrganizationBrandSettingsScreen> createState() =>
       _OrganizationBrandSettingsScreenState();
@@ -44,8 +76,8 @@ class _OrganizationBrandSettingsScreenState
     _controller = OrganizationBrandController(
       organizationId: widget.organizationId,
       repository: widget.repository,
-      loadBrandSettings: widget.canManageBrand,
-      loadModuleSettings: widget.canManageModules,
+      loadBrandSettings: widget.resolvedCapabilities.canViewBrand,
+      loadModuleSettings: widget.resolvedCapabilities.canViewModules,
     )..addListener(_changed);
     _controller.load();
   }
@@ -56,7 +88,8 @@ class _OrganizationBrandSettingsScreenState
     if (old.organizationId != widget.organizationId ||
         old.repository != widget.repository ||
         old.canManageBrand != widget.canManageBrand ||
-        old.canManageModules != widget.canManageModules) {
+        old.canManageModules != widget.canManageModules ||
+        old.capabilities != widget.capabilities) {
       _controller.removeListener(_changed);
       _controller.dispose();
       _clearLocalDrafts();
@@ -172,7 +205,8 @@ class _OrganizationBrandSettingsScreenState
   @override
   Widget build(BuildContext context) {
     final status = _controller.status;
-    if (!widget.canManageBrand && !widget.canManageModules) {
+    final capabilities = widget.resolvedCapabilities;
+    if (!capabilities.canViewBrand && !capabilities.canViewModules) {
       return const Scaffold(body: AppUnauthorizedState());
     }
     if (status == OrganizationBrandStatus.loading) {
@@ -211,12 +245,12 @@ class _OrganizationBrandSettingsScreenState
             AppSpacing.space4 + MediaQuery.viewInsetsOf(context).bottom,
           ),
           children: [
-            if (widget.canManageBrand) ...[
+            if (capabilities.canViewBrand) ...[
               _BrandSection(
                 primary: _primary,
                 secondary: _secondary,
                 saving: brandSaving,
-                blocked: anySaving,
+                blocked: anySaving || !capabilities.canUpdateBrand,
                 error: _controller.brandSection.error,
                 success: _controller.brandSection.success,
                 onChanged: () =>
@@ -227,7 +261,7 @@ class _OrganizationBrandSettingsScreenState
               _PaletteSection(
                 rows: _palette,
                 saving: colorSaving,
-                blocked: anySaving,
+                blocked: anySaving || !capabilities.canUpdateBrand,
                 error: _controller.colorsSection.error,
                 success: _controller.colorsSection.success,
                 onChanged: _changeColors,
@@ -245,12 +279,12 @@ class _OrganizationBrandSettingsScreenState
                 onSave: _saveColors,
               ),
             ],
-            if (widget.canManageModules) ...[
+            if (capabilities.canViewModules) ...[
               const SizedBox(height: AppSpacing.space5),
               _ModulesSection(
                 items: _modules,
                 saving: moduleSaving,
-                blocked: anySaving,
+                blocked: anySaving || !capabilities.canUpdateModules,
                 error: _controller.modulesSection.error,
                 success: _controller.modulesSection.success,
                 onChanged: () {

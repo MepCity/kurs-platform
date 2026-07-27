@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kurs_platform_mobile/features/organizations/application/organization_brand_controller.dart';
 import 'package:kurs_platform_mobile/features/organizations/data/organizations_mock_repository.dart';
+import 'package:kurs_platform_mobile/features/organizations/data/organizations_mock_session.dart';
 import 'package:kurs_platform_mobile/features/organizations/domain/organization.dart';
 import 'package:kurs_platform_mobile/features/organizations/domain/organization_brand.dart';
 import 'package:kurs_platform_mobile/features/organizations/domain/organization_brand_repository.dart';
@@ -30,6 +31,11 @@ List<OrganizationModule> toggledModules(OrganizationModules value) => value
           : item,
     )
     .toList();
+
+const _org1Support = OrganizationsMockSession.platformSupport(
+  actorUserId: 'support-org-1',
+  organizationId: 'org-1',
+);
 
 void expectSharedVersion(OrganizationBrandController controller, int version) {
   expect(controller.brand?.rowVersion, version);
@@ -99,6 +105,7 @@ void main() {
         final repo = OrganizationsMockRepository(
           seed: [organization('org-1')],
           latency: Duration.zero,
+          session: _org1Support,
         );
         final controller = OrganizationBrandController(
           organizationId: 'org-1',
@@ -124,6 +131,7 @@ void main() {
       final repo = OrganizationsMockRepository(
         seed: [organization('org-1')],
         latency: Duration.zero,
+        session: _org1Support,
       );
       final controller = OrganizationBrandController(
         organizationId: 'org-1',
@@ -144,6 +152,7 @@ void main() {
       final repo = OrganizationsMockRepository(
         seed: [organization('org-1')],
         latency: Duration.zero,
+        session: _org1Support,
       );
       final controller = OrganizationBrandController(
         organizationId: 'org-1',
@@ -166,6 +175,7 @@ void main() {
         final repo = OrganizationsMockRepository(
           seed: [organization('org-1')],
           latency: Duration.zero,
+          session: _org1Support,
         );
         final first = OrganizationBrandController(
           organizationId: 'org-1',
@@ -201,6 +211,7 @@ void main() {
         final repo = OrganizationsMockRepository(
           seed: [organization('org-1')],
           latency: Duration.zero,
+          session: _org1Support,
         );
         final controller = OrganizationBrandController(
           organizationId: 'org-1',
@@ -231,6 +242,7 @@ void main() {
         final repo = OrganizationsMockRepository(
           seed: [organization('org-1')],
           latency: Duration.zero,
+          session: _org1Support,
         );
         final controller = OrganizationBrandController(
           organizationId: 'org-1',
@@ -260,6 +272,7 @@ void main() {
           repository: OrganizationsMockRepository(
             seed: [organization('org-1')],
             latency: Duration.zero,
+            session: _org1Support,
           ),
         );
         await controller.load();
@@ -275,6 +288,7 @@ void main() {
       final base = OrganizationsMockRepository(
         seed: [organization('org-1')],
         latency: Duration.zero,
+        session: _org1Support,
       );
       final brandOnlyRepo = _CountingRepository(base);
       final brandOnly = OrganizationBrandController(
@@ -306,6 +320,7 @@ void main() {
           OrganizationsMockRepository(
             seed: [organization('org-1')],
             latency: Duration.zero,
+            session: _org1Support,
           ),
         )..brandGate = Completer<void>();
         final controller = OrganizationBrandController(

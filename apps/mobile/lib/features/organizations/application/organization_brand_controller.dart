@@ -392,6 +392,12 @@ class OrganizationBrandController extends ChangeNotifier {
               'yeniden kaydedebilirsiniz.';
           _notify();
         }
+      } else if (failure.code == OrganizationsFailureCode.stateConflict) {
+        target.error =
+            'Bu kurum arşivlendiği için bu bölüm güncellenemez. '
+            'Taslağınız korundu.';
+        _status = OrganizationBrandStatus.ready;
+        _notify();
       } else if (failure.isUnauthorized) {
         _message = failure.message;
         _clearSensitiveState();
