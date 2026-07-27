@@ -7,11 +7,18 @@ void main() {
     final android = File(
       'android/app/src/main/AndroidManifest.xml',
     ).readAsStringSync();
+    final androidBuild = File(
+      'android/app/build.gradle.kts',
+    ).readAsStringSync();
     final ios = File('ios/Runner/Info.plist').readAsStringSync();
 
     expect(android, contains('android:scheme="kursplatform"'));
     expect(android, contains('android:host="oauth2redirect"'));
     expect(android, contains('net.openid.appauth.RedirectUriReceiverActivity'));
+    expect(
+      androidBuild,
+      contains('mapOf("appAuthRedirectScheme" to "kursplatform")'),
+    );
     expect(android, isNot(contains('android:taskAffinity=""')));
     expect(ios, contains('<string>kursplatform</string>'));
     for (final forbidden in <String>[

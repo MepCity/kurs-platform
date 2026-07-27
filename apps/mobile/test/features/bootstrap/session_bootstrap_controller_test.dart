@@ -36,6 +36,7 @@ ActivatedSession _activated(SecureSession session) => ActivatedSession(
 class _Store implements SecureSessionStore, AtomicSecureSessionStore {
   SecureSession? value;
   bool corrupted = false;
+  bool unavailable = false;
   bool clearFails = false;
   int replacements = 0;
   int clears = 0;
@@ -43,6 +44,11 @@ class _Store implements SecureSessionStore, AtomicSecureSessionStore {
 
   @override
   Future<SecureSession?> read() async {
+    if (unavailable) {
+      throw const SecureSessionStoreFailure(
+        SecureSessionStoreFailureReason.unavailable,
+      );
+    }
     if (corrupted) {
       corrupted = false;
       throw const SecureSessionStoreFailure(
@@ -159,6 +165,23 @@ void main() {
     expect(corrupted.status, BootstrapStatus.unauthenticated);
     expect(corruptedStore.value, isNull);
   });
+
+  test(
+    'temporarily unavailable storage preserves the refresh candidate',
+    () async {
+      final candidate = _session('kept', expired: false);
+      final store = _Store()
+        ..value = candidate
+        ..unavailable = true;
+      final controller = _controller(store, _Repository());
+
+      await controller.start();
+
+      expect(controller.status, BootstrapStatus.retryableError);
+      expect(store.value, same(candidate));
+      expect(store.clears, 0);
+    },
+  );
 
   test('valid access is canonicalized through sessions/me', () async {
     final store = _Store()..value = _session('valid', expired: false);

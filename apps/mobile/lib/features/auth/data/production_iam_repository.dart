@@ -29,9 +29,11 @@ class ProductionIamRepository
       <String, Future<SecureSession>>{};
   final Map<String, String> _refreshKeys = <String, String>{};
   final Map<String, String> _logoutKeys = <String, String>{};
+  int _contextOperation = 0;
 
   @override
   Future<AuthContextChoices> beginSignIn() async {
+    final operation = ++_contextOperation;
     _pendingContext = null;
     try {
       final device = await _deviceIdentity.get();
@@ -47,6 +49,12 @@ class ProductionIamRepository
       final memberships = await _client.contextSelections(
         exchange.contextToken,
       );
+      if (operation != _contextOperation) {
+        throw const AuthenticationFailure(
+          AuthenticationFailureCode.cancelled,
+          'Daha yeni bir giriş isteği başlatıldı.',
+        );
+      }
       final uniqueIds = memberships.map((item) => item.id).toSet();
       if (uniqueIds.length != memberships.length) throw const FormatException();
       _pendingContext = _PendingContext(exchange, memberships);
@@ -68,8 +76,16 @@ class ProductionIamRepository
     } on AuthenticationFailure {
       rethrow;
     } on IamApiException catch (error) {
+      if (operation == _contextOperation) _pendingContext = null;
       throw _authenticationFailure(error);
+    } on IamTransportException {
+      if (operation == _contextOperation) _pendingContext = null;
+      throw const AuthenticationFailure(
+        AuthenticationFailureCode.unavailable,
+        'Giriş servisine şu anda ulaşılamıyor.',
+      );
     } on Object {
+      if (operation == _contextOperation) _pendingContext = null;
       throw const AuthenticationFailure(
         AuthenticationFailureCode.internalError,
         'Giriş yanıtı güvenli biçimde doğrulanamadı.',
@@ -125,25 +141,35 @@ class ProductionIamRepository
   }) async {
     try {
       final dto = await action();
-      if (!identical(_pendingContext, pending)) throw const FormatException();
+      if (!identical(_pendingContext, pending)) {
+        throw const AuthenticationFailure(
+          AuthenticationFailureCode.cancelled,
+          'Daha yeni bir giriş bağlamı etkin.',
+        );
+      }
       final secure = _secureSession(
         dto,
         expectedUserId: pending.exchange.userId,
         expectedDeviceId: pending.exchange.deviceIdentifier,
         expectedMembership: expectedMembership,
       );
-      _pendingContext = null;
+      _invalidatePending(pending);
       return AuthenticatedSessionActivation(
         session: _activatedSession(dto),
         secureSession: secure,
       );
     } on IamApiException catch (error) {
-      if (error.isTerminalSession) _pendingContext = null;
+      if (error.isTerminalSession) _invalidatePending(pending);
       throw _authenticationFailure(error);
+    } on IamTransportException {
+      throw const AuthenticationFailure(
+        AuthenticationFailureCode.unavailable,
+        'Oturum servisine şu anda ulaşılamıyor.',
+      );
     } on AuthenticationFailure {
       rethrow;
     } on Object {
-      _pendingContext = null;
+      _invalidatePending(pending);
       throw const AuthenticationFailure(
         AuthenticationFailureCode.internalError,
         'Oturum yanıtı güvenli biçimde doğrulanamadı.',
@@ -217,7 +243,7 @@ class ProductionIamRepository
                 sessionGeneration: candidate.sessionGeneration!,
               )
             : null,
-        minimumGeneration: candidate.sessionGeneration,
+        expectedAuthenticatedAt: candidate.authenticatedAt,
         responseIdentityRequired: false,
       );
       _refreshKeys.remove(candidate.refreshToken);
@@ -294,12 +320,18 @@ class ProductionIamRepository
     return pending;
   }
 
+  void _invalidatePending(_PendingContext pending) {
+    if (!identical(_pendingContext, pending)) return;
+    _pendingContext = null;
+    _contextOperation++;
+  }
+
   SecureSession _secureSession(
     PlatformSessionDto dto, {
     required String expectedUserId,
     required String expectedDeviceId,
     MembershipDto? expectedMembership,
-    int? minimumGeneration,
+    DateTime? expectedAuthenticatedAt,
     bool responseIdentityRequired = true,
   }) {
     final membership = dto.membership;
@@ -311,10 +343,10 @@ class ProductionIamRepository
             (membership.id != expectedMembership!.id ||
                 membership.organizationId !=
                     expectedMembership.organizationId ||
-                (minimumGeneration == null
-                    ? membership.sessionGeneration !=
-                          expectedMembership.sessionGeneration
-                    : membership.sessionGeneration < minimumGeneration)))) {
+                membership.sessionGeneration !=
+                    expectedMembership.sessionGeneration)) ||
+        (expectedAuthenticatedAt != null &&
+            dto.authenticatedAt != expectedAuthenticatedAt)) {
       throw const FormatException();
     }
     return SecureSession(
@@ -342,6 +374,8 @@ class ProductionIamRepository
         candidate.scope == SecureSessionScope.organization;
     if (dto.userId != candidate.userId ||
         dto.deviceIdentifier != candidate.deviceId ||
+        dto.expiresAt != candidate.expiresAt ||
+        dto.authenticatedAt != candidate.authenticatedAt ||
         (dto.scope == 'ORGANIZATION') != expectedOrganization ||
         expectedOrganization != (membership != null) ||
         (membership != null &&

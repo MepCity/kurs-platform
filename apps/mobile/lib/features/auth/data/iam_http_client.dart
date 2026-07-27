@@ -458,7 +458,12 @@ class IamHttpClient {
     Map<String, Object?>? body,
     String? idempotencyKey,
   }) async {
-    if (bearer != null && bearer.trim().isEmpty) throw const FormatException();
+    if (bearer != null && !_validBearerToken(bearer)) {
+      throw const FormatException();
+    }
+    if (idempotencyKey != null && !_isUuid(idempotencyKey)) {
+      throw const FormatException();
+    }
     final uri = _baseUri.resolve(path);
     if (!_sameOrigin(_baseUri, uri)) throw const IamTransportException();
     final requestId = _randomUuid();
@@ -517,6 +522,7 @@ class IamHttpClient {
           decoded['error'] is Map<String, dynamic>) {
         code = _errorCode(
           _string(decoded['error'] as Map<String, dynamic>, 'code'),
+          response.statusCode,
         );
       }
     } on Object {
@@ -549,20 +555,25 @@ class IamHttpClient {
   }
 }
 
-IamErrorCode _errorCode(String value) => switch (value) {
-  'INVALID_REQUEST' => IamErrorCode.invalidRequest,
-  'VALIDATION_FAILED' => IamErrorCode.invalidRequest,
-  'UNAUTHENTICATED' => IamErrorCode.unauthenticated,
-  'FORBIDDEN' => IamErrorCode.forbidden,
-  'ORGANIZATION_CONTEXT_REQUIRED' => IamErrorCode.organizationContextRequired,
-  'SESSION_REVOKED' => IamErrorCode.sessionRevoked,
-  'ACCOUNT_NOT_READY' => IamErrorCode.accountNotReady,
-  'REAUTHENTICATION_REQUIRED' => IamErrorCode.reauthenticationRequired,
-  'RESOURCE_NOT_FOUND' => IamErrorCode.resourceNotFound,
-  'STATE_CONFLICT' => IamErrorCode.stateConflict,
-  'IDEMPOTENCY_KEY_REUSED' => IamErrorCode.idempotencyKeyReused,
-  'RATE_LIMITED' => IamErrorCode.rateLimited,
-  'PROVIDER_UNAVAILABLE' => IamErrorCode.providerUnavailable,
+IamErrorCode _errorCode(String value, int statusCode) => switch ((
+  value,
+  statusCode,
+)) {
+  ('INVALID_REQUEST', 400) => IamErrorCode.invalidRequest,
+  ('VALIDATION_FAILED', 422) => IamErrorCode.invalidRequest,
+  ('UNAUTHENTICATED', 401) => IamErrorCode.unauthenticated,
+  ('SESSION_REVOKED', 401) => IamErrorCode.sessionRevoked,
+  ('FORBIDDEN', 403) => IamErrorCode.forbidden,
+  ('ORGANIZATION_CONTEXT_REQUIRED', 403) =>
+    IamErrorCode.organizationContextRequired,
+  ('ACCOUNT_NOT_READY', 403) => IamErrorCode.accountNotReady,
+  ('REAUTHENTICATION_REQUIRED', 403) => IamErrorCode.reauthenticationRequired,
+  ('RESOURCE_NOT_FOUND', 404) => IamErrorCode.resourceNotFound,
+  ('STATE_CONFLICT', 409) => IamErrorCode.stateConflict,
+  ('IDEMPOTENCY_KEY_REUSED', 409) => IamErrorCode.idempotencyKeyReused,
+  ('RATE_LIMITED', 429) => IamErrorCode.rateLimited,
+  ('PROVIDER_UNAVAILABLE', 503) => IamErrorCode.providerUnavailable,
+  ('INTERNAL_ERROR', 500) => IamErrorCode.internalError,
   _ => IamErrorCode.internalError,
 };
 
@@ -585,9 +596,7 @@ String _string(Map<String, dynamic> json, String key) {
 
 String _uuid(Map<String, dynamic> json, String key) {
   final value = _string(json, key);
-  if (!RegExp(
-    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
-  ).hasMatch(value)) {
+  if (!_isUuid(value)) {
     throw const FormatException();
   }
   return value;
@@ -618,6 +627,15 @@ bool _sameOrigin(Uri first, Uri second) =>
     first.scheme == second.scheme &&
     first.host == second.host &&
     first.port == second.port;
+
+bool _isUuid(String value) => RegExp(
+  r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+).hasMatch(value);
+
+bool _validBearerToken(String value) =>
+    value == value.trim() &&
+    value.isNotEmpty &&
+    !value.codeUnits.any((unit) => unit <= 0x20 || unit >= 0x7f);
 
 String _randomUuid() {
   final bytes = List<int>.generate(16, (_) => Random.secure().nextInt(256));

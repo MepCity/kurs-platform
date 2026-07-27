@@ -235,33 +235,41 @@ void main() {
   test(
     'approved error codes are typed and unknown or malformed fail closed',
     () async {
-      final codes = <String, IamErrorCode>{
-        'INVALID_REQUEST': IamErrorCode.invalidRequest,
-        'UNAUTHENTICATED': IamErrorCode.unauthenticated,
-        'FORBIDDEN': IamErrorCode.forbidden,
-        'ORGANIZATION_CONTEXT_REQUIRED':
-            IamErrorCode.organizationContextRequired,
-        'SESSION_REVOKED': IamErrorCode.sessionRevoked,
-        'ACCOUNT_NOT_READY': IamErrorCode.accountNotReady,
-        'REAUTHENTICATION_REQUIRED': IamErrorCode.reauthenticationRequired,
-        'RESOURCE_NOT_FOUND': IamErrorCode.resourceNotFound,
-        'STATE_CONFLICT': IamErrorCode.stateConflict,
-        'IDEMPOTENCY_KEY_REUSED': IamErrorCode.idempotencyKeyReused,
-        'RATE_LIMITED': IamErrorCode.rateLimited,
-        'PROVIDER_UNAVAILABLE': IamErrorCode.providerUnavailable,
-        'unknown': IamErrorCode.internalError,
-      };
-      for (final entry in codes.entries) {
-        final transport = _FakeTransport()
-          ..responses.add(
-            IamResponse(
-              statusCode: 400,
-              headers: const <String, String>{},
-              body: jsonEncode(<String, Object?>{
-                'error': <String, Object?>{'code': entry.key},
-              }),
-            ),
-          );
+      final cases = <(String, int, IamErrorCode)>[
+        ('INVALID_REQUEST', 400, IamErrorCode.invalidRequest),
+        ('VALIDATION_FAILED', 422, IamErrorCode.invalidRequest),
+        ('UNAUTHENTICATED', 401, IamErrorCode.unauthenticated),
+        ('SESSION_REVOKED', 401, IamErrorCode.sessionRevoked),
+        ('FORBIDDEN', 403, IamErrorCode.forbidden),
+        (
+          'ORGANIZATION_CONTEXT_REQUIRED',
+          403,
+          IamErrorCode.organizationContextRequired,
+        ),
+        ('ACCOUNT_NOT_READY', 403, IamErrorCode.accountNotReady),
+        (
+          'REAUTHENTICATION_REQUIRED',
+          403,
+          IamErrorCode.reauthenticationRequired,
+        ),
+        ('RESOURCE_NOT_FOUND', 404, IamErrorCode.resourceNotFound),
+        ('STATE_CONFLICT', 409, IamErrorCode.stateConflict),
+        ('IDEMPOTENCY_KEY_REUSED', 409, IamErrorCode.idempotencyKeyReused),
+        ('RATE_LIMITED', 429, IamErrorCode.rateLimited),
+        ('PROVIDER_UNAVAILABLE', 503, IamErrorCode.providerUnavailable),
+        ('INTERNAL_ERROR', 500, IamErrorCode.internalError),
+        ('unknown', 500, IamErrorCode.internalError),
+      ];
+      for (final (wireCode, status, expectedCode) in cases) {
+        final response = IamResponse(
+          statusCode: status,
+          headers: const <String, String>{},
+          body: jsonEncode(<String, Object?>{
+            'error': <String, Object?>{'code': wireCode},
+          }),
+        );
+        final transport = _FakeTransport()..responses.add(response);
+        if (status == 429 || status == 503) transport.responses.add(response);
         final client = IamHttpClient(config: _config, transport: transport);
         await expectLater(
           client.refresh('refresh'),
@@ -269,7 +277,7 @@ void main() {
             isA<IamApiException>().having(
               (error) => error.code,
               'code',
-              entry.value,
+              expectedCode,
             ),
           ),
         );
@@ -289,4 +297,43 @@ void main() {
       );
     },
   );
+
+  test('inconsistent statuses and unsafe auth headers fail closed', () async {
+    final inconsistent = _FakeTransport()
+      ..responses.add(
+        IamResponse(
+          statusCode: 500,
+          headers: const <String, String>{},
+          body: jsonEncode(<String, Object?>{
+            'error': <String, Object?>{'code': 'FORBIDDEN'},
+          }),
+        ),
+      );
+    await expectLater(
+      IamHttpClient(config: _config, transport: inconsistent).refresh('token'),
+      throwsA(
+        isA<IamApiException>().having(
+          (error) => error.code,
+          'code',
+          IamErrorCode.internalError,
+        ),
+      ),
+    );
+
+    final transport = _FakeTransport();
+    final client = IamHttpClient(config: _config, transport: transport);
+    await expectLater(
+      client.contextSelections(' token'),
+      throwsA(isA<FormatException>()),
+    );
+    await expectLater(
+      client.contextSelections('token\nforged'),
+      throwsA(isA<FormatException>()),
+    );
+    await expectLater(
+      client.refresh('token', idempotencyKey: 'not-a-uuid'),
+      throwsA(isA<FormatException>()),
+    );
+    expect(transport.requests, isEmpty);
+  });
 }

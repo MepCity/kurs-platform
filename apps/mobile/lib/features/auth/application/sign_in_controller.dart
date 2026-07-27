@@ -153,6 +153,11 @@ class SignInController extends ChangeNotifier {
 
   void _showFailure(AuthenticationFailure failure) {
     if (_disposed) return;
+    if (failure.code != AuthenticationFailureCode.providerUnavailable &&
+        failure.code != AuthenticationFailureCode.rateLimited &&
+        failure.code != AuthenticationFailureCode.unavailable) {
+      _choices = null;
+    }
     _status = SignInStatus.error;
     _message = failure.message;
     notifyListeners();

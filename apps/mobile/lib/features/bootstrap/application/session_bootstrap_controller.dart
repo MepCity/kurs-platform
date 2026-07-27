@@ -38,7 +38,16 @@ class SessionBootstrapController extends ChangeNotifier {
     SecureSession? candidate;
     try {
       candidate = await sessionStore.read();
-    } on SecureSessionStoreFailure {
+    } on SecureSessionStoreFailure catch (failure) {
+      if (failure.reason == SecureSessionStoreFailureReason.unavailable) {
+        if (_current(operation)) {
+          _set(
+            BootstrapStatus.retryableError,
+            message: 'Güvenli oturum alanına erişilemiyor. Tekrar deneyin.',
+          );
+        }
+        return;
+      }
       try {
         await sessionStore.clear();
       } on Object {
