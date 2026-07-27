@@ -10,9 +10,14 @@ import java.time.ZoneId;
 import java.util.UUID;
 import org.mepcity.kursplatform.org.application.LifecycleResult;
 import org.mepcity.kursplatform.org.application.OrganizationCreationService;
+import org.mepcity.kursplatform.org.application.OrganizationListService;
+import org.mepcity.kursplatform.org.domain.OrganizationListQuery;
+import org.mepcity.kursplatform.org.domain.OrganizationStatus;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,10 +29,44 @@ import org.springframework.web.bind.annotation.RestController;
 public class OrganizationController {
     private final OrganizationCreationService creationService;
     private final ObjectMapper objectMapper;
+    private final OrganizationListService listService;
 
-    public OrganizationController(OrganizationCreationService creationService, ObjectMapper objectMapper) {
+    @org.springframework.beans.factory.annotation.Autowired
+    public OrganizationController(OrganizationCreationService creationService, OrganizationListService listService, ObjectMapper objectMapper) {
         this.creationService = creationService;
+        this.listService = listService;
         this.objectMapper = objectMapper;
+    }
+
+    /** Compatibility constructor retained for command-only standalone controller contract tests. */
+    public OrganizationController(OrganizationCreationService creationService, ObjectMapper objectMapper) {
+        this(creationService, null, objectMapper);
+    }
+
+    @GetMapping(produces = org.springframework.http.MediaType.APPLICATION_JSON_VALUE)
+    public java.util.Map<String,Object> list(@RequestHeader("Authorization") String authorization,
+            @RequestParam(value="status", required=false) String status, @RequestParam(value="search", required=false) String search,
+            @RequestParam(value="sort", required=false) String sort, @RequestParam(value="order", required=false) String order,
+            @RequestParam(value="limit", required=false) String limit, @RequestParam(value="cursor", required=false) String cursor,
+            jakarta.servlet.http.HttpServletRequest request) {
+        OrganizationListService.Query query=query(status,search,sort,order,limit,cursor,request);
+        var result=listService.list(bearerToken(authorization),query,requestId());
+        java.util.Map<String,Object> page=new java.util.LinkedHashMap<>();
+        page.put("nextCursor", result.nextCursor()); page.put("hasNextPage", result.hasNextPage());
+        return java.util.Map.of("items", result.items().stream().map(OrganizationResponse::from).toList(), "page", page);
+    }
+
+    private static OrganizationListService.Query query(String status, String search, String sort, String order, String limit, String cursor, jakarta.servlet.http.HttpServletRequest request) {
+        try {
+            OrganizationStatus parsedStatus=status==null?null:OrganizationStatus.valueOf(status);
+            String normalized=search==null?null:java.text.Normalizer.normalize(search.trim(),java.text.Normalizer.Form.NFKC).toLowerCase(java.util.Locale.ROOT);
+            if(normalized != null && normalized.length()>200) throw new IllegalArgumentException();
+            OrganizationListQuery.Sort parsedSort=sort==null?OrganizationListQuery.Sort.NAME:switch(sort){case "name"->OrganizationListQuery.Sort.NAME;case "createdAt"->OrganizationListQuery.Sort.CREATED_AT;default->throw new IllegalArgumentException();};
+            OrganizationListQuery.Order parsedOrder=order==null?OrganizationListQuery.Order.ASC:OrganizationListQuery.Order.valueOf(order);
+            int parsedLimit=limit==null?50:Integer.parseInt(limit); if(parsedLimit<1||parsedLimit>100) throw new IllegalArgumentException();
+            boolean supplied=status!=null||search!=null||sort!=null||order!=null||limit!=null||cursor!=null;
+            return new OrganizationListService.Query(parsedStatus,normalized,parsedSort,parsedOrder,parsedLimit,cursor,supplied);
+        } catch(RuntimeException ex) { throw new org.mepcity.kursplatform.org.application.OrganizationListValidationException(); }
     }
 
     @PostMapping(produces = org.springframework.http.MediaType.APPLICATION_JSON_VALUE)

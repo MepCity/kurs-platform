@@ -5,10 +5,13 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Optional;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.UUID;
 import org.mepcity.kursplatform.org.domain.Organization;
 import org.mepcity.kursplatform.org.domain.OrganizationRepository;
 import org.mepcity.kursplatform.org.domain.OrganizationStatus;
+import org.mepcity.kursplatform.org.domain.OrganizationListQuery;
 import javax.sql.DataSource;
 import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.stereotype.Repository;
@@ -133,6 +136,30 @@ public class JdbcOrganizationRepository implements OrganizationRepository {
             throw new OrganizationPersistenceException("Kurum markası güncellenemedi", exception);
         }
     }
+
+    @Override
+    public List<Organization> list(OrganizationListQuery query) {
+        Connection connection = DataSourceUtils.getConnection(dataSource);
+        String key = query.sort() == OrganizationListQuery.Sort.NAME ? "name" : "created_at";
+        String comparator = query.order() == OrganizationListQuery.Order.ASC ? ">" : "<";
+        String direction = query.order().name();
+        StringBuilder sql = new StringBuilder("SELECT ").append(ORGANIZATION_COLUMNS).append(" FROM organizations WHERE 1=1");
+        List<Object> values = new ArrayList<>();
+        if (query.status() != null) { sql.append(" AND status = ?::organization_status_enum"); values.add(query.status().name()); }
+        if (query.search() != null) { sql.append(" AND (lower(name) LIKE ? ESCAPE '\\\\' OR lower(coalesce(short_name, '')) LIKE ? ESCAPE '\\\\')"); values.add("%" + escapeLike(query.search()) + "%"); values.add("%" + escapeLike(query.search()) + "%"); }
+        if (query.lastValue() != null) { sql.append(" AND (").append(key).append(" ").append(comparator).append(" ? OR (").append(key).append(" = ? AND id > ?))"); values.add(query.lastValue()); values.add(query.lastValue()); values.add(query.lastId()); }
+        sql.append(" ORDER BY ").append(key).append(" ").append(direction).append(", id ASC LIMIT ?"); values.add(query.limit());
+        try (PreparedStatement statement = connection.prepareStatement(sql.toString())) {
+            for (int i = 0; i < values.size(); i++) {
+                Object value = values.get(i);
+                if (value instanceof java.time.Instant instant) statement.setTimestamp(i + 1, java.sql.Timestamp.from(instant));
+                else statement.setObject(i + 1, value);
+            }
+            try (ResultSet result = statement.executeQuery()) { List<Organization> rows = new ArrayList<>(); while (result.next()) rows.add(map(result)); return rows; }
+        } catch (SQLException exception) { throw new OrganizationPersistenceException("Kurumlar okunamadı", exception); }
+    }
+
+    private static String escapeLike(String value) { return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_"); }
 
     private Optional<Organization> queryOne(Connection connection, String sql, UUID organizationId) {
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
