@@ -5,7 +5,7 @@
 | Son güncelleme | 27 Temmuz 2026 |
 | Aktif dalga | Dalga 2 — Kimlik, kurum ve mobil kabuk |
 | Aktif görev | Yok |
-| Sıradaki görev | IAM-006 — PR #57 inceleme düzeltmelerini tamamla |
+| Sıradaki görev | IAM-009 — Entegrasyon, izolasyon, olay kaybı ve iptal gecikmesi testleri |
 
 Bu dosya projenin kaldığı yeri gösteren kısa operasyon panosudur. Her çalışma oturumunun
 başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev tanımları
@@ -13,7 +13,10 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 
 ## READY
 
-Hazır görev yok. Dalga 2 entegrasyon görevleri `IAM-006` tamamlanana kadar başlatılmaz.
+| Kimlik | Görev | Bağımlılık durumu | Not |
+|---|---|---|---|
+| IAM-009 | Entegrasyon, izolasyon, olay kaybı ve iptal gecikmesi testleri | IAM-004–IAM-008 ve ORG-004 tamamlandı | Dalga 2 kimlik kabul kapısı; önce başlatılması önerilir |
+| ORG-009 | Dalga 2 dosyasız çekirdek uçtan uca entegrasyon | IAM-003–IAM-008, ORG-003–ORG-008 ve UI-003–UI-004 tamamlandı | IAM-009 ile test/dosya sahipliği çakışması önlenerek paralel yürütülebilir |
 
 ## IN_PROGRESS
 
@@ -21,9 +24,7 @@ Aktif görev yok.
 
 ## REVIEW
 
-| Kimlik | Görev | Pull Request | Not |
-|---|---|---|---|
-| IAM-006 | Cihaz kaydı, DEVICE_SESSION_REVOKE ve yeniden doğrulamayı uygula | PR #57 | Cursor bütünlüğü ile gerçek PostgreSQL/HTTP güvenlik kanıtlarına ilişkin inceleme düzeltmeleri sürüyor |
+İncelemede görev yok.
 
 ## BLOCKED
 
@@ -33,6 +34,7 @@ Bloke görev yok.
 
 | Kimlik | Görev | Tamamlanma tarihi | Teslim |
 |---|---|---|---|
+| IAM-006 | Cihaz kaydı, DEVICE_SESSION_REVOKE ve yeniden doğrulamayı uygula | 27 Temmuz 2026 | Cihaz listeleme ve kendi/kurum/platform oturum iptali; AES-GCM opak cursor, kalıcı rate-limit, sürümlü idempotent snapshot replay, dar FORCE RLS/SECURITY DEFINER sınırları, advisory-lock eşzamanlılık ve gerçek HTTP→PostgreSQL kabul kanıtları; 451 backend test ve tüm kalite kapıları PASS — PR #57 |
 | ORG-008 | Kurum adı ve renk ayarı mobil akışı (dosyasız) | 27 Temmuz 2026 | Marka, yardımcı palet ve etkin modül ayarları için bağımsız draft/snapshot/idempotency yaşam döngüsü, ortak `rowVersion` uzlaştırması, ACTIVE/SUSPENDED/ARCHIVED ve platform-support erişim matrisi, salt-okunur arşiv görünümü ve erişilebilir mobil durum testleri; 540 mobil test, Android/iOS kalite kapıları PASS — PR #58 |
 | IAM-008 | Mobil güvenli oturum saklamayı uygula | 24 Temmuz 2026 | Keychain/Android Keystore tabanlı güvenli oturum saklama, fail-closed bütünlük/kurulum işaretçisi, ortak fiziksel işlem kuyruğu ve 483 mobil test; Android/iOS kalite kapıları PASS — PR #56 |
 | PLAN-006 | Belge ve sözleşme senkronizasyonunu tamamla | 24 Temmuz 2026 | Cognito veri modeli, karar günlüğü/metaveri, CTX-01, program durumu, görev bölme kuralı ve A-005 deney belgesi senkronizasyonu — PR #55 |
