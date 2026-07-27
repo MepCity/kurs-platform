@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme_provider.dart';
 import '../../auth/domain/authentication_repository.dart';
 import '../../auth/domain/secure_session_store.dart';
+import '../../auth/domain/session_repository.dart';
 import '../../auth/presentation/sign_in_screen.dart';
+import 'session_bootstrap_gate.dart';
 
 /// Provider-aware application root.
 ///
@@ -26,12 +28,14 @@ class KursPlatformApp extends StatefulWidget {
     super.key,
     this.provider,
     this.home,
+    this.sessionRepository,
   });
 
   /// IAM-007 domain port, supplied by the composition root. The presentation
   /// layer never constructs or imports a concrete data adapter.
   final AuthenticationRepository authenticationRepository;
   final SecureSessionStore secureSessionStore;
+  final SessionRepository? sessionRepository;
 
   /// External provider. When null, the app creates and owns its own provider.
   final AppThemeProvider? provider;
@@ -92,10 +96,17 @@ class _KursPlatformAppState extends State<KursPlatformApp> {
             theme: _provider.themeData,
             home:
                 widget.home ??
-                SignInScreen(
-                  repository: widget.authenticationRepository,
-                  secureSessionStore: widget.secureSessionStore,
-                ),
+                (widget.sessionRepository == null
+                    ? SignInScreen(
+                        repository: widget.authenticationRepository,
+                        secureSessionStore: widget.secureSessionStore,
+                      )
+                    : SessionBootstrapGate(
+                        authenticationRepository:
+                            widget.authenticationRepository,
+                        sessionRepository: widget.sessionRepository!,
+                        sessionStore: widget.secureSessionStore,
+                      )),
           );
         },
       ),

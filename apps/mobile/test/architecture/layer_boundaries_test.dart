@@ -8,6 +8,7 @@ const _directAdapterPrefixes = <String>[
   'dart:io',
   'package:dio/',
   'package:drift/',
+  'package:flutter_appauth/',
   'package:flutter_secure_storage/',
   'package:http/',
   'package:sqflite/',
@@ -98,6 +99,12 @@ void main() {
     _expectForbiddenInPresentationAndDomain("import 'dart:io';");
     _expectForbiddenInPresentationAndDomain(
       "import 'package:flutter/services.dart';",
+    );
+  });
+
+  test('presentation and domain reject AppAuth imports', () {
+    _expectForbiddenInPresentationAndDomain(
+      "import 'package:flutter_appauth/flutter_appauth.dart';",
     );
   });
 

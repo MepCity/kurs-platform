@@ -25,6 +25,7 @@ class AppRuntimeConfig {
     required this.publicApiBaseUrl,
     required this.cognitoIssuerUri,
     required this.cognitoClientId,
+    required this.cognitoRedirectUri,
   });
 
   factory AppRuntimeConfig.fromEnvironment() {
@@ -39,6 +40,9 @@ class AppRuntimeConfig {
       cognitoClientId: const String.fromEnvironment(
         'KURS_PLATFORM_COGNITO_CLIENT_ID',
       ),
+      cognitoRedirectUri: const String.fromEnvironment(
+        'KURS_PLATFORM_COGNITO_REDIRECT_URI',
+      ),
     );
   }
 
@@ -47,6 +51,7 @@ class AppRuntimeConfig {
     required String publicApiBaseUrl,
     required String cognitoIssuerUri,
     required String cognitoClientId,
+    String cognitoRedirectUri = 'kursplatform://oauth2redirect',
   }) {
     final parsedEnvironment = AppEnvironment.parse(
       _required('KURS_PLATFORM_ENVIRONMENT', environment),
@@ -61,6 +66,20 @@ class AppRuntimeConfig {
       cognitoIssuerUri,
       parsedEnvironment,
     );
+    final redirect = Uri.tryParse(
+      _required('KURS_PLATFORM_COGNITO_REDIRECT_URI', cognitoRedirectUri),
+    );
+    if (redirect == null ||
+        redirect.scheme != 'kursplatform' ||
+        redirect.host != 'oauth2redirect' ||
+        redirect.hasQuery ||
+        redirect.hasFragment ||
+        redirect.path.isNotEmpty) {
+      throw const AppConfigException(
+        'KURS_PLATFORM_COGNITO_REDIRECT_URI must be '
+        'kursplatform://oauth2redirect',
+      );
+    }
     return AppRuntimeConfig(
       environment: parsedEnvironment,
       publicApiBaseUrl: apiBase,
@@ -69,6 +88,7 @@ class AppRuntimeConfig {
         'KURS_PLATFORM_COGNITO_CLIENT_ID',
         cognitoClientId,
       ),
+      cognitoRedirectUri: redirect,
     );
   }
 
@@ -76,6 +96,7 @@ class AppRuntimeConfig {
   final Uri publicApiBaseUrl;
   final Uri cognitoIssuerUri;
   final String cognitoClientId;
+  final Uri cognitoRedirectUri;
 
   static String _required(String key, String value) {
     final trimmed = value.trim();

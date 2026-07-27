@@ -20,6 +20,30 @@ void main() {
 
     expect(config.environment, AppEnvironment.development);
     expect(config.publicApiBaseUrl.host, 'api-development.example.invalid');
+    expect(
+      config.cognitoRedirectUri.toString(),
+      'kursplatform://oauth2redirect',
+    );
+  });
+
+  test('rejects non-production OAuth redirect values', () {
+    for (final redirect in <String>[
+      'kursplatforma004r1://oauth2redirect',
+      'kursplatform://other',
+      'https://example.invalid/callback',
+    ]) {
+      expect(
+        () => AppRuntimeConfig.fromValues(
+          environment: 'development',
+          publicApiBaseUrl: 'https://api.example.invalid',
+          cognitoIssuerUri:
+              'https://cognito-idp.eu-central-1.amazonaws.com/example',
+          cognitoClientId: 'public',
+          cognitoRedirectUri: redirect,
+        ),
+        throwsA(isA<AppConfigException>()),
+      );
+    }
   });
 
   test('rejects short environment alias', () {

@@ -163,7 +163,7 @@ jobs:
           flutter --version
           flutter precache --android
           flutter pub get --enforce-lockfile
-          dart format --output=none --set-exit-if-changed lib test
+          dart format --output=none --set-exit-if-changed lib test tool
           flutter analyze
           flutter test
           flutter build apk --debug \
@@ -171,6 +171,8 @@ jobs:
             --dart-define=KURS_PLATFORM_PUBLIC_API_BASE_URL=https://api-development.example.invalid \
             --dart-define=KURS_PLATFORM_COGNITO_ISSUER_URI=https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_EXAMPLE \
             --dart-define=KURS_PLATFORM_COGNITO_CLIENT_ID=examplepublicclientid
+          ./android/gradlew -p android app:processReleaseManifest --no-daemon
+          dart run tool/android_oauth_manifest_verifier.dart
 
       - name: Flutter SDK cache'ini main dalında kaydet
         if: github.ref == 'refs/heads/main' && steps.flutter-cache.outputs.cache-hit != 'true'

@@ -81,6 +81,18 @@ abstract interface class SecureSessionStore {
   Future<void> clear();
 }
 
+/// Compare-and-swap operations needed by bootstrap and logout race guards.
+abstract interface class AtomicSecureSessionStore {
+  Future<bool> isCurrent(SecureSession expected);
+
+  Future<bool> replaceIfCurrent(
+    SecureSession expected,
+    SecureSession replacement,
+  );
+
+  Future<bool> clearIfCurrent(SecureSession expected);
+}
+
 enum SecureSessionStoreFailureReason { unavailable, corrupted }
 
 /// Deliberately contains no underlying exception or persisted value, so a
