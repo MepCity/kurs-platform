@@ -75,7 +75,7 @@ Parola, access/refresh token, DB credential veya AWS secret bu pakete ve repoya 
 | Repo sınırı | PASS | `./tooling/check_repo_boundaries.sh` |
 | Backend test/build | PASS | `./gradlew clean test build`; 529 test, 0 hata/atlama |
 | Git diff kontrolü | PASS | `git diff --check` |
-| GitHub kalite kapıları | Düzeltme sonrası yeniden doğrulanacak | PR #65 final head ve Actions run teslim raporuna kaydedilir |
+| GitHub kalite kapıları | PASS | Düzeltme commit'i `c86b21c`; [Actions run 30356987924](https://github.com/MepCity/kurs-platform/actions/runs/30356987924); zorunlu işler `SUCCESS` |
 
 ## Başlangıç ve ücretsiz katman ölçümü
 
