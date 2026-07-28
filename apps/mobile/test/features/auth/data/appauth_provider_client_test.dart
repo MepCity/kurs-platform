@@ -37,7 +37,7 @@ AuthorizationTokenResponse _response(String? accessToken) =>
       DateTime.utc(2026, 7, 27, 10),
       'provider-id-must-be-discarded',
       'Bearer',
-      const <String>['openid', 'profile'],
+      const <String>['openid'],
       null,
       null,
     );
@@ -57,7 +57,7 @@ void main() {
       expect(appAuth.request?.redirectUrl, 'kursplatform://oauth2redirect');
       expect(appAuth.request?.issuer, _config.cognitoIssuerUri.toString());
       expect(appAuth.request?.grantType, GrantType.authorizationCode);
-      expect(appAuth.request?.scopes, <String>['openid', 'profile']);
+      expect(appAuth.request?.scopes, <String>['openid']);
       expect(
         appAuth.request?.externalUserAgent,
         ExternalUserAgent.ephemeralAsWebAuthenticationSession,
