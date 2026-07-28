@@ -2,9 +2,9 @@
 
 | Alan | Değer |
 |---|---|
-| Son güncelleme | 27 Temmuz 2026 |
+| Son güncelleme | 28 Temmuz 2026 |
 | Aktif dalga | Dalga 3 — Sınıf, hoca yetkileri ve öğrenci |
-| Aktif görev | — |
+| Aktif görev | ALPHA-001 — Dalga 2 iOS TestFlight iç test yayınını tamamla |
 | Sıradaki görev | TERM-001 — Dönem/takvim veri ve API sözleşmesi |
 
 Bu dosya projenin kaldığı yeri gösteren kısa operasyon panosudur. Her çalışma oturumunun
@@ -24,7 +24,7 @@ başında okunur, görev kabul edildiğinde güncellenir. Ayrıntılı görev ta
 
 | Kimlik | Görev | Durum | Not |
 |---|---|---|---|
-| — | — | — | Aktif görev yok; READY listesinden sıradaki görev başlatılacak |
+| ALPHA-001 | Dalga 2 iOS TestFlight iç test yayınını tamamla | IN_PROGRESS | ALPHA-002 ortamı hazır; imzalı archive, App Store Connect yüklemesi, TestFlight kurulumu ve gerçek iPhone smoke testi bekleniyor |
 
 ## REVIEW
 
@@ -102,6 +102,7 @@ Bloke görev yok.
 | ORG-009B | Mobil IAM production adapterını tamamla | 27 Temmuz 2026 | AppAuth sistem tarayıcısı + PKCE, provider exchange ve bağlam aktivasyonu, Keychain/Keystore platform oturumu, `/sessions/me` doğrulaması, refresh/logout idempotency ve secure-storage yarış güvenliği; dar Android OAuth manifesti, 576 mobil test ve Android/iOS kalite kapıları PASS — PR #61 |
 | ORG-009C | Mobil ORG production entegrasyonunu tamamla | 27 Temmuz 2026 | Sekiz dosyasız ORG ucunun şema doğrulamalı production adapterı, gerçek composition/UI-004 rota bağlantısı, kanonik refresh sonrası rol/kurum workspace uzlaştırması, güvenli HTTP/ETag/idempotency ve 611 mobil test; Android/iOS kalite kapıları PASS — PR #62 |
 | ORG-009 | Dalga 2 dosyasız çekirdek uçtan uca entegrasyon | 27 Temmuz 2026 | ORG-009A/B/C ile gerçek backend kurum listeleme, mobil IAM oturumu ve dosyasız ORG ekranları tek production zincirinde birleştirildi; Dalga 2 çıkış kapısındaki giriş, kurum oluşturma/marka, güvenli oturum devamı, cihaz iptali ve kurum izolasyonu kanıtlandı — PR #59, #61, #62 |
+| ALPHA-002 | Kapalı alfa backend ve Cognito ortamını kur | 28 Temmuz 2026 | Render Free public HTTPS backend, Supabase Free PostgreSQL, Cognito Authorization Code + PKCE, sentetik uçtan uca smoke, fail-closed teardown ve iOS release yapılandırma kanıtı; backend 529 ve mobil 612 test, tüm kalite kapıları PASS — PR #65 |
 
 ## Sonraki görev nasıl READY yapılır?
 
