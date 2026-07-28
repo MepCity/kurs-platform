@@ -7,7 +7,6 @@ services:
     rootDir: apps/backend
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health
-    maxShutdownDelaySeconds: 30
     autoDeployTrigger: off
     envVars:
       - key: SPRING_PROFILES_ACTIVE
