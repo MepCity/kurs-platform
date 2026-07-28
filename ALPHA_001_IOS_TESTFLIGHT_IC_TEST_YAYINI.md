@@ -76,8 +76,8 @@ kaynak kullanıcı onayı olmadan açılmaz.
   iptalini, uygulama yeniden açıldığında güvenli oturum geri yüklemeyi, yetkisiz ve bağlantı
   hatalarının güvenli görünmesini doğrulayın. Gerçek kurum veya öğrenci verisi girmeyin. Crash,
   token ya da hassas log görürseniz build numarası ve adımlarla feedback gönderin.
-- **Feedback e-postası:** App Store Connect'te ürün sahibinin onayladığı ve erişebildiği adres
-  girilecek; repo belgesinde kişisel adres varsayılmayacak.
+- **Feedback e-postası:** PASS — ürün sahibinin onayladığı ve erişebildiği adres App Store
+  Connect'e kaydedildi; kişisel adres repo belgesinde tutulmaz.
 - **Export compliance:** Mobil kod özel/non-standard kriptografi uygulamaz; TLS ve iOS Keychain
   gibi platform güvenlik yüzeylerini kullanır. Apple soru akışı bu kullanımın muaf olduğunu
   doğruladığında `ITSAppUsesNonExemptEncryption=NO` beyanı kullanılır. Sonuç belirsiz veya Apple
