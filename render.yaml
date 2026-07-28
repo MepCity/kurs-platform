@@ -1,0 +1,71 @@
+services:
+  - type: web
+    name: kurs-platform-alpha-api-development
+    runtime: docker
+    plan: free
+    region: frankfurt
+    rootDir: apps/backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeployTrigger: off
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: production
+      - key: KURS_PLATFORM_ENVIRONMENT
+        value: development
+      - key: IAM_LOCAL_STUB
+        value: "false"
+      - key: IAM_COGNITO_ALLOW_FEDERATED_IDP
+        value: "false"
+      - key: IAM_PROVIDER_COMMAND_WORKER_ENABLED
+        value: "false"
+      - key: IAM_SECURITY_EVENTS_ENABLED
+        value: "false"
+      - key: IAM_RECONCILIATION_ENABLED
+        value: "false"
+      - key: KURS_PLATFORM_PUBLIC_API_BASE_URL
+        sync: false
+      - key: KURS_PLATFORM_COGNITO_ISSUER_URI
+        sync: false
+      - key: KURS_PLATFORM_COGNITO_CLIENT_ID
+        sync: false
+      - key: KURS_PLATFORM_DATABASE_URL_SECRET_REF
+        value: development/supabase/database-url
+      - key: KURS_PLATFORM_IAM_TOKEN_PEPPER_SECRET_REF
+        value: development/render/iam-token-pepper
+      - key: KURS_PLATFORM_IAM_SECRET_DELIVERY_KEY_REF
+        value: development/render/iam-escrow-key
+      - key: KURS_PLATFORM_COGNITO_ADMIN_ROLE_REF
+        value: development/aws/cognito-runtime-user
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_USERNAME
+        sync: false
+      - key: DATABASE_PASSWORD
+        sync: false
+      - key: DATABASE_MIGRATION_URL
+        sync: false
+      - key: DATABASE_MIGRATION_USERNAME
+        sync: false
+      - key: DATABASE_MIGRATION_PASSWORD
+        sync: false
+      - key: IAM_TOKEN_HASH_PEPPER
+        generateValue: true
+      - key: IAM_ESCROW_SECRET
+        generateValue: true
+      - key: ORG_LIST_CURSOR_SECRET
+        generateValue: true
+      - key: IAM_COGNITO_ISSUER
+        sync: false
+      - key: IAM_COGNITO_CLIENT_ID
+        sync: false
+      - key: IAM_COGNITO_REGION
+        value: eu-central-1
+      - key: IAM_COGNITO_USER_POOL_ID
+        sync: false
+      - key: IAM_COGNITO_ACCOUNT_ID
+        sync: false
+      - key: IAM_COGNITO_MANAGEMENT_ACCESS_KEY_ID
+        sync: false
+      - key: IAM_COGNITO_MANAGEMENT_SECRET_ACCESS_KEY
+        sync: false

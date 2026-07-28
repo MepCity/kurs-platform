@@ -12,13 +12,15 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 
 /**
- * Hand-rolled AWS SigV4 signer for the Cognito IDP Admin API (JSON 1.1 protocol, POST /). Shared
+ * Hand-rolled AWS SigV4 signer for the Cognito IDP Admin API (JSON 1.0 protocol, POST /). Shared
  * by every Cognito management-API caller in this module so the signing logic exists in exactly one
  * place; supports session-token (temporary/STS) credentials in addition to static access keys.
  */
 public final class CognitoSigV4Signer {
 
     private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(5);
+    private static final String CONTENT_TYPE = "application/x-amz-json-1.0";
+    private static final String TARGET_PREFIX = "AWSCognitoIdentityProviderService.";
 
     private final String region;
     private final String accessKeyId;
@@ -43,13 +45,13 @@ public final class CognitoSigV4Signer {
                 ? "content-type;host;x-amz-date;x-amz-security-token;x-amz-target"
                 : "content-type;host;x-amz-date;x-amz-target";
         StringBuilder canonicalHeaders = new StringBuilder()
-                .append("content-type:application/x-amz-json-1.1\n")
+                .append("content-type:").append(CONTENT_TYPE).append('\n')
                 .append("host:cognito-idp.").append(region).append(".amazonaws.com\n")
                 .append("x-amz-date:").append(amzDate).append('\n');
         if (hasSessionToken) {
             canonicalHeaders.append("x-amz-security-token:").append(sessionToken).append('\n');
         }
-        canonicalHeaders.append("x-amz-target:CognitoIdentityServiceProvider.").append(target).append('\n');
+        canonicalHeaders.append("x-amz-target:").append(TARGET_PREFIX).append(target).append('\n');
         String canonicalRequest = "POST\n/\n\n" + canonicalHeaders + "\n" + signedHeaderNames + "\n" + payloadHash;
         String canonicalHash = hexSha256(canonicalRequest.getBytes(StandardCharsets.UTF_8));
         String scope = dateStamp + "/" + region + "/cognito-idp/aws4_request";
@@ -61,9 +63,9 @@ public final class CognitoSigV4Signer {
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(endpoint))
                 .timeout(HTTP_TIMEOUT)
-                .header("Content-Type", "application/x-amz-json-1.1")
+                .header("Content-Type", CONTENT_TYPE)
                 .header("X-Amz-Date", amzDate)
-                .header("X-Amz-Target", "CognitoIdentityServiceProvider." + target)
+                .header("X-Amz-Target", TARGET_PREFIX + target)
                 .header("Authorization", authorization);
         if (hasSessionToken) {
             builder.header("X-Amz-Security-Token", sessionToken);

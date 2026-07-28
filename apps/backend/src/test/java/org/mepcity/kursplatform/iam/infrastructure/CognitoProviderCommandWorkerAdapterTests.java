@@ -59,7 +59,7 @@ class CognitoProviderCommandWorkerAdapterTests {
         ProviderCommandOutcome outcome = adapter.execute(ProviderCommandType.USER_DISABLE, "subject-1", "issuer-1");
 
         assertThat(outcome.success()).isTrue();
-        assertThat(target.get()).isEqualTo("CognitoIdentityServiceProvider.AdminDisableUser");
+        assertThat(target.get()).isEqualTo("AWSCognitoIdentityProviderService.AdminDisableUser");
         assertThat(authHeader.get()).startsWith("AWS4-HMAC-SHA256 Credential=AKIAFAKE/");
         assertThat(authHeader.get()).contains("SignedHeaders=content-type;host;x-amz-date;x-amz-target");
     }
@@ -75,7 +75,7 @@ class CognitoProviderCommandWorkerAdapterTests {
         ProviderCommandOutcome outcome = adapter.execute(ProviderCommandType.USER_LOGOUT, "subject-1", "issuer-1");
 
         assertThat(outcome.success()).isTrue();
-        assertThat(target.get()).isEqualTo("CognitoIdentityServiceProvider.AdminUserGlobalSignOut");
+        assertThat(target.get()).isEqualTo("AWSCognitoIdentityProviderService.AdminUserGlobalSignOut");
     }
 
     @Test

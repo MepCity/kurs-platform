@@ -75,7 +75,13 @@ required_texts=(
   "app:processReleaseManifest"
   "dart run tool/android_oauth_manifest_verifier.dart"
   "runs-on: macos-15"
-  "flutter build ios --debug --simulator --no-codesign"
+  "flutter test test/core/config/alpha_runtime_config_test.dart"
+  "--dart-define=KURS_PLATFORM_ALPHA_RUNTIME_CONTRACT_TEST=true"
+  "flutter build ios --release --no-codesign"
+  "--dart-define=KURS_PLATFORM_PUBLIC_API_BASE_URL=https://kurs-platform-alpha-api-development.onrender.com"
+  "--dart-define=KURS_PLATFORM_COGNITO_ISSUER_URI=https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_1GH5JivoG"
+  "--dart-define=KURS_PLATFORM_COGNITO_CLIENT_ID=2c59dh2nf60fmk6chn6qq3eoqu"
+  "--dart-define=KURS_PLATFORM_COGNITO_REDIRECT_URI=kursplatform://oauth2redirect"
   "format: cyclonedx-json"
   "fail-on-severity: high"
   'if parent_sha=$(git rev-parse HEAD^ 2>/dev/null); then'
@@ -86,10 +92,13 @@ required_texts=(
   'test "$REVIEW_RESULT" = success'
   './tooling/check_no_secrets.sh'
   './tooling/test/check_no_secrets_test.sh'
+  'sh -n deploy/alpha/provision_cognito.sh deploy/alpha/smoke_test.sh deploy/alpha/teardown_cognito.sh'
+  'bash -n deploy/alpha/teardown_cognito_test.sh'
+  './deploy/alpha/teardown_cognito_test.sh'
 )
 
 for required_text in "${required_texts[@]}"; do
-  grep -F "$required_text" "$workflow" >/dev/null
+  grep -F -- "$required_text" "$workflow" >/dev/null
 done
 
 if grep -E '^[[:space:]]*uses: [^[:space:]@]+@(main|master|v[0-9]+([.][0-9]+)*)[[:space:]]*(#.*)?$' "$workflow"; then
