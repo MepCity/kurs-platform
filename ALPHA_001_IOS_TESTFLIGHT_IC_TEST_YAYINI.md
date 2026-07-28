@@ -7,7 +7,7 @@
 - **Değiştirilen alan:** iOS Runner/RunnerTests kimliği, signing girdisi, sürüm bilgisi,
   yapılandırma regresyon testi ve bu yayın kanıtı.
 - **Beklenen çıktı:** Yalnız sentetik verili kapalı alfada internal TestFlight grubuna
-  dağıtılan ve gerçek iPhone'da doğrulanan `0.2.0 (1)` build'i.
+  dağıtılan ve gerçek iPhone'da doğrulanan bir `0.2.0` build'i.
 - **Kabul:** Görev promptundaki bundle, archive, validation, upload, internal grup, gerçek cihaz,
   secret/PII ve Android regresyon ölçütlerinin tamamı kanıtlanır.
 - **Test yöntemi:** Mobil format/analyze/test/build kontrolleri, repo sınır/secret kontrolleri,
@@ -26,7 +26,7 @@ TestFlight linki açılmaz.
 | RunnerTests bundle ID | `com.mepcity.kursplatform.RunnerTests` |
 | OAuth callback | `kursplatform://oauth2redirect` |
 | Sürüm | `0.2.0` |
-| Build | `1` |
+| Build | `2` (`1`, Cognito scope uyuşmazlığı nedeniyle reddedildi ve expire edildi) |
 | App Store Connect SKU | `KURSPLATFORM-IOS-001` |
 | TestFlight grubu | `Dalga 2 İç Test` |
 | Dağıtım | Internal testing only |
@@ -90,17 +90,23 @@ test edildiği kanıtlanır. External testing, public link ve App Store submissi
 
 | Kanıt | Sonuç |
 |---|---|
-| Commit SHA | Bekliyor |
-| Kaynak Xcode sürümü | PASS — Xcode 26.6 (`17F113`); iOS 26.5 simulator runtime indirmesi sürüyor |
-| Apple Team / Automatic Signing | KISMİ PASS — üyelik aktif, App ID ve yerel Team ID girdisi hazır; signing kimliği/provisioning bekliyor |
+| Commit SHA | `0cb326b67d8dbd1d9f20ef59f8e2d710228d1e96` |
+| Kaynak Xcode sürümü | PASS — Xcode 26.6 (`17F113`) |
+| Apple Team / Automatic Signing | PASS — üyelik, Team, Apple Distribution sertifikası/private key ve App Store profili doğrulandı; signing sırrı repoya alınmadı |
 | App ID | PASS — `com.mepcity.kursplatform` kaydedildi |
-| App Store Connect uygulama kaydı | PASS — `Kurs Platform`, iOS, Türkçe, `KURSPLATFORM-IOS-001` |
-| Archive (`0.2.0 (1)`) | Bekliyor |
-| Archive SHA-256 | Bekliyor |
-| App Store validation | Bekliyor |
-| App Store Connect upload | Bekliyor |
-| Build processing/export compliance | Bekliyor |
-| Internal grup erişimi | KISMİ PASS — `Dalga 2 İç Test` oluşturuldu, otomatik dağıtım kapalı; 0 tester/0 build |
+| App Store Connect uygulama kaydı | PASS — `Kurs Platform`, Apple ID `6795416553`, iOS, Türkçe, `KURSPLATFORM-IOS-001` |
+| Archive (`0.2.0 (2)`) | PASS — exact release define'larıyla imzalı Release archive |
+| Export edilen IPA SHA-256 | `bf3555c865560b21653d9f0bf27ac34ae9335667fa5423c320fa265be92f5c62` |
+| Archive executable SHA-256 | `e61de137c5958b7073092a119ff91126aa6349e10d83ec9907916f9e2422a9d9` |
+| App Store validation | PASS — Xcode Organizer validation başarılı |
+| App Store Connect upload | PASS — internal testing only upload başarılı |
+| Build processing/export compliance | PASS — build `Ready to Test`; non-exempt encryption `No` |
+| Internal grup erişimi | PASS — `Dalga 2 İç Test`, 1 internal tester, build 2 gruba eklendi; otomatik dağıtım/public link/external testing kapalı |
+
+Build 1 aynı TestFlight grubuna ulaştı ancak uygulamanın istediği `openid profile` kapsamı Cognito
+client'taki yalnız `openid` izniyle uyuşmadığı için gerçek cihaz girişinde `invalid_scope` verdi.
+Mobil kapsam `openid` olarak düzeltildi, build 2 üretildi ve hatalı build 1 App Store Connect'te
+expire edilerek test erişiminden kaldırıldı.
 
 Archive üretildiğinde `.xcarchive` dizininin kendisi repoya eklenmez. Kanıt için archive içindeki
 ürün uygulamasının ve export edilen IPA'nın SHA-256 özeti, Xcode sürümü, commit SHA, sürüm/build
@@ -112,45 +118,57 @@ ve App Store Connect durumu bu tabloya yazılır; Apple hesabı veya signing sı
 |---|---|
 | `dart format --output=none --set-exit-if-changed lib test tool` | PASS |
 | `flutter analyze` | PASS — sorun yok |
-| `flutter test` | PASS — 612 test |
+| `flutter test` | PASS — 613 test |
 | `flutter build apk --debug` | PASS |
 | `dart run tool/ios_release_config_verifier.dart` | PASS |
-| `flutter build ios --debug --simulator --no-codesign` | Bekliyor — Xcode 26.6 ve CocoaPods 1.17.0 hazır; iOS 26.5 simulator runtime kuruluyor |
+| `flutter build ios --debug --simulator --no-codesign` | PASS |
 | `tooling/check_repo_boundaries.sh` ve regresyon testi | PASS |
 | `tooling/check_no_secrets.sh` ve regresyon testi | PASS |
 | Eski bundle ID mekanik taraması | PASS — kalıntı yok |
 | `git diff --check` | PASS |
 
+Main kalite çalışması `30358454563` SUCCESS olduktan sonra `origin/main`, rebase/squash/amend
+yapılmadan normal merge commit'i `fbe90bf` ile branch'e alındı. Scope düzeltmesi
+`0cb326b` commit'indedir. Draft PR [#64](https://github.com/MepCity/kurs-platform/pull/64) için
+Actions çalışması `30362880306` içindeki backend, Android, iOS release ve repo/güvenlik işleri
+PASS oldu. PR merge edilmedi.
+
 ## Gerçek iPhone smoke testi
 
 | Senaryo | Sonuç | Kanıt/not |
 |---|---|---|
-| TestFlight'tan kurulum | Bekliyor | Cihaz/OS bilgisi secretsiz kaydedilecek |
-| İlk açılış; eksik config yok | Bekliyor | |
-| Cognito sistem tarayıcısı + PKCE giriş | Bekliyor | |
-| Bağlam seçimi ve aktivasyon | Bekliyor | |
-| Kurum listeleme | Bekliyor | |
-| Kurum oluşturma | Bekliyor | Yalnız sentetik kurum |
-| Marka, renk paleti ve modül ayarları | Bekliyor | |
-| Oturum refresh | Bekliyor | Token değeri kaydedilmez |
-| Logout | Bekliyor | |
-| Cihaz listeleme ve cihaz oturumu iptali | Bekliyor | |
-| Kapat/aç sonrası güvenli oturum geri yükleme | Bekliyor | |
-| Yetkisiz durumun güvenli görünmesi | Bekliyor | |
-| Bağlantı hatasının güvenli görünmesi | Bekliyor | |
-| Crash, hassas log ve gerçek veri yok | Bekliyor | |
+| TestFlight'tan kurulum | PASS | Build `0.2.0 (2)` gerçek iPhone'a TestFlight ile kuruldu; model/iOS sürümü kullanıcıdan bekleniyor |
+| İlk açılış; eksik config yok | PASS | Release config ile uygulama açıldı |
+| Cognito sistem tarayıcısı + PKCE giriş | PASS | Cognito Hosted UI açıldı ve callback uygulamaya döndü; token/parola kaydedilmedi |
+| Bağlam seçimi ve aktivasyon | PASS | Sentetik kullanıcı için `Platform yöneticisi` bağlamı seçildi; Kurumlar kabuğu açıldı |
+| Kurum listeleme | **FAIL** | 16:31:13'te backend `500 INTERNAL_ERROR`; `Tekrar Dene` iki kez basıldığında ekran değişmedi |
+| Kurum oluşturma | BLOKE | Listeleme 500 nedeniyle çalıştırılmadı; gerçek veri girilmedi |
+| Marka, renk paleti ve modül ayarları | BLOKE | Kurum oluşturulamadığı için çalıştırılmadı |
+| Oturum refresh (`sessions/me`) | BLOKE | Kurum listeleme kabul kapısında duruldu; token değeri kaydedilmedi |
+| Logout | BLOKE | Kurum listeleme kabul kapısında duruldu |
+| Tekrar giriş | BLOKE | Logout çalıştırılamadığı için çalıştırılmadı |
+| Kapat/aç ve arka plan/ön plan sonrası güvenli oturum | BLOKE | Kurum listeleme kabul kapısında duruldu |
+| Yetkisiz durumun güvenli görünmesi | ÇALIŞTIRILMADI | Bu build kabul edilmediği için ek negatif test yapılmadı |
+| Bağlantı hatasının güvenli görünmesi | PASS | Backend ayrıntısı/token göstermeyen genel hata ve tekrar eylemi sunuldu |
+| Crash, hassas log ve gerçek veri yok | KISMİ PASS | Blokere kadar crash, hassas veri/log sızıntısı veya gerçek veri gözlenmedi; tam matris tamamlanmadı |
 
 Smoke testi TestFlight'tan kurulan işlenmiş build üzerinde yapılır; Xcode ile doğrudan cihaza
 kurulan debug/release build bu kabulün yerine geçmez.
+
+Kurum listesi hatası cold start olarak sınıflandırılmadı: aynı anda public `/health` `200` ve
+`238 ms` döndü, kurum isteği Render request logunda `ERROR`/500 olarak tamamlandı ve iki kullanıcı
+tekrarı da aynı sonucu verdi. ALPHA-002 sırasında uyuyan Render Free instance için ölçülen cold
+start `26.338 s`, hemen sonraki sıcak health `205 ms` idi; bunlar bu telefon denemesinin kesin
+süresi değil, ortamın daha önce kaydedilmiş referans ölçümleridir.
 
 ## Kaynak ve maliyet envanteri
 
 | Kaynak | Ortam/bölge | Veri | Aylık maliyet | Durum |
 |---|---|---|---:|---|
-| Public HTTPS backend | Belirlenecek | Sentetik | Belirlenecek | Render oturumu yok; mevcut kaynak doğrulanamadı |
-| PostgreSQL | Belirlenecek | Sentetik | Belirlenecek | Supabase oturumu yok; mevcut kaynak doğrulanamadı |
-| Cognito User Pool/app client | `eu-central-1` hedefi | Sentetik hesap | Belirlenecek | AWS oturumu yok; mevcut kaynak doğrulanamadı |
-| Apple Developer Program | Aktif | Uygulama metadata/build | Mevcut üyelik | App ID, uygulama kaydı ve internal grup hazır |
+| Public HTTPS backend | Render Free, Frankfurt | Sentetik | `0 USD/ay` hedefi | Public health çalışıyor; kurum listeleme çağrısı tekrarlanabilir 500 üretiyor |
+| PostgreSQL | Supabase Free | Sentetik | `0 USD/ay` hedefi | ALPHA-002'de migration/RLS/runtime rolü doğrulandı |
+| Cognito User Pool/app client | `eu-central-1` | Sentetik hesap | `0 USD/ay` hedefi | Secretsiz native client, authorization code + PKCE doğrulandı |
+| Apple Developer Program | Aktif | Uygulama metadata/build | Mevcut üyelik | App ID, uygulama kaydı, signing ve internal grup doğrulandı |
 
 Kapalı alfa hedefi `0 USD/ay` dış ödemedir; fiyat garantisi değildir. Yeni ücretli backend,
 PostgreSQL, Cognito mesajlaşma/add-on, alan adı veya başka dış kaynak yazılı kullanıcı onayı
@@ -158,19 +176,14 @@ olmadan açılmaz.
 
 ## Bilinen sınırlamalar ve açık kapılar
 
-- Xcode 26.6 ve CocoaPods kurulmuştur; iOS 26.5 simulator runtime kurulumu sürmektedir. Sistem
-  `xcode-select` değeri hâlâ Command Line Tools'u gösterdiğinden build komutları geçici olarak
-  açık `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` ile çalıştırılır.
-- Apple Developer üyeliği 28 Temmuz 2026 tarihinde aktif doğrulanmıştır. App ID, App Store
-  Connect uygulama kaydı ve internal grup hazırdır; Xcode hesabı, Development/Distribution
-  signing kimlikleri ve provisioning profilleri henüz hazırlanmadı.
-- Public HTTPS backend/PostgreSQL/Cognito kapalı alfa zincirinin çalışan kaynakları henüz
-  doğrulanmamıştır; AWS, Render ve Supabase oturumları açık değildir.
-- AppIcon halen Flutter şablon ikonudur. TestFlight validation bunu uyarı veya hata olarak
-  raporlarsa ürün sahibi onaylı geçici kapalı-alfa ikonu olmadan upload başarılı sayılmaz.
-- Feedback e-posta adresi ürün sahibi tarafından doğrulanmalıdır.
-- Archive, validation, upload, TestFlight processing/internal grup ve gerçek iPhone smoke testi
-  tamamlanmadan ALPHA-001 bitmiş sayılmaz.
+- AppIcon Flutter şablon ikonudur; Xcode build sırasında uyarı görülmesine rağmen Organizer
+  validation ve internal-only upload başarılı oldu. Public App Store yayını kapsam dışıdır.
+- Build 2'de kurum listeleme gerçek cihazda tekrarlanabilir `500 INTERNAL_ERROR` ile başarısızdır.
+  Güvenli genel hata görünse de kurum oluşturma ve sonraki smoke adımları blokelendi. Backend
+  kök nedeninin ayrı sahiplikte giderilmesi ve artırılmış build numarasıyla yeni upload gerekir.
+- Gerçek iPhone modeli ve iOS sürümü henüz kullanıcıdan alınmadı.
+- Build 1 Cognito scope hatası nedeniyle reddedildi ve expire edildi. Build 2 de kurum listeleme
+  500'ü nedeniyle kabul edilmedi; bu nedenle ALPHA-001 **IN_PROGRESS** kalır ve DONE raporlanmaz.
 
 ## Resmî Apple başvuruları
 
