@@ -16,6 +16,7 @@ import org.springframework.test.context.ActiveProfiles;
 		"KURS_PLATFORM_IAM_TOKEN_PEPPER_SECRET_REF=development/platform/iam-token-pepper",
 		"KURS_PLATFORM_IAM_SECRET_DELIVERY_KEY_REF=development/platform/iam-secret-delivery-key",
 		"KURS_PLATFORM_COGNITO_ADMIN_ROLE_REF=development/platform/cognito-admin-role",
+		"spring.flyway.enabled=false",
 		"spring.autoconfigure.exclude=org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration"
 })
 class KursPlatformBackendApplicationTests {
