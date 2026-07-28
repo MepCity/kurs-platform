@@ -69,6 +69,21 @@ CI aynı komutları Java 21 ile çalıştırır, Gradle wrapper doğrulaması ve
 cache'i kullanır. Üretilen çalıştırılabilir JAR için CycloneDX SBOM saklanır; `main` dalında
 çözümlenen bağımlılıklar GitHub bağımlılık grafiğine gönderilir.
 
+## Docker ve readiness
+
+`Dockerfile`, Java 21 ile iki aşamalı ve değişmez bir Spring Boot image üretir; runtime süreci
+root olmayan `10001` kullanıcısıyla çalışır. `PORT` yoksa `8080` dinlenir. `/health` yalnız
+`iam_runtime` bağlantısının erişilebilir, superuser olmayan ve `BYPASSRLS` taşımayan rol olduğunu
+doğruladığında `200 {"status":"UP"}` döner. Hata halinde bağımlılık veya exception ayrıntısı
+açıklamadan `503 {"status":"DOWN"}` döner. Tam Actuator/debug yüzeyi açılmaz.
+
+```bash
+docker build -t kurs-platform-backend:local apps/backend
+```
+
+Kapalı alfa Render/Cognito/Supabase işletim adımları kökteki
+`ALPHA_002_KAPALI_ALFA_ORTAM_KURULUMU.md` ve `deploy/alpha` altında tutulur.
+
 ## Başlangıç bağımlılıkları
 
 - `spring-boot-starter-webmvc`: ADR-002'de seçilen Spring MVC çalışma zamanını derlenebilir
