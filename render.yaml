@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: kurs-platform-api-development
+    name: kurs-platform-alpha-api-development
     runtime: docker
     plan: free
     region: frankfurt

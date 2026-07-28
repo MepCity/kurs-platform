@@ -12,7 +12,7 @@ esac
 command -v aws >/dev/null 2>&1 || { echo 'aws CLI bulunamadi.' >&2; exit 1; }
 
 region=${AWS_REGION:-eu-central-1}
-stack_name=${ALPHA_COGNITO_STACK_NAME:-kurs-platform-cognito-development}
+stack_name=${ALPHA_COGNITO_STACK_NAME:-kurs-platform-alpha-cognito-development}
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 record_dir="$script_dir/.operation-record"
 mkdir -p "$record_dir"

@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Kurs Platform sentetik kapali alfa Cognito kaynaklari
+Description: kurs-platform-alpha sentetik kapali alfa Cognito kaynaklari
 
 Parameters:
   EnvironmentName:
@@ -17,7 +17,7 @@ Resources:
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
-      UserPoolName: !Sub kurs-platform-${EnvironmentName}
+      UserPoolName: !Sub kurs-platform-alpha-${EnvironmentName}
       UserPoolTier: ESSENTIALS
       MfaConfiguration: "OFF"
       UsernameAttributes: [email]
@@ -42,7 +42,7 @@ Resources:
     Type: AWS::Cognito::UserPoolClient
     Properties:
       UserPoolId: !Ref UserPool
-      ClientName: !Sub kurs-platform-mobile-${EnvironmentName}
+      ClientName: !Sub kurs-platform-alpha-mobile-${EnvironmentName}
       GenerateSecret: false
       AllowedOAuthFlowsUserPoolClient: true
       AllowedOAuthFlows: [code]
@@ -74,7 +74,7 @@ Resources:
   RuntimeUser:
     Type: AWS::IAM::User
     Properties:
-      UserName: !Sub kurs-platform-cognito-${EnvironmentName}
+      UserName: !Sub kurs-platform-alpha-cognito-${EnvironmentName}
       Tags:
         - Key: application
           Value: kurs-platform
@@ -84,7 +84,7 @@ Resources:
   RuntimePolicy:
     Type: AWS::IAM::Policy
     Properties:
-      PolicyName: !Sub kurs-platform-cognito-${EnvironmentName}
+      PolicyName: !Sub kurs-platform-alpha-cognito-${EnvironmentName}
       Users: [!Ref RuntimeUser]
       PolicyDocument:
         Version: "2012-10-17"
