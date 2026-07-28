@@ -63,7 +63,6 @@ Resources:
       RefreshTokenRotation:
         Feature: ENABLED
         RetryGracePeriodSeconds: 0
-      ExplicitAuthFlows: [ALLOW_REFRESH_TOKEN_AUTH]
 
   UserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain
