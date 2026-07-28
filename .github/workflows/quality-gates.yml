@@ -71,6 +71,9 @@ jobs:
           ./tooling/test/check_repo_boundaries_test.sh
           ./tooling/test/check_no_secrets_test.sh
           ./tooling/test/quality_workflow_test.sh
+          sh -n deploy/alpha/provision_cognito.sh deploy/alpha/smoke_test.sh deploy/alpha/teardown_cognito.sh
+          bash -n deploy/alpha/teardown_cognito_test.sh
+          ./deploy/alpha/teardown_cognito_test.sh
 
   backend:
     name: Backend test ve build
@@ -199,7 +202,7 @@ jobs:
           upload-artifact-retention: 14
 
   mobile-ios:
-    name: iOS simulator binary build
+    name: iOS release binary build
     if: needs.changes.outputs.mobile == 'true'
     needs: changes
     runs-on: macos-15
@@ -237,7 +240,7 @@ jobs:
           key: pub-${{ runner.os }}-${{ hashFiles('apps/mobile/pubspec.lock') }}
           restore-keys: pub-${{ runner.os }}-
 
-      - name: Xcode ortamını ve iOS binary build'i doğrula
+      - name: ALPHA-001 runtime sözleşmesini doğrula
         working-directory: apps/mobile
         run: |
           xcodebuild -version
@@ -245,11 +248,19 @@ jobs:
           flutter --version
           flutter precache --ios
           flutter pub get --enforce-lockfile
-          flutter build ios --debug --simulator --no-codesign \
+          flutter test test/core/config/alpha_runtime_config_test.dart \
+            --dart-define=KURS_PLATFORM_ALPHA_RUNTIME_CONTRACT_TEST=true \
             --dart-define=KURS_PLATFORM_ENVIRONMENT=development \
-            --dart-define=KURS_PLATFORM_PUBLIC_API_BASE_URL=https://api-development.example.invalid \
-            --dart-define=KURS_PLATFORM_COGNITO_ISSUER_URI=https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_EXAMPLE \
-            --dart-define=KURS_PLATFORM_COGNITO_CLIENT_ID=examplepublicclientid
+            --dart-define=KURS_PLATFORM_PUBLIC_API_BASE_URL=https://kurs-platform-alpha-api-development.onrender.com \
+            --dart-define=KURS_PLATFORM_COGNITO_ISSUER_URI=https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_1GH5JivoG \
+            --dart-define=KURS_PLATFORM_COGNITO_CLIENT_ID=2c59dh2nf60fmk6chn6qq3eoqu \
+            --dart-define=KURS_PLATFORM_COGNITO_REDIRECT_URI=kursplatform://oauth2redirect
+          flutter build ios --release --no-codesign \
+            --dart-define=KURS_PLATFORM_ENVIRONMENT=development \
+            --dart-define=KURS_PLATFORM_PUBLIC_API_BASE_URL=https://kurs-platform-alpha-api-development.onrender.com \
+            --dart-define=KURS_PLATFORM_COGNITO_ISSUER_URI=https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_1GH5JivoG \
+            --dart-define=KURS_PLATFORM_COGNITO_CLIENT_ID=2c59dh2nf60fmk6chn6qq3eoqu \
+            --dart-define=KURS_PLATFORM_COGNITO_REDIRECT_URI=kursplatform://oauth2redirect
 
       - name: Flutter SDK cache'ini main dalında kaydet
         if: github.ref == 'refs/heads/main' && steps.flutter-cache.outputs.cache-hit != 'true'

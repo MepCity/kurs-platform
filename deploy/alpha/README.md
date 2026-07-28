@@ -64,7 +64,26 @@ migration kullanıcısı da `postgres.<project-ref>` biçimindedir. Stub, securi
 reconciliation worker'ları bu kapalı alfa görevinde kapalıdır; gerçek Cognito token doğrulayıcısı
 production Spring profilinde zorunludur.
 
-## 4. Smoke ve negatif doğrulama
+## 4. ALPHA-001 mobil release yapılandırması
+
+Mobil uygulama yalnız aşağıdaki beş public `--dart-define` değerini okur. AWS bölgesi
+`eu-central-1` operasyonel metaveridir; mobil define değildir.
+
+```bash
+cd apps/mobile
+flutter build ios --release --no-codesign \
+  --dart-define=KURS_PLATFORM_ENVIRONMENT=development \
+  --dart-define=KURS_PLATFORM_PUBLIC_API_BASE_URL=https://kurs-platform-alpha-api-development.onrender.com \
+  --dart-define=KURS_PLATFORM_COGNITO_ISSUER_URI=https://cognito-idp.eu-central-1.amazonaws.com/eu-central-1_1GH5JivoG \
+  --dart-define=KURS_PLATFORM_COGNITO_CLIENT_ID=2c59dh2nf60fmk6chn6qq3eoqu \
+  --dart-define=KURS_PLATFORM_COGNITO_REDIRECT_URI=kursplatform://oauth2redirect
+```
+
+CI, `alpha_runtime_config_test.dart` dosyasını aynı değerlerle çalıştırır ve ardından imzasız
+iOS release binary üretir. Bu public değerler secret değildir; mobil pakete backend credentialı
+konmaz.
+
+## 5. Smoke ve negatif doğrulama
 
 Mobil AppAuth ile gerçek Authorization Code + PKCE tamamlandıktan sonra Cognito access tokenı
 yalnız yerel güvenli ortam değişkenine alınır:
@@ -82,15 +101,44 @@ logout ve bozuk token fail-closed reddini doğrular. Yanlış issuer/audience/po
 backend otomatik testlerinde ayrıca zorunludur. Başarı yanıtları secret içermeyen tarih/süre/HTTP
 durum matrisi olarak teslim belgesine elle kaydedilir; token veya gövde kopyalanmaz.
 
-## 5. Teardown
+## 6. Teardown
 
-Önce Render servisi ve Supabase projesi Dashboard'dan silinir; sonra:
+Script varsayılan olarak yalnız fail-closed preflight yapar ve hiçbir kaynağı silmez:
 
 ```bash
-AWS_REGION=eu-central-1 ./deploy/alpha/teardown_cognito.sh
+ALPHA_ALLOW_ROOT_TEARDOWN=true ./deploy/alpha/teardown_cognito.sh
 ```
 
-Silme sonrasında CloudFormation stack, Cognito pool/client/domain ve IAM runtime kullanıcısının
-yokluğu doğrulanır. `.operation-record` yerel kayıt dizini çöpe taşınabilir. Free Supabase
-otomatik yedek/PITR sağlamaz; kapalı alfa verisi tamamen sentetik ve yeniden üretilebilir kabul
-edilir.
+Root opt-in yalnız kullanıcı onaylı ALPHA-002 istisnasıdır; root varsayılan değildir. Preflight;
+AWS hesap ID'si, sabit `eu-central-1`, tam stack/pool/client/domain/IAM/budget/topic adları,
+`application=kurs-platform` ve `environment=development` tagları, tek sentetik kullanıcı,
+access key sayısı, USD 5 budget ve %80 SNS alarm bağını doğrular. Aynı alpha önekinde başka kaynak,
+kimlik veya tag uyuşmazlığı varsa hiçbir silme çağrısı yapmadan durur.
+
+Uygulanabilir teardown sırası:
+
+1. Render Dashboard'da `kurs-platform-alpha-api-development` servisini durdurup silin; servis
+   kartının ve public URL'nin artık bulunmadığını doğrulayın.
+2. Yalnız başarılı preflight sonrasında AWS silmesini açıkça çalıştırın:
+
+   ```bash
+   ALPHA_ALLOW_ROOT_TEARDOWN=true \
+   ALPHA_TEARDOWN_EXECUTE=true \
+   ALPHA_RENDER_SERVICE_DELETED=true \
+     ./deploy/alpha/teardown_cognito.sh
+   ```
+
+   Script runtime IAM access key'ini, sentetik kullanıcıyı, CloudFormation stack'ini, budget'ı,
+   SNS subscription/topic'i bu sırayla siler; stack, IAM user, pool, budget ve topic yokluğunu
+   servis-özgü not-found kodlarıyla doğrular.
+3. Supabase Dashboard'da `kurs-platform-alpha-database-development`
+   (`bughxtwdwblbxzadituk`) projesini silin; proje kartının ve connect uçlarının artık
+   bulunmadığını doğrulayın.
+4. Render Dashboard'da `kurs-platform-alpha-blueprint-development`
+   (`exs-d9k8aeht0dsc7395sf2g`) Blueprint'ini silin; Blueprint ve servis yokluğunu tekrar
+   doğrulayın.
+
+Canlı ortamda bu komut çalıştırılmaz; `teardown_cognito_test.sh` mock AWS CLI ile root/account/tag/
+envanter fail-closed kapılarını, dry-run'da silme olmamasını, silme sırasını ve yokluk kontrollerini
+kanıtlar. `.operation-record` yerel kayıt dizini son doğrulamadan sonra güvenli biçimde
+temizlenebilir. Free Supabase otomatik yedek/PITR sağlamaz; veri tamamen sentetiktir.
