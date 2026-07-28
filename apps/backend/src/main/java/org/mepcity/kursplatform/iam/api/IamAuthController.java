@@ -5,7 +5,6 @@ import org.mepcity.kursplatform.iam.application.ProviderTokenExchangeService;
 import org.mepcity.kursplatform.iam.application.SessionActivationService;
 import org.mepcity.kursplatform.iam.domain.DevicePlatform;
 import org.mepcity.kursplatform.iam.domain.IamException;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -15,14 +14,10 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import javax.sql.DataSource;
 import java.util.UUID;
 
-/** {@code @ConditionalOnBean(DataSource.class)}: its constructor dependencies all ultimately need
- *  a real DataSource (see IamInfrastructureConfiguration) — without one, this controller must not
- *  be a mandatory bean, or a DB-free context load (e.g. a wiring smoke test) fails to start. */
+/** IAM authentication endpoints backed by the production DataSource graph. */
 @RestController
-@ConditionalOnBean(DataSource.class)
 @RequestMapping("/api/v1/iam/auth")
 public class IamAuthController {
 

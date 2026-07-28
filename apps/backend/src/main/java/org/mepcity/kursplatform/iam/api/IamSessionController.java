@@ -3,7 +3,6 @@ package org.mepcity.kursplatform.iam.api;
 import org.mepcity.kursplatform.iam.application.SessionInfoService;
 import org.mepcity.kursplatform.iam.application.SessionRefreshService;
 import org.mepcity.kursplatform.iam.domain.IamException;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -12,11 +11,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import javax.sql.DataSource;
-
-/** See IamAuthController's javadoc: conditional on DataSource for the same reason. */
+/** IAM session endpoints backed by the production DataSource graph. */
 @RestController
-@ConditionalOnBean(DataSource.class)
 @RequestMapping("/api/v1/iam/sessions")
 public class IamSessionController {
 
