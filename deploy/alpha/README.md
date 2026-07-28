@@ -58,8 +58,11 @@ alanlar Dashboard'da doldurulur; gerçek değerler `render.yaml`a yazılmaz. `DA
 ayrım kullanıcı adı/parola alanlarında korunur.
 
 `KURS_PLATFORM_*_SECRET_REF` değerleri secretın kendisi değil, yalnız sağlayıcıdaki mantıksal
-referans adlarıdır. Stub, security-event ve reconciliation worker'ları bu kapalı alfa görevinde
-kapalıdır; gerçek Cognito token doğrulayıcısı production Spring profilinde zorunludur.
+referans adlarıdır. Supabase shared session pooler kullanıcı adını `<rol>.<project-ref>` biçiminde
+beklediğinden `DATABASE_USERNAME`, `iam_runtime.<project-ref>` olarak Dashboard'da doldurulur;
+migration kullanıcısı da `postgres.<project-ref>` biçimindedir. Stub, security-event ve
+reconciliation worker'ları bu kapalı alfa görevinde kapalıdır; gerçek Cognito token doğrulayıcısı
+production Spring profilinde zorunludur.
 
 ## 4. Smoke ve negatif doğrulama
 

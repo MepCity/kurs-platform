@@ -41,7 +41,7 @@ services:
       - key: DATABASE_URL
         sync: false
       - key: DATABASE_USERNAME
-        value: iam_runtime
+        sync: false
       - key: DATABASE_PASSWORD
         sync: false
       - key: DATABASE_MIGRATION_URL
