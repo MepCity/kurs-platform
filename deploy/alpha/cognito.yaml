@@ -1,0 +1,120 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Kurs Platform sentetik kapali alfa Cognito kaynaklari
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: development
+    AllowedValues: [development]
+  DomainPrefix:
+    Type: String
+    AllowedPattern: "^[a-z0-9-]{1,63}$"
+    Description: Cognito managed-login domaininin hesapta benzersiz oneki
+
+Resources:
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      UserPoolName: !Sub kurs-platform-${EnvironmentName}
+      UserPoolTier: ESSENTIALS
+      MfaConfiguration: "OFF"
+      UsernameAttributes: [email]
+      UsernameConfiguration:
+        CaseSensitive: false
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 12
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
+          TemporaryPasswordValidityDays: 1
+      UserPoolTags:
+        application: kurs-platform
+        environment: !Ref EnvironmentName
+        data-profile: synthetic-only
+
+  NativeMobileClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: !Sub kurs-platform-mobile-${EnvironmentName}
+      GenerateSecret: false
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows: [code]
+      AllowedOAuthScopes: [openid]
+      CallbackURLs: ["kursplatform://oauth2redirect"]
+      LogoutURLs: ["kursplatform://oauth2redirect"]
+      DefaultRedirectURI: "kursplatform://oauth2redirect"
+      SupportedIdentityProviders: [COGNITO]
+      PreventUserExistenceErrors: ENABLED
+      EnableTokenRevocation: true
+      AccessTokenValidity: 10
+      IdTokenValidity: 10
+      RefreshTokenValidity: 30
+      TokenValidityUnits:
+        AccessToken: minutes
+        IdToken: minutes
+        RefreshToken: days
+      RefreshTokenRotation:
+        Feature: ENABLED
+        RetryGracePeriodSeconds: 0
+      ExplicitAuthFlows: [ALLOW_REFRESH_TOKEN_AUTH]
+
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Ref DomainPrefix
+      UserPoolId: !Ref UserPool
+
+  RuntimeUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub kurs-platform-cognito-${EnvironmentName}
+      Tags:
+        - Key: application
+          Value: kurs-platform
+        - Key: environment
+          Value: !Ref EnvironmentName
+
+  RuntimePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub kurs-platform-cognito-${EnvironmentName}
+      Users: [!Ref RuntimeUser]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadAndAdministerOnlyThisPool
+            Effect: Allow
+            Action:
+              - cognito-idp:AdminCreateUser
+              - cognito-idp:AdminDisableUser
+              - cognito-idp:AdminGetUser
+              - cognito-idp:AdminResetUserPassword
+              - cognito-idp:AdminSetUserPassword
+              - cognito-idp:AdminUserGlobalSignOut
+              - cognito-idp:ListUsers
+            Resource: !GetAtt UserPool.Arn
+
+Outputs:
+  AwsRegion:
+    Value: !Ref AWS::Region
+  UserPoolId:
+    Value: !Ref UserPool
+  IssuerUrl:
+    Value: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}
+  AppClientId:
+    Value: !Ref NativeMobileClient
+  OAuthRedirectUrl:
+    Value: "kursplatform://oauth2redirect"
+  OAuthLogoutRedirectUrl:
+    Value: "kursplatform://oauth2redirect"
+  ManagedLoginBaseUrl:
+    Value: !Sub https://${DomainPrefix}.auth.${AWS::Region}.amazoncognito.com
+  RuntimeUserArn:
+    Value: !GetAtt RuntimeUser.Arn
