@@ -91,14 +91,16 @@ test edildiği kanıtlanır. External testing, public link ve App Store submissi
 | Kanıt | Sonuç |
 |---|---|
 | Commit SHA | Bekliyor |
-| Kaynak Xcode sürümü | PASS — Xcode 26.6 (`17F113`); iOS 26.5 simulator runtime kuruluyor |
-| Apple Team / Automatic Signing | BLOKE — Apple Developer hesabı `Pending`; üyelik satın alımı tamamlanmamış, App Store Connect etkin değil ve signing kimliği yok |
+| Kaynak Xcode sürümü | PASS — Xcode 26.6 (`17F113`); iOS 26.5 simulator runtime indirmesi sürüyor |
+| Apple Team / Automatic Signing | KISMİ PASS — üyelik aktif, App ID ve yerel Team ID girdisi hazır; signing kimliği/provisioning bekliyor |
+| App ID | PASS — `com.mepcity.kursplatform` kaydedildi |
+| App Store Connect uygulama kaydı | PASS — `Kurs Platform`, iOS, Türkçe, `KURSPLATFORM-IOS-001` |
 | Archive (`0.2.0 (1)`) | Bekliyor |
 | Archive SHA-256 | Bekliyor |
 | App Store validation | Bekliyor |
 | App Store Connect upload | Bekliyor |
 | Build processing/export compliance | Bekliyor |
-| Internal grup erişimi | Bekliyor |
+| Internal grup erişimi | KISMİ PASS — `Dalga 2 İç Test` oluşturuldu, otomatik dağıtım kapalı; 0 tester/0 build |
 
 Archive üretildiğinde `.xcarchive` dizininin kendisi repoya eklenmez. Kanıt için archive içindeki
 ürün uygulamasının ve export edilen IPA'nın SHA-256 özeti, Xcode sürümü, commit SHA, sürüm/build
@@ -148,7 +150,7 @@ kurulan debug/release build bu kabulün yerine geçmez.
 | Public HTTPS backend | Belirlenecek | Sentetik | Belirlenecek | Render oturumu yok; mevcut kaynak doğrulanamadı |
 | PostgreSQL | Belirlenecek | Sentetik | Belirlenecek | Supabase oturumu yok; mevcut kaynak doğrulanamadı |
 | Cognito User Pool/app client | `eu-central-1` hedefi | Sentetik hesap | Belirlenecek | AWS oturumu yok; mevcut kaynak doğrulanamadı |
-| Apple Developer Program | Apple hesabı `Pending` | Uygulama metadata/build | Belirlenecek | Üyelik satın alımı tamamlanmadan kullanılamıyor |
+| Apple Developer Program | Aktif | Uygulama metadata/build | Mevcut üyelik | App ID, uygulama kaydı ve internal grup hazır |
 
 Kapalı alfa hedefi `0 USD/ay` dış ödemedir; fiyat garantisi değildir. Yeni ücretli backend,
 PostgreSQL, Cognito mesajlaşma/add-on, alan adı veya başka dış kaynak yazılı kullanıcı onayı
@@ -159,9 +161,9 @@ olmadan açılmaz.
 - Xcode 26.6 ve CocoaPods kurulmuştur; iOS 26.5 simulator runtime kurulumu sürmektedir. Sistem
   `xcode-select` değeri hâlâ Command Line Tools'u gösterdiğinden build komutları geçici olarak
   açık `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` ile çalıştırılır.
-- Apple Developer hesabı 27 Temmuz 2026 doğrulamasında `Pending` durumundadır ve üyelik satın
-  alımı tamamlanmamıştır. Bu nedenle App Store Connect etkin değildir; Development/Distribution
-  signing kimlikleri ve provisioning profilleri yoktur.
+- Apple Developer üyeliği 28 Temmuz 2026 tarihinde aktif doğrulanmıştır. App ID, App Store
+  Connect uygulama kaydı ve internal grup hazırdır; Xcode hesabı, Development/Distribution
+  signing kimlikleri ve provisioning profilleri henüz hazırlanmadı.
 - Public HTTPS backend/PostgreSQL/Cognito kapalı alfa zincirinin çalışan kaynakları henüz
   doğrulanmamıştır; AWS, Render ve Supabase oturumları açık değildir.
 - AppIcon halen Flutter şablon ikonudur. TestFlight validation bunu uyarı veya hata olarak
