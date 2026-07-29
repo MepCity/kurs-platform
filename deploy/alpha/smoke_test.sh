@@ -66,6 +66,20 @@ chmod 600 "$tmp_dir/access.curl"
 me_status=$(request GET /api/v1/iam/sessions/me "$tmp_dir/access.curl" '' "$tmp_dir/me.json")
 [ "$me_status" = 200 ] || { echo "sessions/me basarisiz: HTTP $me_status" >&2; exit 1; }
 
+list_request_id=$(uuid)
+printf 'header = "Authorization: Bearer %s"\nheader = "X-Request-Id: %s"\n' \
+  "$access_token" "$list_request_id" >"$tmp_dir/list.curl"
+chmod 600 "$tmp_dir/list.curl"
+list_status=$(request GET /api/v1/organizations "$tmp_dir/list.curl" '' "$tmp_dir/list.json")
+[ "$list_status" = 200 ] || {
+  echo "Kurum listeleme basarisiz: HTTP $list_status; requestId=$list_request_id" >&2
+  exit 1
+}
+[ "$(json_value "isinstance(value.get('items'), list) and isinstance(value.get('page'), dict) and isinstance(value['page'].get('hasNextPage'), bool)" <"$tmp_dir/list.json")" = True ] || {
+  echo "Kurum listeleme cevabi sozlesmeye uymuyor; requestId=$list_request_id" >&2
+  exit 1
+}
+
 printf 'header = "Idempotency-Key: %s"\nheader = "Content-Type: application/json"\n' "$(uuid)" \
   >"$tmp_dir/refresh.curl"
 printf '{"refreshToken":"%s"}' "$refresh_token" >"$tmp_dir/refresh-body.json"
@@ -91,4 +105,5 @@ case "$negative_status" in
   *) echo "Bozuk token fail-closed reddedilmedi: HTTP $negative_status" >&2; exit 1 ;;
 esac
 
-printf '%s\n' 'PASS: health, provider exchange, platform activation, sessions/me, refresh, logout, bozuk token.'
+printf '%s\n' \
+  "PASS: health, provider exchange, platform activation, sessions/me, kurum listeleme, refresh, logout, bozuk token. organizationRequestId=$list_request_id"
