@@ -199,6 +199,32 @@ class OrganizationListHttpPostgresIntegrationTests {
     }
 
     @Test
+    void activeGlobalAdminReceivesEmptyPageAndCommitsRateLimitWithoutAudit() throws Exception {
+        owner.execute("TRUNCATE TABLE organizations CASCADE");
+
+        mvc.perform(
+                        get("/api/v1/organizations")
+                                .header("Authorization", bearer("global"))
+                                .header("X-Request-Id", "global-empty-list"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(0))
+                .andExpect(jsonPath("$.page.nextCursor").isEmpty())
+                .andExpect(jsonPath("$.page.hasNextPage").value(false));
+
+        assertThat(
+                        owner.queryForObject(
+                                "SELECT count(*) FROM audit_logs WHERE request_id='global-empty-list'",
+                                Long.class))
+                .isZero();
+        assertThat(
+                        owner.queryForObject(
+                                "SELECT request_count FROM organization_list_rate_limits WHERE actor_user_id=?",
+                                Integer.class,
+                                admin))
+                .isOne();
+    }
+
+    @Test
     void revokedGlobalAdminAndInvalidCredentialsFailClosed() throws Exception {
         UUID revokedAdmin = insertUser();
         insertPlatformAdministrator(revokedAdmin, true);

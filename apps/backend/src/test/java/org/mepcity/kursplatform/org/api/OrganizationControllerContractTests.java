@@ -169,6 +169,28 @@ class OrganizationControllerContractTests {
         }
     }
 
+    @Test
+    void unexpectedFailureDiagnosticUsesOnlyRootTypeAndApplicationStackLocation() {
+        IllegalStateException root = new IllegalStateException("token=secret-value");
+        root.setStackTrace(
+                new StackTraceElement[] {
+                    new StackTraceElement("org.postgresql.Driver", "connect", "Driver.java", 10),
+                    new StackTraceElement(
+                            "org.mepcity.kursplatform.org.infrastructure.persistence.JdbcOrganizationRepository",
+                            "list",
+                            "JdbcOrganizationRepository.java",
+                            123)
+                });
+        RuntimeException wrapper = new RuntimeException("SQL body", root);
+
+        org.assertj.core.api.Assertions.assertThat(OrganizationExceptionHandler.safeErrorType(wrapper))
+                .isEqualTo("IllegalStateException");
+        org.assertj.core.api.Assertions.assertThat(OrganizationExceptionHandler.safeStackLocation(wrapper))
+                .isEqualTo(
+                        "org.mepcity.kursplatform.org.infrastructure.persistence.JdbcOrganizationRepository#list:123")
+                .doesNotContain("secret-value", "SQL body", "org.postgresql");
+    }
+
     private org.springframework.test.web.servlet.ResultActions performValidRequest() throws Exception {
         return mockMvc.perform(post("/api/v1/organizations").header("Idempotency-Key", "create-1")
                 .contentType(MediaType.APPLICATION_JSON).content(validBody()));

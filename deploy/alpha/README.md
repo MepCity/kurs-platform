@@ -96,8 +96,8 @@ export ALPHA_COGNITO_ACCESS_TOKEN
 unset ALPHA_COGNITO_ACCESS_TOKEN
 ```
 
-Smoke; public health, provider exchange, platform-admin activation, `sessions/me`, refresh,
-logout ve bozuk token fail-closed reddini doğrular. Yanlış issuer/audience/pool/JWKS matrisi
+Smoke; public health, provider exchange, platform-admin activation, `sessions/me`, kurum listeleme,
+refresh, logout ve bozuk token fail-closed reddini doğrular. Yanlış issuer/audience/pool/JWKS matrisi
 backend otomatik testlerinde ayrıca zorunludur. Başarı yanıtları secret içermeyen tarih/süre/HTTP
 durum matrisi olarak teslim belgesine elle kaydedilir; token veya gövde kopyalanmaz.
 
