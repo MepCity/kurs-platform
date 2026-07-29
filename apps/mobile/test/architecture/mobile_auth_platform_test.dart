@@ -3,8 +3,13 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../tool/android_oauth_manifest_verifier.dart';
+import '../../tool/ios_release_config_verifier.dart' as ios_release;
 
 void main() {
+  test('iOS release bundle and automatic signing contract is valid', () {
+    ios_release.main();
+  });
+
   test('production OAuth source uses one direct narrow Android filter', () {
     final android = File(
       'android/app/src/main/AndroidManifest.xml',

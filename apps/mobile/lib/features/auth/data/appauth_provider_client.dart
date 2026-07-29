@@ -29,7 +29,7 @@ class AppAuthProviderAuthorizationClient
           _config.cognitoClientId,
           _config.cognitoRedirectUri.toString(),
           issuer: _config.cognitoIssuerUri.toString(),
-          scopes: const <String>['openid', 'profile'],
+          scopes: const <String>['openid'],
           promptValues: const <String>['login'],
           externalUserAgent:
               ExternalUserAgent.ephemeralAsWebAuthenticationSession,

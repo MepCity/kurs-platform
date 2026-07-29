@@ -41,6 +41,7 @@ flutter build apk --debug
 ./android/gradlew -p android app:processReleaseManifest --no-daemon
 dart run tool/android_oauth_manifest_verifier.dart
 flutter build ios --debug --simulator --no-codesign
+dart run tool/ios_release_config_verifier.dart
 ```
 
 iOS build komutu tam Xcode kurulumu ve çalışan `xcodebuild` gerektirir. Bu araçların bulunmadığı
@@ -49,6 +50,19 @@ oluşmaz. A-012 kalite kapısı bu komutu `macos-15` ve tam Xcode üzerinde zoru
 Android debug APK build'i ayrı Linux işinde doğrulanır. Flutter SDK cache anahtarı sabit SDK
 revision'ını, pub cache anahtarı `pubspec.lock` içeriğini kullanır. Mobil bağımlılık envanteri
 CycloneDX SBOM olarak CI artefaktında saklanır.
+
+## iOS signing ve TestFlight
+
+Kalıcı Runner bundle ID'si `com.mepcity.kursplatform`, test hedefi bundle ID'si
+`com.mepcity.kursplatform.RunnerTests`tir. Runner ve RunnerTests bütün yapılandırmalarda
+Automatic Signing kullanır. Apple Team ID repoya yazılmaz: `ios/Flutter/Signing.xcconfig.example`
+dosyası `Signing.xcconfig` adıyla kopyalanır, yalnız yerel kopyadaki
+`KURS_PLATFORM_IOS_DEVELOPMENT_TEAM` değeri doldurulur. Yerel dosya Git tarafından yok sayılır;
+sertifika, private key ve provisioning profile repoya eklenmez.
+
+Kapalı alfa archive'ı public `--dart-define` değerleri açıkça verilerek üretilir. Kaynak kodda
+ortam fallback'i yoktur. ALPHA-001 sürüm ve TestFlight işletim kanıtı kökteki
+`ALPHA_001_IOS_TESTFLIGHT_IC_TEST_YAYINI.md` belgesinde tutulur.
 
 IAM-008, platform access/refresh tokenları için `flutter_secure_storage` adaptörünü ekler.
 Bu adaptör Android Keystore ve iOS Keychain kullanır; parola veya Cognito tokenı saklamaz,
