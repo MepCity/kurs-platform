@@ -9,14 +9,19 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mepcity.kursplatform.configuration.observability.RequestObservabilityFilter;
+import org.mepcity.kursplatform.core.observability.SafeEventLogger;
+import org.mepcity.kursplatform.core.observability.SafeLogEvent;
 import org.mepcity.kursplatform.org.application.IdempotencyOutcome;
 import org.mepcity.kursplatform.org.application.LifecycleResult;
 import org.mepcity.kursplatform.org.application.OrganizationCreationService;
@@ -33,13 +38,19 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 class OrganizationControllerContractTests {
     private MockMvc mockMvc;
     private OrganizationCreationService creationService;
+    private List<SafeLogEvent> diagnosticEvents;
 
     @BeforeEach
     void setUp() {
         creationService = mock(OrganizationCreationService.class);
-        mockMvc = MockMvcBuilders.standaloneSetup(new OrganizationController(creationService,
+        diagnosticEvents = new ArrayList<>();
+        mockMvc = standaloneMockMvc(diagnosticEvents::add);
+    }
+
+    private MockMvc standaloneMockMvc(SafeEventLogger diagnosticLogger) {
+        return MockMvcBuilders.standaloneSetup(new OrganizationController(creationService,
                         mock(OrganizationListService.class), new ObjectMapper().findAndRegisterModules()))
-                .setControllerAdvice(new OrganizationExceptionHandler())
+                .setControllerAdvice(new OrganizationExceptionHandler(diagnosticLogger))
                 .addFilter(new RequestObservabilityFilter(event -> { }))
                 .build();
     }
@@ -170,7 +181,7 @@ class OrganizationControllerContractTests {
     }
 
     @Test
-    void unexpectedFailureDiagnosticUsesOnlyRootTypeAndApplicationStackLocation() {
+    void unexpectedFailureLogAndResponseShareRequestIdWithoutMessageLeakage() throws Exception {
         IllegalStateException root = new IllegalStateException("token=secret-value");
         root.setStackTrace(
                 new StackTraceElement[] {
@@ -182,13 +193,54 @@ class OrganizationControllerContractTests {
                             123)
                 });
         RuntimeException wrapper = new RuntimeException("SQL body", root);
+        when(creationService.create(any(), any(), any(), any(), any(), any(), any())).thenThrow(wrapper);
 
-        org.assertj.core.api.Assertions.assertThat(OrganizationExceptionHandler.safeErrorType(wrapper))
-                .isEqualTo("IllegalStateException");
-        org.assertj.core.api.Assertions.assertThat(OrganizationExceptionHandler.safeStackLocation(wrapper))
-                .isEqualTo(
-                        "org.mepcity.kursplatform.org.infrastructure.persistence.JdbcOrganizationRepository#list:123")
-                .doesNotContain("secret-value", "SQL body", "org.postgresql");
+        String body = mockMvc.perform(post("/api/v1/organizations")
+                        .header("Authorization", "Bearer token")
+                        .header("X-Request-Id", "org-diagnostic-request")
+                        .header("Idempotency-Key", "diagnostic")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validBody()))
+                .andExpect(status().isInternalServerError())
+                .andExpect(header().string("X-Request-Id", "org-diagnostic-request"))
+                .andExpect(jsonPath("$.error.requestId").value("org-diagnostic-request"))
+                .andReturn().getResponse().getContentAsString();
+
+        org.assertj.core.api.Assertions.assertThat(diagnosticEvents).singleElement().satisfies(event -> {
+            org.assertj.core.api.Assertions.assertThat(event.fields())
+                    .containsEntry("requestId", "org-diagnostic-request")
+                    .containsEntry("errorType", "IllegalStateException")
+                    .containsEntry("stackLocation",
+                            "org.mepcity.kursplatform.org.infrastructure.persistence.JdbcOrganizationRepository#list:123");
+            org.assertj.core.api.Assertions.assertThat(event.fields().toString())
+                    .doesNotContain("secret-value", "SQL body", "org.postgresql");
+        });
+        org.assertj.core.api.Assertions.assertThat(body)
+                .doesNotContain("secret-value", "SQL body", "IllegalStateException", "org.postgresql");
+    }
+
+    @Test
+    void telemetryFailureDoesNotChangeSafeInternalErrorResponse() throws Exception {
+        mockMvc = standaloneMockMvc(event -> {
+            throw new IllegalStateException("telemetry token=logger-secret");
+        });
+        when(creationService.create(any(), any(), any(), any(), any(), any(), any()))
+                .thenThrow(new IllegalStateException("SQL token=product-secret"));
+
+        String body = mockMvc.perform(post("/api/v1/organizations")
+                        .header("Authorization", "Bearer token")
+                        .header("X-Request-Id", "logger-failure-request")
+                        .header("Idempotency-Key", "logger-failure")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validBody()))
+                .andExpect(status().isInternalServerError())
+                .andExpect(header().string("X-Request-Id", "logger-failure-request"))
+                .andExpect(jsonPath("$.error.code").value("INTERNAL_ERROR"))
+                .andExpect(jsonPath("$.error.requestId").value("logger-failure-request"))
+                .andReturn().getResponse().getContentAsString();
+
+        org.assertj.core.api.Assertions.assertThat(body)
+                .doesNotContain("logger-secret", "product-secret", "SQL", "IllegalStateException");
     }
 
     private org.springframework.test.web.servlet.ResultActions performValidRequest() throws Exception {

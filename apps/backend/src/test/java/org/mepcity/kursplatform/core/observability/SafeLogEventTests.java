@@ -104,6 +104,47 @@ class SafeLogEventTests {
 	}
 
 	@Test
+	void unexpectedHttpDiagnosticUsesRootTypeAndOnlyApplicationStackLocation() {
+		IllegalStateException root = new IllegalStateException("token=secret-value SQL payload");
+		root.setStackTrace(new StackTraceElement[] {
+			new StackTraceElement("org.postgresql.Driver", "connect", "Driver.java", 10),
+			new StackTraceElement(
+					"org.mepcity.kursplatform.org.infrastructure.persistence.JdbcOrganizationRepository",
+					"list",
+					"JdbcOrganizationRepository.java",
+					123)
+		});
+		RuntimeException wrapper = new RuntimeException("url=?token=wrapper-secret", root);
+
+		SafeLogEvent event = SafeLogEvent.unexpectedHttpDiagnostic(NOW, "req-diagnostic", wrapper);
+
+		assertThat(event.fields()).containsOnly(
+				Map.entry("requestId", "req-diagnostic"),
+				Map.entry("operation", "http.request"),
+				Map.entry("errorType", "IllegalStateException"),
+				Map.entry(
+						"stackLocation",
+						"org.mepcity.kursplatform.org.infrastructure.persistence.JdbcOrganizationRepository#list:123"));
+		assertThat(event.fields().toString())
+				.doesNotContain("secret-value", "wrapper-secret", "SQL", "payload", "org.postgresql");
+	}
+
+	@Test
+	void unexpectedHttpDiagnosticFallsBackWhenRootTypeOrStackIsNotAllowListed() {
+		RuntimeException anonymousRoot = new RuntimeException("payload=secret") {};
+		anonymousRoot.setStackTrace(new StackTraceElement[] {
+			new StackTraceElement("org.postgresql.Driver", "connect", "Driver.java", 10)
+		});
+
+		SafeLogEvent event = SafeLogEvent.unexpectedHttpDiagnostic(NOW, "req-fallback", anonymousRoot);
+
+		assertThat(event.fields())
+				.containsEntry("errorType", "Throwable")
+				.containsEntry("stackLocation", "unavailable");
+		assertThat(event.fields().toString()).doesNotContain("secret", "org.postgresql");
+	}
+
+	@Test
 	void emptyErrorTypeIsRejected() {
 		RuntimeException anonymousError = new RuntimeException("sensitive") {};
 
