@@ -1,8 +1,11 @@
 package org.mepcity.kursplatform.org.api;
 
+import java.time.Instant;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
-import java.util.regex.Pattern;
+import org.mepcity.kursplatform.core.observability.SafeEventLogger;
+import org.mepcity.kursplatform.core.observability.SafeLogEvent;
 import org.mepcity.kursplatform.org.application.ForbiddenException;
 import org.mepcity.kursplatform.org.application.IdempotencyKeyReusedException;
 import org.mepcity.kursplatform.org.application.IdempotencyPendingException;
@@ -17,15 +20,15 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @RestControllerAdvice(assignableTypes = OrganizationController.class)
 @org.springframework.core.annotation.Order(org.springframework.core.Ordered.HIGHEST_PRECEDENCE)
 class OrganizationExceptionHandler {
-    private static final Logger LOG = LoggerFactory.getLogger("kurs-platform.observability");
-    private static final Pattern SAFE_ERROR_TYPE = Pattern.compile("[A-Za-z_$][A-Za-z0-9_$]{0,127}");
-    private static final Pattern SAFE_STACK_PART = Pattern.compile("[A-Za-z_$][A-Za-z0-9_.$]{0,255}");
+    private final SafeEventLogger eventLogger;
+
+    OrganizationExceptionHandler(SafeEventLogger eventLogger) {
+        this.eventLogger = Objects.requireNonNull(eventLogger, "eventLogger is required");
+    }
 
     @ExceptionHandler(OrganizationApiException.class)
     ResponseEntity<Map<String, Object>> api(OrganizationApiException exception) {
@@ -99,41 +102,26 @@ class OrganizationExceptionHandler {
     @ExceptionHandler(Exception.class)
     ResponseEntity<Map<String, Object>> unexpected(Exception exception) {
         String requestId = requestId();
-        LOG.error(
-                "organization.request.unexpected requestId={} errorType={} stackLocation={}",
-                requestId,
-                safeErrorType(exception),
-                safeStackLocation(exception));
-        return response(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "İşlem tamamlanamadı.");
+        logUnexpectedBestEffort(requestId, exception);
+        return response(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "İşlem tamamlanamadı.", requestId);
     }
 
     private static ResponseEntity<Map<String, Object>> response(HttpStatus status, String code, String message) {
-        return ResponseEntity.status(status).body(Map.of("error", Map.of("code", code, "message", message, "requestId", requestId())));
+        return response(status, code, message, requestId());
     }
 
-    static String safeErrorType(Throwable error) {
-        Throwable root = rootCause(error);
-        String type = root.getClass().getSimpleName();
-        return SAFE_ERROR_TYPE.matcher(type).matches() ? type : "Throwable";
-    }
-
-    static String safeStackLocation(Throwable error) {
-        for (StackTraceElement frame : rootCause(error).getStackTrace()) {
-            if (frame.getClassName().startsWith("org.mepcity.kursplatform.")
-                    && SAFE_STACK_PART.matcher(frame.getClassName()).matches()
-                    && SAFE_STACK_PART.matcher(frame.getMethodName()).matches()) {
-                return frame.getClassName() + "#" + frame.getMethodName() + ":" + Math.max(0, frame.getLineNumber());
-            }
+    private void logUnexpectedBestEffort(String requestId, Exception exception) {
+        try {
+            eventLogger.log(SafeLogEvent.unexpectedHttpDiagnostic(Instant.now(), requestId, exception));
+        } catch (RuntimeException ignored) {
+            // Telemetry cannot change the safe HTTP response. JVM fatal Error types remain visible.
         }
-        return "unavailable";
     }
 
-    private static Throwable rootCause(Throwable error) {
-        Throwable current = error;
-        for (int depth = 0; depth < 16 && current.getCause() != null && current.getCause() != current; depth++) {
-            current = current.getCause();
-        }
-        return current;
+    private static ResponseEntity<Map<String, Object>> response(
+            HttpStatus status, String code, String message, String requestId) {
+        return ResponseEntity.status(status)
+                .body(Map.of("error", Map.of("code", code, "message", message, "requestId", requestId)));
     }
 
     private static String requestId() {

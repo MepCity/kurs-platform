@@ -11,6 +11,8 @@ public final class SafeLogEvent {
 
 	private static final Pattern REQUEST_ID = Pattern.compile("[A-Za-z0-9._:-]{1,128}");
 	private static final Pattern ERROR_TYPE = Pattern.compile("[A-Za-z_$][A-Za-z0-9_.$]{0,127}");
+	private static final Pattern STACK_PART = Pattern.compile("[A-Za-z_$][A-Za-z0-9_.$]{0,255}");
+	private static final String APPLICATION_PACKAGE = "org.mepcity.kursplatform.";
 	private static final Pattern ROUTE_PATTERN = Pattern.compile("/[A-Za-z0-9._~!$&'()*+,;=:@/{}`*\\[\\]-]{0,255}");
 
 	private final String name;
@@ -77,6 +79,23 @@ public final class SafeLogEvent {
 				occurredAt, requestId, operation, error, SafeLogSeverity.ERROR);
 	}
 
+	/** Unexpected HTTP diagnostic restricted to root type and an application-owned frame. */
+	public static SafeLogEvent unexpectedHttpDiagnostic(
+			Instant occurredAt, String requestId, Throwable error) {
+		validateRequestId(requestId);
+		Throwable root = rootCause(Objects.requireNonNull(error, "error is required"));
+		String errorType = diagnosticErrorType(root);
+		return new SafeLogEvent(
+				"application.error.unexpected",
+				SafeLogSeverity.ERROR,
+				occurredAt,
+				Map.of(
+						"requestId", requestId,
+						"operation", SafeLogOperation.HTTP_REQUEST.value(),
+						"errorType", errorType,
+						"stackLocation", applicationStackLocation(root)));
+	}
+
 	public static SafeLogEvent fatalApplicationError(
 			Instant occurredAt, String requestId, SafeLogOperation operation, Throwable error) {
 		return applicationError(
@@ -109,14 +128,45 @@ public final class SafeLogEvent {
 		validateRequestId(requestId);
 		Objects.requireNonNull(operation, "operation is required");
 		Objects.requireNonNull(error, "error is required");
-		String errorType = error.getClass().getSimpleName();
-		if (!ERROR_TYPE.matcher(errorType).matches()) {
-			throw new IllegalArgumentException("Invalid errorType");
-		}
+		String errorType = validateErrorType(error.getClass().getSimpleName());
 		return new SafeLogEvent("application.error.unexpected", severity, occurredAt, Map.of(
 				"requestId", requestId,
 				"operation", operation.value(),
 				"errorType", errorType));
+	}
+
+	private static String validateErrorType(String errorType) {
+		if (!ERROR_TYPE.matcher(errorType).matches()) {
+			throw new IllegalArgumentException("Invalid errorType");
+		}
+		return errorType;
+	}
+
+	private static String diagnosticErrorType(Throwable error) {
+		String errorType = error.getClass().getSimpleName();
+		return ERROR_TYPE.matcher(errorType).matches() ? errorType : "Throwable";
+	}
+
+	private static String applicationStackLocation(Throwable error) {
+		for (StackTraceElement frame : error.getStackTrace()) {
+			if (frame.getClassName().startsWith(APPLICATION_PACKAGE)
+					&& STACK_PART.matcher(frame.getClassName()).matches()
+					&& STACK_PART.matcher(frame.getMethodName()).matches()) {
+				return frame.getClassName() + "#" + frame.getMethodName() + ":"
+						+ Math.max(0, frame.getLineNumber());
+			}
+		}
+		return "unavailable";
+	}
+
+	private static Throwable rootCause(Throwable error) {
+		Throwable current = error;
+		for (int depth = 0;
+				depth < 16 && current.getCause() != null && current.getCause() != current;
+				depth++) {
+			current = current.getCause();
+		}
+		return current;
 	}
 
 	private static SafeLogSeverity severityForHttpStatus(int status) {
